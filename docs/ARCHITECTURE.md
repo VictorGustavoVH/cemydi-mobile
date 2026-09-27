@@ -25,7 +25,7 @@ cemydi-mobile/
 
 No existen todavía features funcionales, contratos de dominio ni tests. La foundation incluye transporte HTTP sin autenticación, configuración de TanStack Query y componentes base; que otras dependencias estén instaladas no significa que ya tengan una implementación.
 
-La pantalla actual es demostrativa: no consume el backend ni implementa navegación funcional.
+La pantalla actual incluye una verificación manual de conectividad que consume el endpoint público `GET /` mediante el cliente HTTP compartido. Todavía no implementa navegación funcional ni flujos de negocio.
 
 ## Arquitectura global confirmada
 
