@@ -88,6 +88,12 @@ Las features se crean de forma incremental fuera de `src/app`. El flujo preferid
 
 ## Flujo Git
 
-La estrategia documentada es `feature/* → develop → main`. El repositorio todavía requiere una decisión explícita para crear y adoptar la rama `develop`; consulta `docs/GIT_WORKFLOW.md` antes de abrir una rama o PR.
+El flujo vigente es `feature/* → develop → main`:
 
-Antes de un PR ejecuta `npm run check` y `npx --yes expo-doctor`. Incluye evidencia para cambios visuales, confirma contratos contra el backend y actualiza documentación cuando cambie una decisión, arquitectura o contrato.
+- `main` se reserva para versiones estables y validadas;
+- `develop` es la rama de integración;
+- `feature/*` se usa para desarrollar cambios aislados a partir de `develop`;
+- los cambios regresan a `develop` mediante Pull Request;
+- las funcionalidades no se desarrollan directamente sobre `main`.
+
+Antes de abrir un Pull Request ejecuta las verificaciones de calidad del proyecto: `npm run check` y `npx --yes expo-doctor`. Incluye evidencia para cambios visuales, confirma contratos contra el backend y actualiza documentación cuando cambie una decisión, arquitectura o contrato.

@@ -40,6 +40,24 @@ La decisión entre cookies y tokens para móvil sigue pendiente. Consulta `AUTHE
 
 ## Contratos confirmados
 
+### Verificación inicial de conectividad
+
+| Método | Ruta | Acceso  | Respuesta confirmada |
+| ------ | ---- | ------- | -------------------- |
+| GET    | `/`  | Público | `Hello World!`       |
+
+Este endpoint está definido en `AppController` y su respuesta en `AppService`. La app lo usa exclusivamente como una verificación manual, segura y sin efectos secundarios de la conexión inicial; no representa un contrato de salud operativa ni agrega lógica de negocio al cliente.
+
+Para comprobar TK-08 desde la app:
+
+1. configura `EXPO_PUBLIC_API_URL` con una URL alcanzable del backend y ejecuta `npm run start`;
+2. abre la pantalla inicial y pulsa **Probar conexión**;
+3. confirma que aparece el estado exitoso y la respuesta validada `Hello World!`;
+4. detén el backend o configura temporalmente una URL/puerto sin servicio, reinicia Expo y repite la acción para comprobar el estado de error;
+5. restaura la URL correcta antes de continuar el desarrollo.
+
+La verificación usa `httpClient`, lee la base desde `env.apiUrl`, valida la respuesta con Zod y no registra ni almacena secretos. No se agregó un framework de pruebas porque el proyecto todavía no tiene uno configurado.
+
 ### Autenticación y recuperación
 
 | Método | Ruta                                    | Body confirmado                   | Comportamiento                                        |

@@ -1,14 +1,12 @@
 # Flujo Git y gestión del trabajo
 
-## Estrategia objetivo
+## Estrategia vigente
 
 ```text
-main
-develop
-feature/*
+feature/* → develop → main
 ```
 
-Estado auditado: el repositorio móvil está en `main` y no se observó una rama local `develop`. La adopción inicial de `develop` requiere una decisión y acción explícita; esta documentación no crea ramas.
+La rama `develop` existe y es la rama de integración utilizada por el proyecto.
 
 ## Flujo de una tarea
 
@@ -27,11 +25,11 @@ flowchart LR
 
 ## Ramas
 
-- `main`: releases validadas.
-- `develop`: integración de trabajo aprobado.
-- `feature/<descripcion-corta>`: una tarea o cambio coherente, creada desde `develop`.
+- `main`: versiones estables y validadas.
+- `develop`: integración de funcionalidades terminadas.
+- `feature/<descripcion-corta>`: desarrollo aislado de una tarea o cambio coherente, creado desde `develop`.
 
-No desarrolles features ordinarias directamente en `main`. No mezcles refactors no relacionados en una rama de feature.
+Las ramas `feature/*` se integran de regreso a `develop` mediante Pull Request. `main` no se usa para desarrollo ordinario. No mezcles refactors no relacionados en una rama de feature.
 
 ## Commits
 

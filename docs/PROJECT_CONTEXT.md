@@ -88,8 +88,8 @@ No inventes endpoints, DTOs, roles, permisos, campos de respuesta ni estados.
 - NativeWind 4 sobre Tailwind CSS 3.
 - Color `brand` actual: `#258e8b`.
 - No existen `ios/` ni `android/`; se usa Continuous Native Generation.
-- Existen configuración validada de entorno, cliente HTTP base sin autenticación, provider de TanStack Query, conectividad, tokens y UI compartida. Todavía no existen features funcionales ni pruebas.
-- El repositorio móvil está actualmente en `main` y no tiene una rama local `develop` observada.
+- Existen configuración validada de entorno, cliente HTTP base sin autenticación, provider de TanStack Query, conectividad, tokens y UI compartida. La pantalla inicial incorpora una verificación manual de conexión; todavía no existen flujos de negocio ni un framework de pruebas.
+- El repositorio móvil usa `develop` como rama de integración y conserva `main` para versiones estables y validadas.
 - `npm run lint`, `npm run typecheck` y `npm run format:check` pasan correctamente.
 
 ## Decisiones pendientes
