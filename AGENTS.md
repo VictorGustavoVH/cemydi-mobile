@@ -1,41 +1,63 @@
-This is an Expo/React Native mobile application. Prioritize mobile-first patterns, performance, and cross-platform compatibility.
+# CEMYDI Mobile — instrucciones para agentes
 
-## Expo has changed — do not trust your training data
+## Project
 
-Expo ships breaking changes every SDK release. APIs you remember are likely renamed, moved, or removed. Before writing any code that touches an Expo, EAS, or React Native API:
+Cliente móvil Expo/React Native de CEMYDI para clientes. El backend existente es la fuente de verdad; el panel administrativo permanece en la web.
 
-1. Read the major version of the `expo` package in `package.json`.
-2. Fetch the matching versioned docs: `https://docs.expo.dev/versions/v<major>.0.0/`
-3. For anything else, fetch https://docs.expo.dev/llms.txt — an index of all Expo docs with corrections to common LLM misconceptions. Follow its links to the specific page you need; never answer from memory.
+## Stack
 
-## Commands
+Expo 57, Expo Router, React Native 0.86, React 19, TypeScript estricto, NativeWind 4/Tailwind 3, TanStack Query 5, React Hook Form y Zod 4. Usa npm.
 
-Use `bunx` instead of `npx` if the project uses bun (`bun.lock` present).
+## Mandatory reading
+
+- Contexto o alcance: `docs/PROJECT_CONTEXT.md`.
+- Estructura o capas: `docs/ARCHITECTURE.md`.
+- Endpoints o datos: `docs/API_INTEGRATION.md`.
+- Sesión o rutas protegidas: `docs/AUTHENTICATION.md`.
+- UI: `docs/DESIGN_SYSTEM.md`.
+- Código nuevo: `docs/CONVENTIONS.md`.
+- Ramas, PRs o releases: `docs/GIT_WORKFLOW.md`.
+- Pruebas: `docs/TESTING.md`.
+- Proceso completo: `docs/AI_WORKFLOW.md`.
+
+Antes de implementar, busca una skill aplicable en `.agents/skills/` y lee su `SKILL.md` completo.
+
+## Architecture
+
+- `src/app` contiene solo rutas y layouts de Expo Router.
+- Código no-ruta vive fuera de `src/app` y se organiza por feature cuando exista.
+- Flujo preferido: screen → hook/query → service → API.
+- No crees carpetas o abstracciones vacías.
+
+## Core rules
+
+- No invent endpoints.
+- No invent DTO fields.
+- No invent roles or permissions.
+- Do not duplicate backend business logic.
+- Validate backend contracts before implementing API integrations.
+- Do not add dependencies when the existing stack solves the problem.
+- For Expo native packages use `npx expo install`.
+- Do not use `npm audit fix --force`.
+- Keep non-route code outside `src/app`.
+- No copies secretos ni valores reales de `.env`.
+- La autenticación móvil está bloqueada: no elijas cookies o tokens sin aprobación.
+- No uses `#134e4c`; fondo principal `#FFFFFF`, marca `#258e8b`.
+
+## Expo
+
+Verifica primero la versión instalada y documentación correspondiente. Mientras no existan `ios/` y `android/`, usa CNG y configura comportamiento nativo mediante `app.json`/config plugins; no edites proyectos nativos manualmente.
+
+## Validation
 
 ```bash
-npx expo install <package>  # ALWAYS use instead of npm/yarn/pnpm/bun add — resolves SDK-compatible versions
-npx expo start              # start the dev server
-npx expo lint               # lint
-npx tsc --noEmit            # typecheck
-npx expo-doctor             # diagnose dependency and config issues
-npx expo install --fix      # fix incompatible package versions
+npm run lint
+npm run typecheck
+npm run format:check
 ```
 
-Run lint and typecheck before declaring any task done.
+`npm run format:check` pasa correctamente. Ejecuta tests cuando el proyecto tenga framework configurado.
 
-## Navigation & Routing
+## Done
 
-- Use **Expo Router** for all navigation. Routes live in `src/app/` — every file there is a screen, `_layout.tsx` files define navigators. Keep non-route code (components, hooks, utils) outside `src/app/`.
-- Import `Link`, `router`, and `useLocalSearchParams` from `expo-router`.
-- Docs: https://docs.expo.dev/router/introduction.md
-
-## Building with EAS
-
-Use EAS to build, sign, and submit the app in the cloud (`eas build`, `eas submit`) and to ship over-the-air updates (`eas update`) — no local Xcode or Android Studio required. Run EAS CLI as `bunx eas-cli <command>` in Bun projects, or `npx eas-cli@latest <command>` otherwise; substitute that for bare `eas` in docs examples.
-Docs: https://docs.expo.dev/eas/index.md
-
-## Rules
-
-- If `ios/` and `android/` directories do not exist, they are generated (Continuous Native Generation). Never create or edit them by hand — configure native behavior in `app.json` and config plugins.
-- Expo Go only includes its bundled native modules. After adding a library with native code, the app needs a development build: `npx expo run:ios|android` locally, or `eas build --profile development`.
-- Prefer recommended Expo modules over third-party libraries, and check your available skills before adding dependencies. Docs: https://docs.expo.dev/versions/latest/index.md
+Una tarea está Done cuando cumple aceptación, contratos confirmados, validación aplicable, estados loading/empty/error/offline, accesibilidad, Android/iOS según riesgo y documentación actualizada. Compilar por sí solo no basta.
