@@ -14,6 +14,10 @@ cemydi-mobile/
 │   ├── services/http/
 │   └── theme/
 ├── assets/
+│   ├── branding/              # Variantes del logotipo y emblema
+│   ├── icons/                 # Iconos activos de la aplicación
+│   ├── images/onboarding/     # Imágenes de la bienvenida
+│   └── legacy/expo-template/  # Recursos anteriores sin referencias activas
 ├── .agents/skills/
 ├── app.json
 ├── babel.config.js
@@ -25,7 +29,7 @@ cemydi-mobile/
 
 No existen todavía features funcionales, contratos de dominio ni tests. La foundation incluye transporte HTTP sin autenticación, configuración de TanStack Query y componentes base; que otras dependencias estén instaladas no significa que ya tengan una implementación.
 
-La pantalla actual incluye una verificación manual de conectividad que consume el endpoint público `GET /` mediante el cliente HTTP compartido. Todavía no implementa navegación funcional ni flujos de negocio.
+La ruta inicial presenta tres pantallas de bienvenida con imágenes locales y conduce a `/inicio`. Inicio compone `features/home/HomeScreen`: banner rotativo, categorías horizontales y catálogo con búsqueda y filtros locales. Los datos e imágenes son mocks explícitos, sin integración de negocio. Los componentes y el hook de reproducción viven dentro de `features/home`; `home-mocks.ts` no representa un contrato del backend. La verificación manual de conectividad que consume `GET /` se conserva en `/diagnostico`.
 
 ## Arquitectura global confirmada
 

@@ -38,7 +38,8 @@ EXPO_PUBLIC_APP_ENV=development
 - `staging` debe usar su propia URL desplegada.
 - `production` debe usar su propia URL HTTPS.
 - `localhost` en un dispositivo físico apunta al propio dispositivo, no a la computadora de desarrollo.
-- Todo valor `EXPO_PUBLIC_*` forma parte del bundle y no puede contener secretos.
+
+> **Regla de seguridad:** `EXPO_PUBLIC_*` se empaqueta en el bundle de la app y es legible para cualquiera. Nunca pongas ahí claves, tokens, contraseñas ni ningún secreto; solo configuración pública.
 
 ## Ejecución
 
@@ -56,21 +57,38 @@ El script web heredado todavía requiere `react-native-web`; el soporte web no f
 npm run typecheck
 npm run lint
 npm run format:check
+npm test
 npm run check
 npx --yes expo-doctor
 ```
 
+Hay pre-commit con `lint-staged` (Husky) que ejecuta ESLint y Prettier sobre los archivos modificados, y un workflow de GitHub Actions (`.github/workflows/quality.yml`) que corre typecheck, lint, tests y format check en cada PR.
+
 ## Estructura resumida
 
 ```text
+assets/
+├── branding/     # Logotipos y emblema de CEMYDI
+├── icons/        # Icono de aplicación y favicon activos
+├── images/       # Imágenes agrupadas por experiencia
+└── legacy/       # Recursos anteriores conservados, no activos
+
 src/
 ├── app/          # Rutas y layouts de Expo Router
-├── components/   # UI compartida
+├── components/   # UI compartida (incluye ErrorBoundary y estados comunes)
 ├── config/       # Configuración validada de entorno
+├── features/     # Features por dominio (home, onboarding)
+├── hooks/        # Hooks compartidos (p. ej. useNetworkStatus)
 ├── providers/    # Providers globales pequeños
 ├── services/     # Infraestructura y acceso HTTP
 └── theme/        # Tokens visuales compartidos
 ```
+
+## Estado actual
+
+- La app funciona con **mocks**: `HomeScreen` consume `useHome` → `homeServiceMock` (`src/features/home/services/homeService.mock.ts`).
+- **Pendiente para cuando exista backend:** crear `homeService.api.ts` con la misma interfaz `HomeService`, cambiar el hook `useHome`, integrar autenticación, `expo-secure-store` para tokens y certificate pinning.
+- Las pruebas unitarias/componentes ya están configuradas con Jest + React Native Testing Library; ver [TESTING.md](docs/TESTING.md).
 
 Las features se crean de forma incremental fuera de `src/app`. El flujo preferido es `screen → hook/query → service → API`.
 
