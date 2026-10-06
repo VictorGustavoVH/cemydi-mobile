@@ -12,7 +12,7 @@ colors: {
 
 La foundation incluye tokens semánticos mínimos en `src/theme`, su equivalencia para NativeWind y componentes base en `src/components/ui`.
 
-La pantalla demostrativa usa el nombre `CEMYDI Mobile`, fondo `#FFFFFF` y los tokens compartidos. No representa todavía una feature funcional.
+La bienvenida usa fotografías, el logo horizontal de la web, fondo `#FFFFFF` y los tokens compartidos. Sus tres pantallas presentan la marca antes de `/inicio`; no representan todavía una feature de negocio funcional.
 
 La web puede servir como referencia de jerarquía e identidad, no como layout para copiar. En particular, `#134e4c` existe en la web, pero está prohibido en el móvil.
 
@@ -78,7 +78,7 @@ Usa una escala consistente basada principalmente en múltiplos de 4:
 
 ## Typography
 
-Hasta que se aprueben fuentes personalizadas, usa la tipografía del sistema. Si se agregan fuentes, deben configurarse mediante Expo y probarse en ambas plataformas.
+La tipografía oficial de la aplicación móvil es **Inter** (`@expo-google-fonts/inter`), precargada en el root layout mediante `useFonts` y `expo-splash-screen`. En Tailwind CSS se exponen las utilidades `font-sans`, `font-sans-medium`, `font-sans-semibold` y `font-sans-bold`.
 
 Jerarquía objetivo:
 
@@ -96,6 +96,17 @@ No uses tamaños demasiado pequeños para información necesaria. Permite escala
 - Reserva formas totalmente redondas para icon buttons, avatares y badges apropiados.
 - Prefiere borde sutil a sombras fuertes.
 - Las sombras deben probarse en Android e iOS; no dependas solo de propiedades específicas de una plataforma.
+
+## Iconografía
+
+La iconografía del cliente móvil se basa de manera exclusiva en **`lucide-react-native`**:
+
+- Prohibido el uso de caracteres tipográficos o flechas de texto (`→`, `←`, etc.).
+- Importación directa obligatoria: importar siempre cada icono desde su ruta específica (ej. `import ArrowRight from 'lucide-react-native/icons/arrow-right'`), nunca desde el barrel general para evitar fallos de resolución en Metro y sobrepeso en el bundle.
+- Los iconos no tienen un color fijo: se definen dinámicamente de acuerdo a la situación (superficie, variante del componente contenedor y jerarquía visual), consumiendo los tokens semánticos de `src/theme/colors.ts`.
+- Tamaños estándar: 16 (compacto/tags), 20 (botones/listas/inputs) y 24 (navegación/acciones principales).
+- `strokeWidth`: estándar en 2.
+- Ocultar a lectores de pantalla cuando acompañen a un texto accesible.
 
 ## Componentes base objetivo
 
