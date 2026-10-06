@@ -51,7 +51,7 @@ Este endpoint está definido en `AppController` y su respuesta en `AppService`. 
 Para comprobar TK-08 desde la app:
 
 1. configura `EXPO_PUBLIC_API_URL` con una URL alcanzable del backend y ejecuta `npm run start`;
-2. abre la pantalla inicial y pulsa **Probar conexión**;
+2. abre `/diagnostico` y pulsa **Probar conexión** (en Expo Go, usa `exp://HOST:PUERTO/--/diagnostico`);
 3. confirma que aparece el estado exitoso y la respuesta validada `Hello World!`;
 4. detén el backend o configura temporalmente una URL/puerto sin servicio, reinicia Expo y repite la acción para comprobar el estado de error;
 5. restaura la URL correcta antes de continuar el desarrollo.

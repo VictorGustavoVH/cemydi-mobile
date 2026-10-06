@@ -2,16 +2,14 @@
 
 ## Estado actual
 
-No existe framework de testing móvil configurado. No hay Jest, React Native Testing Library, Maestro, Detox ni scripts de test en `package.json`.
+Jest + React Native Testing Library están configurados con `jest-expo`:
 
-Baseline auditado:
+- `jest.config.js` con preset `jest-expo`, alias `@/` y transform de `lucide-react-native`;
+- `jest.setup.ts` con mock manual de Reanimated y flag de act environment;
+- tests de hooks y componentes en features: `useHome` (`src/features/home/hooks/__tests__/`), `HomeScreen` (`src/features/home/__tests__/`), `ProductDetailScreen` (`src/features/products/__tests__/`) y `CartPreviewScreen` (`src/features/cart/__tests__/`);
+- script `npm test` disponible y ejecutado en CI (`.github/workflows/quality.yml`).
 
-- `npm run lint`: pasa;
-- `npm run typecheck`: pasa;
-- `npm run format:check`: pasa;
-- `npx --yes expo-doctor`: 21/21 checks pasan después de configurar la foundation compartida.
-
-No presentes pruebas móviles como disponibles hasta que el equipo elija e instale el stack.
+Maestro/Detox para E2E sigue pendiente.
 
 ## Propuesta de pirámide
 
@@ -159,16 +157,12 @@ Validar al menos:
 - tema light actual;
 - tablet solo si se confirma soporte formal.
 
-## Stack pendiente
+## Herramientas pendientes
 
-Propuesta inicial:
+Pendiente de evaluación e integración:
 
-- Jest mediante `jest-expo`;
-- React Native Testing Library;
-- Mock Service Worker o mocks de `fetch` compatibles, tras evaluar el runtime;
-- Maestro o Detox para E2E.
-
-No instalar hasta que el equipo confirme la estrategia y su integración con Expo SDK 57.
+- Mock Service Worker o mocks de `fetch` compatibles para pruebas de integración de red;
+- Maestro o Detox para E2E (evaluar tras definir builds de desarrollo y CI).
 
 ## Comandos objetivo
 
@@ -178,6 +172,7 @@ Los comandos actuales obligatorios son:
 npm run lint
 npm run typecheck
 npm run format:check
+npm test
 ```
 
-Cuando exista framework, agregar scripts de test documentados. Para paquetes Expo nativos usa `npx expo install`.
+Para paquetes Expo nativos usa `npx expo install`.

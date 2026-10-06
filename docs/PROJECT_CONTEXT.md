@@ -42,7 +42,7 @@ Sus implementaciones dependientes de Next.js, SSR, DOM, cookies del navegador, `
 
 ### Aplicación móvil
 
-El móvil es un cliente nuevo e independiente. Contiene el root layout de Expo Router, una pantalla inicial demostrativa y foundation compartida para entorno, HTTP, estado remoto, conectividad, theme y UI base. React Hook Form y Zod están instalados, pero todavía no tienen consumidores funcionales.
+El móvil es un cliente nuevo e independiente. Contiene el root layout de Expo Router, una bienvenida de tres pantallas, una ruta demostrativa en `/inicio` y foundation compartida para entorno, HTTP, estado remoto, conectividad, theme y UI base. React Hook Form y Zod están instalados, pero todavía no tienen consumidores funcionales.
 
 ## Alcance móvil previsto
 
@@ -88,9 +88,9 @@ No inventes endpoints, DTOs, roles, permisos, campos de respuesta ni estados.
 - NativeWind 4 sobre Tailwind CSS 3.
 - Color `brand` actual: `#258e8b`.
 - No existen `ios/` ni `android/`; se usa Continuous Native Generation.
-- Existen configuración validada de entorno, cliente HTTP base sin autenticación, provider de TanStack Query, conectividad, tokens y UI compartida. La pantalla inicial incorpora una verificación manual de conexión; todavía no existen flujos de negocio ni un framework de pruebas.
+- Existen configuración validada de entorno, cliente HTTP base sin autenticación, provider de TanStack Query, conectividad, tokens y UI compartida. La ruta inicial muestra tres pantallas de bienvenida; `/inicio` presenta el catálogo visual con datos e imágenes mock, banner rotativo y categorías deslizables. `/diagnostico` conserva la verificación manual de conexión. Todavía no existen flujos de negocio conectados; el framework de pruebas unitarias y de componentes (Jest y React Native Testing Library con `jest-expo`) ya se encuentra configurado.
 - El repositorio móvil usa `develop` como rama de integración y conserva `main` para versiones estables y validadas.
-- `npm run lint`, `npm run typecheck` y `npm run format:check` pasan correctamente.
+- `npm run lint`, `npm run typecheck`, `npm run format:check` y `npm test` pasan correctamente.
 
 ## Decisiones pendientes
 
@@ -102,6 +102,6 @@ No inventes endpoints, DTOs, roles, permisos, campos de respuesta ni estados.
 - significado del carrito de venta sin checkout actual;
 - carrito invitado o exclusivamente autenticado;
 - soporte formal de tablet;
-- stack de testing móvil y herramienta E2E;
+- herramienta y estrategia de testing E2E (Maestro o Detox);
 - política offline y descarga/visualización de documentos;
 - identificadores nativos y configuración EAS.

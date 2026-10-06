@@ -12,7 +12,7 @@ Busca una skill aplicable en `.agents/skills` y lee su `SKILL.md` completo. Usa 
 
 ### 3. Estudiar código existente
 
-Localiza rutas, componentes, hooks, services, schemas, tipos, providers y pruebas relacionados. No asumas que la estructura objetivo ya existe.
+Localiza rutas, componentes, hooks, services, schemas, tipos, providers y pruebas relacionados. Inspecciona `src/components/ui/` y features para verificar componentes existentes antes de proponer o crear nuevos. No asumas que la estructura objetivo ya existe.
 
 ### 4. Verificar el backend
 
@@ -32,6 +32,8 @@ Explicita comportamiento, archivos, estados de UI, caché, accesibilidad, plataf
 ### 6. Implementar
 
 - mantiene rutas delgadas;
+- reutiliza componentes existentes (`src/components/ui/`) en vez de crear duplicados o usar primitivas crudas de React Native;
+- si crea un componente nuevo, verifica previamente que no exista, define props explícitas tipadas, estados y accesibilidad;
 - usa services y schemas del dominio;
 - no duplica reglas del backend;
 - no crea carpetas o abstracciones vacías;

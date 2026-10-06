@@ -42,9 +42,12 @@ Coloca código específico dentro de su feature. Promuévelo a `components`, `se
 
 ## Componentes
 
-- Props pequeñas y explícitas.
+- **Verificación previa obligatoria**: Antes de codificar UI o crear un nuevo componente, inspecciona siempre los componentes existentes en `src/components/ui` y en features relevantes.
+- Reutiliza componentes base (`AppButton`, `AppInput`, `AppScreen`, `LoadingState`, etc.) en lugar de implementar primitivas crudas de React Native (`Pressable`, `TextInput`, `ActivityIndicator`).
+- Si un componente ya existe, verifica su contrato y props para reutilizarlo o extenderlo limpiamente.
+- Si creas un nuevo componente, verifica que no exista uno equivalente para no duplicar código; define props tipadas explícitas, estados (loading, pressed, disabled, error) y accesibilidad.
+- Ubicación: componentes reutilizables transversales en `src/components/ui/`; componentes propios de un flujo en `src/features/<feature>/components/`.
 - Presentación separada de acceso a datos cuando mejore testabilidad.
-- Incluye estados pressed, disabled, loading y accesibilidad.
 - No anides cards o wrappers sin una responsabilidad clara.
 - Extrae un componente cuando reduzca duplicación o complejidad real, no por número de líneas.
 

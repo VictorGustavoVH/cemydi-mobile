@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "cemydi-mobile",
+    "name": "Ortopedia CEMYDI",
     "slug": "cemydi-mobile",
     "scheme": "cemydi",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/icons/app-icon.png",
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true
@@ -13,18 +13,37 @@
     "experiments": {
       "typedRoutes": true
     },
+    "androidStatusBar": {
+      "barStyle": "dark-content",
+      "backgroundColor": "#FFFFFF",
+      "translucent": true
+    },
     "android": {
+      "icon": "./assets/icons/android-adaptive-foreground.png",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "backgroundColor": "#FFFFFF",
+        "foregroundImage": "./assets/icons/android-adaptive-foreground.png",
+        "monochromeImage": "./assets/icons/android-monochrome.png"
       },
       "predictiveBackGestureEnabled": false
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/icons/favicon.png"
     },
-    "plugins": ["expo-router", "expo-status-bar"]
+    "plugins": [
+      "expo-router",
+      "expo-status-bar",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#FFFFFF",
+          "image": "./assets/icons/splash-icon.png",
+          "imageWidth": 192,
+          "resizeMode": "contain"
+        }
+      ],
+      "expo-font",
+      "expo-image"
+    ]
   }
 }
