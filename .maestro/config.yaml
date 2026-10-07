@@ -1,0 +1,4 @@
+flows:
+  - catalog.yaml
+  - product-detail.yaml
+  - cart.yaml

@@ -38,15 +38,16 @@ function getOnlineState(state: Network.NetworkState): boolean {
 
 function configureOnlineManager(): void {
   onlineManager.setEventListener((setOnline) => {
+    let active = true;
     let initialized = false;
     const subscription = Network.addNetworkStateListener((state) => {
       initialized = true;
-      setOnline(getOnlineState(state));
+      if (active) setOnline(getOnlineState(state));
     });
 
     void Network.getNetworkStateAsync()
       .then((state) => {
-        if (!initialized) {
+        if (active && !initialized) {
           setOnline(getOnlineState(state));
         }
       })
@@ -54,7 +55,10 @@ function configureOnlineManager(): void {
         // Un estado desconocido no debe marcar al dispositivo como offline.
       });
 
-    return () => subscription.remove();
+    return () => {
+      active = false;
+      subscription.remove();
+    };
   });
 }
 

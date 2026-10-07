@@ -1,5 +1,16 @@
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
+// Every network test must explicitly provide its own response.
+beforeEach(() => {
+  jest
+    .spyOn(globalThis, 'fetch')
+    .mockRejectedValue(new Error('Fetch sin mock explícito en un test.'));
+});
+
+afterEach(() => {
+  jest.restoreAllMocks();
+});
+
 // Mock manual de Reanimated: el mock oficial requiere módulos nativos
 // (react-native-worklets) que no existen en Jest.
 /* eslint-disable @typescript-eslint/no-require-imports */

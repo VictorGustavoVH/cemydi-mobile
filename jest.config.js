@@ -1,5 +1,7 @@
-module.exports = {
+const shared = {
+  roots: ['<rootDir>/src', '<rootDir>/tests'],
   preset: 'jest-expo',
+  setupFiles: ['<rootDir>/jest.env.js'],
   setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
@@ -13,4 +15,21 @@ module.exports = {
     '/node_modules/react-native-reanimated/plugin/',
   ],
   testPathIgnorePatterns: ['/node_modules/'],
+  clearMocks: true,
+};
+
+module.exports = {
+  maxWorkers: 2,
+  projects: [
+    {
+      ...shared,
+      displayName: 'unit',
+      testMatch: ['<rootDir>/src/**/*.test.[jt]s?(x)'],
+    },
+    {
+      ...shared,
+      displayName: 'integration',
+      testMatch: ['<rootDir>/tests/integration/**/*.test.[jt]s?(x)'],
+    },
+  ],
 };
