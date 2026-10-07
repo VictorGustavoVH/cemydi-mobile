@@ -1,0 +1,7 @@
+# Keep formatting consistent on Windows and CI, even with core.autocrlf=true.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.ttf binary

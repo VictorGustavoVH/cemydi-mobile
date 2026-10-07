@@ -4,3 +4,6 @@ dist/
 web-build/
 .agents/
 package-lock.json
+coverage/
+test-results/
+.tools/

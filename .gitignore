@@ -41,3 +41,8 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Test reports and locally installed test tools
+coverage/
+test-results/
+.tools/

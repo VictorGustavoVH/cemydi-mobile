@@ -14,19 +14,21 @@ export function useNetworkStatus() {
 
   useEffect(() => {
     let mounted = true;
+    let receivedEvent = false;
 
     void Network.getNetworkStateAsync()
       .then((state) => {
-        if (mounted) {
+        if (mounted && !receivedEvent) {
           setIsOnline(state.isInternetReachable ?? state.isConnected ?? true);
         }
       })
       .catch(() => {
-        if (mounted) setIsOnline(true);
+        if (mounted && !receivedEvent) setIsOnline(true);
       });
 
     const subscription = Network.addNetworkStateListener((state) => {
-      setIsOnline(state.isInternetReachable ?? state.isConnected ?? true);
+      receivedEvent = true;
+      if (mounted) setIsOnline(state.isInternetReachable ?? state.isConnected ?? true);
     });
 
     return () => {
