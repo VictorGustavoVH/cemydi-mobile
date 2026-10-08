@@ -3,7 +3,7 @@ import { CartPreviewScreen } from '@/features/cart/CartPreviewScreen';
 export default function CartRoute() {
   return (
     <>
-      <Stack.Screen options={{ headerShown: false }} />
+      <Stack.Screen options={{ headerShown: false, animation: 'none' }} />
       <CartPreviewScreen />
     </>
   );

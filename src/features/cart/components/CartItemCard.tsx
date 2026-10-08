@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { Text, View, useWindowDimensions } from 'react-native';
 import Check from 'lucide-react-native/icons/check';
 import Minus from 'lucide-react-native/icons/minus';
@@ -9,7 +10,8 @@ import { AppButton } from '@/components/ui/AppButton';
 import { CatalogImage } from '@/components/ui/CatalogImage';
 import {
   PREVIEW_CART_QUANTITY_LIMIT,
-  useCatalogPreview,
+  useCatalogPreviewActions,
+  type PreviewCartItem,
 } from '@/providers/catalog-preview-provider';
 import { colors } from '@/theme';
 import {
@@ -22,12 +24,14 @@ import {
 type CartItemCardProps = CartPreviewEntry & {
   selectionMode: boolean;
   onStartSelection: () => void;
-  onRemove: () => void;
-  onConfigure: () => void;
-  onProduct: () => void;
+  index: number;
+  onRemove: (item: PreviewCartItem, index: number) => void;
+  onConfigure: (productId: string) => void;
+  onProduct: (item: PreviewCartItem) => void;
 };
-export function CartItemCard({
+export const CartItemCard = memo(function CartItemCard({
   item,
+  index,
   product,
   selectionMode,
   onStartSelection,
@@ -35,7 +39,7 @@ export function CartItemCard({
   onConfigure,
   onProduct,
 }: CartItemCardProps) {
-  const { toggleSelection, updateQuantity } = useCatalogPreview();
+  const { toggleSelection, updateQuantity } = useCatalogPreviewActions();
   const { width, fontScale } = useWindowDimensions();
   const compact = width < 390 || fontScale > 1.2 || selectionMode;
   const rental = item.mode === 'rental';
@@ -48,7 +52,7 @@ export function CartItemCard({
     </Text>
   );
   const quantityControl = (
-    <View className="flex-row items-center rounded-full border border-border/40 bg-surface">
+    <View className="flex-row items-center rounded-full bg-surface">
       <AppButton
         hideLabel
         variant="ghost"
@@ -91,7 +95,7 @@ export function CartItemCard({
   );
   function openProduct() {
     if (selectionMode) toggleSelection(item.productId, item.mode);
-    else onProduct();
+    else onProduct(item);
   }
   const selectionActions = [{ name: 'longpress', label: 'Seleccionar productos' }];
   const selectionHint = selectionMode
@@ -131,7 +135,12 @@ export function CartItemCard({
           onPress={openProduct}
           className="h-16 w-16 rounded-xl bg-surface-muted p-1.5"
         >
-          <CatalogImage source={product.image} label={product.name} compact />
+          <CatalogImage
+            source={product.image}
+            blurhash={product.imageBlurhash}
+            label={product.name}
+            compact
+          />
         </AppButton>
         <View className="flex-1">
           <View className="flex-row items-start gap-1">
@@ -159,7 +168,7 @@ export function CartItemCard({
               variant="ghost"
               className="h-11 w-11 px-0 py-0"
               label={`Eliminar ${product.name}, ${modeLabel}`}
-              onPress={onRemove}
+              onPress={() => onRemove(item, index)}
               leftIcon={<Trash aria-hidden color={colors.textSecondary} size={17} />}
             />
           </View>
@@ -181,8 +190,8 @@ export function CartItemCard({
         <AppButton
           label={`${item.rentalDraft ? 'Editar' : 'Configurar'} renta de ${product.name}`}
           variant="unstyled"
-          onPress={onConfigure}
-          className="justify-between gap-2 border-t border-border/30 pt-1"
+          onPress={() => onConfigure(item.productId)}
+          className="flex-row items-center justify-between gap-2 border-t border-border/30 pt-2"
         >
           <View className="flex-1 flex-row items-center gap-2">
             <CalendarDays aria-hidden color={colors.brandStrong} size={16} />
@@ -200,4 +209,4 @@ export function CartItemCard({
       ) : null}
     </View>
   );
-}
+});

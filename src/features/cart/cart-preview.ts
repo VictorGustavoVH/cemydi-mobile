@@ -4,7 +4,7 @@ import type { PreviewCartItem } from '@/providers/catalog-preview-provider';
 export type CartPreviewEntry = { item: PreviewCartItem; product: ProductDetailPreview };
 export function getCartEntries(items: PreviewCartItem[]): CartPreviewEntry[] {
   return items.flatMap((item) => {
-    const product = getProductPreview(item.productId);
+    const product = item.productSnapshot ?? getProductPreview(item.productId);
     return product ? [{ item, product }] : [];
   });
 }
@@ -15,7 +15,7 @@ const formatter = new Intl.NumberFormat('es-MX', {
   maximumFractionDigits: 2,
 });
 export const formatPreviewMoney = (amount: number) => `${formatter.format(amount)} MXN`;
-// Only reads the existing presentation fixtures. Never calculates a server cart total.
+// Session estimates from presentation data; never a confirmed server cart total.
 export const previewAmount = (price: string) => Number(price.replace(/[$,]/g, ''));
 export function getPreviewSummary(entries: CartPreviewEntry[]) {
   return entries
