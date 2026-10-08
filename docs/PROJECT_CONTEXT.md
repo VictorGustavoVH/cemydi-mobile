@@ -42,7 +42,7 @@ Sus implementaciones dependientes de Next.js, SSR, DOM, cookies del navegador, `
 
 ### Aplicación móvil
 
-El móvil es un cliente nuevo e independiente. Contiene el root layout de Expo Router, una bienvenida de tres pantallas, una ruta demostrativa en `/inicio` y foundation compartida para entorno, HTTP, estado remoto, conectividad, theme y UI base. React Hook Form y Zod están instalados, pero todavía no tienen consumidores funcionales.
+El móvil es un cliente nuevo e independiente. Contiene el root layout de Expo Router, una bienvenida de tres pantallas que conduce al catálogo público `/inicio` y ofrece `/login` de forma opcional, una ruta demostrativa en `/inicio` y foundation compartida para entorno, HTTP, estado remoto, conectividad, theme y UI base. Los formularios de acceso, registro y recuperación consumen React Hook Form y Zod con un servicio temporal local; no integran autenticación del backend. Ver `AUTH_PREVIEW.md`.
 
 ## Alcance móvil previsto
 
@@ -88,7 +88,7 @@ No inventes endpoints, DTOs, roles, permisos, campos de respuesta ni estados.
 - NativeWind 4 sobre Tailwind CSS 3.
 - Color `brand` actual: `#258e8b`.
 - No existen `ios/` ni `android/`; se usa Continuous Native Generation.
-- Existen configuración validada de entorno, cliente HTTP base sin autenticación, provider de TanStack Query, conectividad, tokens y UI compartida. La ruta inicial muestra tres pantallas de bienvenida; `/inicio` presenta el catálogo visual con datos e imágenes mock, banner rotativo y categorías deslizables. `/diagnostico` conserva la verificación manual de conexión. Todavía no existen flujos de negocio conectados; el framework de pruebas unitarias y de componentes (Jest y React Native Testing Library con `jest-expo`) ya se encuentra configurado.
+- Existen configuración validada, HTTP público, TanStack Query, conectividad, tokens y UI compartida. Bienvenida conduce a `/inicio`, que muestra seis productos reales, banner y cuatro categorías editoriales originales, visibles incluso mientras carga o falla la API. `/catalogo` acumula páginas de 24 con búsqueda/filtros remotos; los ids numéricos de detalle consultan API. Autenticación y carrito siguen siendo locales, sin transporte móvil aprobado. `/diagnostico` ya no existe. Jest/Testing Library están configurados. Véase [CATALOG.md](./CATALOG.md).
 - El repositorio móvil usa `develop` como rama de integración y conserva `main` para versiones estables y validadas.
 - `npm run lint`, `npm run typecheck`, `npm run format:check` y `npm test` pasan correctamente.
 

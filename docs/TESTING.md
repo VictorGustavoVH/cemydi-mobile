@@ -1,5 +1,15 @@
 # Pruebas de CEMYDI Mobile
 
+## Catálogo conectado — 8 de octubre de 2026
+
+El estado vigente de Home/catálogo/detalle está en [CATALOG.md](./CATALOG.md). Home usa API pública y seis productos; catálogo acumula páginas de 24. Las referencias posteriores a Home mock corresponden al alcance histórico o a fixtures explícitos de pruebas. Carrito/autenticación siguen aislados y locales.
+
+Validaciones de esta entrega: lint sin advertencias, typecheck, format:check y git diff --check aprobados. Jest: 30 suites y 159 pruebas aprobadas; se repitieron las suites afectadas tras los ajustes finales de presentación/vigencia de ofertas. Exportaciones Android/iOS correctas en `.tools/catalog-api-export`.
+
+Se comprobaron contratos/serialización Zod, límite de seis, búsqueda remota, filtros confirmables/cancelables y reinicio de página, carga acumulativa/error/reintento, toques repetidos, pausa offline, detalle real/404, stock, ofertas/vencimiento y fallback de imagen. Las pruebas de muestra conservan su aislamiento mediante mocks explícitos; no son fallback de la app.
+
+La API configurada y localhost:4000 no respondieron. Maestro fue actualizado para el catálogo remoto y el acceso directo a fixtures de carrito/detalle, pero no se ejecutó: la revisión automática rechazó abrir la ruta nueva en el emulador con `blocked by policy`. Quedan pendientes QA visual Android/iOS, fuentes grandes, lectores de pantalla y recorrido contra backend accesible. Exportar no sustituye esa comprobación.
+
 ## Alcance real
 
 Expo SDK 57, React Native 0.86, React 19 y TypeScript estricto. Están implementados bienvenida, catálogo con búsqueda/filtros, detalle, favoritos y carrito **de muestra**, cantidades, selección, eliminación/deshacer y borradores locales de fechas/notas. El carrito vive durante la sesión del proceso: no representa precios finales, disponibilidad ni persistencia del backend.
@@ -143,7 +153,7 @@ Preparar Android/Metro:
 ```bash
 adb devices
 adb reverse tcp:8081 tcp:8081
-npm start -- --localhost
+npm run start:local
 ```
 
 Desde otra terminal:
@@ -154,10 +164,14 @@ npm run test:e2e -- --format JUNIT --output test-results/maestro.xml
 npm run maestro -- test .maestro/cart.yaml
 ```
 
-EXPO_URL tiene default exp://127.0.0.1:8081; reverse permite usarlo desde Android. Para LAN u otro puerto:
+start:local mantiene Metro limitado a localhost y prioriza IPv4, para que ADB reverse pueda acceder a 127.0.0.1 también en Windows con localhost resuelto primero a IPv6. Mantener un solo Metro por puerto y recargar completamente Expo Go después de cambios en el grafo de módulos.
+
+EXPO_URL tiene default exp://127.0.0.1:8081 en openLink, sin una constante del subflujo que sobrescriba el parámetro CLI. Para otro puerto local, iniciar Metro y configurar reverse para ese mismo puerto; por ejemplo:
 
 ```bash
-npm run test:e2e -- -e EXPO_URL=exp://192.0.2.10:8081
+npm run start:local -- --port 8082
+adb reverse tcp:8082 tcp:8082
+npm run test:e2e -- -e EXPO_URL=exp://127.0.0.1:8082
 ```
 
 Sustituir la dirección de ejemplo por la URL mostrada por Expo. Con varios dispositivos añadir `--device <id>`. La sintaxis [openLink](https://docs.maestro.dev/reference/commands-available/openlink) abre el proyecto servido por Metro. Selectores regex de producto usan el label real, sin coordenadas.
@@ -230,3 +244,33 @@ Google Play Internal Testing se utilizará después de Quality, suites/integraci
 Usar registro manual con fecha/responsable, dispositivo/OS, commit/build, escenario/precondiciones, pasos, esperado/observado, aprobado/fallido y enlace a evidencia, sin secretos/datos personales. Pendiente nunca significa aprobado.
 
 Los recursos y pipelines ejecutables por el repositorio quedan implementados. E2E móvil, compatibilidad, rendimiento, esfuerzo, segundo plano, UAT, distribución e integraciones de negocio dependen del entorno o funcionalidad correspondiente. Ver `TESTING_SETUP_REPORT.md` para inventario y validación de esta configuración.
+
+## Auditoría correctiva de UX, arquitectura y rendimiento — 8 de octubre de 2026
+
+Baseline antes de esta revisión: lint, typecheck, format:check y 120 tests / 21 suites aprobados. El working tree ya contenía cambios de autenticación, toast, carrito e imágenes; no se atribuyen a esta auditoría ni se revierten.
+
+Correcciones: imports directos en lugar de cinco reexports vacíos de Home; Skeleton reutilizable con CatalogSkeleton durante la carga sin datos; CatalogImage con BlurHash opcional por imagen remota, placeholder neutro, caché, reciclaje y recuperación al cambiar origen; eliminación de fotos duplicadas y montaje diferido del zoom; callbacks y resultados derivados estables; contexto de acciones de carrito y tarjetas memoizadas; temporizador OTP aislado; borradores no secretos al corregir correo; ajuste único de teclado según intersección; escalado de onboarding y controles con AppButton; bloqueo inmediato al compartir; imports directos de fuentes.
+
+Pruebas de regresión añadidas: fallback y cambio de origen de imágenes, hash opcional y recursos locales; deduplicación, caché tras desmontar y mocks offline; omisión del render de otras imágenes al cambiar selección/cantidad; galería real con selección y zoom; conservación del correo al regresar desde OTP; espacio de teclado con viewport completo/redimensionado y cleanup de listeners. Las integraciones existentes siguen comprobando filtros, cantidades, resumen, favoritos, deshacer y acceso invitado.
+
+Resultado final: `npm run typecheck`, `npm run lint`, `npm run format:check` y `git diff --check` aprobados; Jest con `npm test -- --runInBand`: 23 suites y 130 pruebas aprobadas. Jest requiere ejecución fuera del sandbox por EPERM de Windows al resolver realpath. La suite de carrito emitió un aviso intermitente de actualización de VirtualizedList fuera de act; no se silenciaron advertencias. Las aserciones y la prueba explícita de aislamiento de tarjetas pasan. No equivale a QA nativa.
+
+Imágenes: se inspeccionaron 19 PNG no legacy, sin redimensionar ni convertir formatos. Solo seis recursos activos mejoraron mediante recompresión: logo horizontal (203608 → 192087 bytes), adaptive foreground (15765 → 14167), monochrome (11563 → 9388), app icon (14319 → 13223), favicon (730 → 662), splash (19651 → 18728). Ahorro total: 17381 bytes respecto al working tree inicial; igualdad RGBA y dimensiones verificada con Pillow, conservando metadatos de color. Auth, catálogo y onboarding ya tenían compresión conveniente y no se modificaron en esta revisión. Las variantes de marca sin referencias activas se conservaron. Las grandes diferencias de esos assets frente a Git HEAD eran preexistentes.
+
+Compatibilidad: Expo instalado 57.0.27, expo-image 57.0.5, React Native 0.86.3 y Reanimated 4.5.1. Expo Doctor: 21/21 comprobaciones aprobadas. Expo install --check informó dependencias compatibles usando el mapa local al estar deshabilitada su red; Doctor aporta la comprobación adicional. No se añadieron dependencias.
+
+Exportaciones Android/iOS correctas con `npx expo export --platform android --platform ios --output-dir .tools/audit-font-export`; resolución de imports, assets y compilación Hermes verificadas. Imports directos de Inter excluyen 14 variantes que aparecían en `.tools/audit-native-export`, con 4844592 bytes menos de assets de fuente por plataforma sin comprimir. No mide APK, memoria ni fluidez. Una exportación inicial con --platform all falló por react-native-web ausente, limitación web preexistente documentada; se verificaron después exclusivamente las plataformas móviles.
+
+Validación nativa pendiente: ADB enumeró emulator-5554 y boot_completed=1, pero Maestro falló antes de ejecutar flujos con `cmd: Failure calling service package: Broken pipe (32)`; dumpsys window agotó 10000 ms. No hay recorridos, capturas ni QA visual nuevos aprobados. No se reinició/borró el emulador ni se modificó su configuración. iOS visual, fuentes grandes, TalkBack/VoiceOver, teclado, cambio de columnas y profiling requieren entorno nativo funcional; los resultados históricos no validan estos cambios.
+
+Decisiones que no exigían cambios: encabezados por pantalla y barras inferiores actuales; stores de Toast/Query ya estables; imágenes locales RN sin BlurHash; sin Skeleton en detalle/carrito sincrónicos; sin infraestructura global de red/error ni endpoints ficticios. API pendiente: contratos y adapters, transporte de sesión aprobado, hashes/tamaños reales de imagen, políticas de queries/mutaciones, invalidación, retry y estados de conectividad donde se consuman datos remotos. Véanse ARCHITECTURE.md, DESIGN_SYSTEM.md y CONVENTIONS.md para las reglas permanentes.
+
+## Ajuste solicitado: Home gradual y BlurHash local — 8 de octubre de 2026
+
+Este ajuste sustituye las decisiones anteriores sobre CatalogSkeleton e imágenes locales sin placeholder. Home conserva cabecera, buscador y navegación durante la consulta; muestra un indicador proporcional y revela banners, categorías y filtros mediante opacidad, con movimiento reducido respetado. No anima las filas recicladas ni simula latencia. Error/reintento y contenido de refetch se conservan.
+
+CatalogImage resuelve hashes propios para los 14 recursos locales activos (catálogo, onboarding, autenticación y logo), generados previamente con Pillow. La transición de 150 ms no fuerza una espera y se desactiva con movimiento reducido. Se conservan tamaños, recortes y archivos originales; no cambian dependencias móviles, contratos ni sesión.
+
+Validación: lint, typecheck, format:check, git diff --check y 132 pruebas en 23 suites aprobados. Las pruebas comprueban cabecera/buscador utilizables mientras llega la consulta, ausencia de falso estado vacío, reintento, hash distinto por foto, cambio de origen/contentFit, fallback y movimiento reducido. `python scripts/generate-image-placeholders.py --check` verificó los 14 hashes y checksums. Exportación Android/iOS correcta en `.tools/home-blurhash-export`.
+
+QA visual nativa pendiente: ADB y el Metro existente responden, pero Expo Go quedó en blanco durante el intento con `.maestro/catalog.yaml`. Maestro falló tras 2 min 28 s al no encontrar «Buscar equipo ortopédico»; reporte en `.tools/home-blurhash-maestro.xml` y captura en `.tools/home-blurhash-current.png`. Los logs muestran inicialización nativa lenta y `Cannot get UIManager because the context doesn't contain an active React instance`; no se observó la pantalla de catálogo. No se atribuye una causa definitiva ni se considera aprobado el recorrido. iOS visual también pendiente; exportar bundles y pasar Jest no valida el aspecto de las transiciones.

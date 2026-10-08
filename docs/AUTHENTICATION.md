@@ -2,6 +2,8 @@
 
 La estrategia móvil no está resuelta. Este documento separa comportamiento comprobado de propuestas y no autoriza cambios al backend.
 
+Existe un recorrido de formularios **temporal y local** autorizado: bienvenida → catálogo público con login opcional, registro → OTP → login y recuperación → OTP → nueva contraseña → login. Sus credenciales de prueba, validaciones, enlaces legales y límites están en [AUTH_PREVIEW.md](AUTH_PREVIEW.md). No integra la API, no emite tokens ni resuelve la persistencia de sesión móvil; los bloqueos de transporte siguientes siguen vigentes.
+
 ## CURRENT BACKEND BEHAVIOR
 
 ### Registro

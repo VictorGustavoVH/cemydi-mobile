@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ScrollView, Text, View, useWindowDimensions } from 'react-native';
 import { AppButton } from '@/components/ui/AppButton';
-import type { HomeBanner } from '../home-mocks';
+import type { HomeBanner } from '@/data/catalog-preview';
 import { useBannerPlayback } from '../hooks/useBannerPlayback';
-import { CatalogImage } from './CatalogImage';
+import { CatalogImage } from '@/components/ui/CatalogImage';
 
 type BannerCarouselProps = { banners: HomeBanner[]; onExplore: () => void; suspended?: boolean };
 export function BannerCarousel({ banners, onExplore, suspended = false }: BannerCarouselProps) {
@@ -97,13 +97,14 @@ export function BannerCarousel({ banners, onExplore, suspended = false }: Banner
           pointerEvents="box-none"
           className="absolute bottom-2.5 left-0 right-0 flex-row items-center justify-center px-3"
         >
-          <View className="flex-row items-center gap-1.5 px-2 py-1">
+          <View className="flex-row items-center gap-2 px-2 py-1">
             {banners.map((banner, dotIndex) => (
               <AppButton
                 key={banner.id}
                 accessibilityState={{ selected: index === dotIndex }}
-                className="h-4 w-4 px-0 py-0"
+                className="h-4 items-center justify-center"
                 hideLabel
+                hitSlop={{ bottom: 8, left: 4, right: 4, top: 8 }}
                 label={`Ver banner ${dotIndex + 1} de ${banners.length}`}
                 onPress={() => selectSlide(dotIndex)}
                 variant="unstyled"

@@ -27,9 +27,11 @@ cemydi-mobile/
 └── tsconfig.json
 ```
 
-No existen todavía features funcionales, contratos de dominio ni tests. La foundation incluye transporte HTTP sin autenticación, configuración de TanStack Query y componentes base; que otras dependencias estén instaladas no significa que ya tengan una implementación.
+Existen features de bienvenida, Home, catálogo público y detalle conectado, carrito y autenticación de muestra, con pruebas Jest/Testing Library. La foundation incluye transporte HTTP sin autenticación, TanStack Query y componentes base. Las lecturas públicas de productos/promociones están integradas; no existe transporte de sesión móvil aprobado. Véase [CATALOG.md](./CATALOG.md).
 
-La ruta inicial presenta tres pantallas de bienvenida con imágenes locales y conduce a `/inicio`. Inicio compone `features/home/HomeScreen`: banner rotativo, categorías horizontales y catálogo con búsqueda y filtros locales. Los datos e imágenes son mocks explícitos, sin integración de negocio. Los componentes y el hook de reproducción viven dentro de `features/home`; `home-mocks.ts` no representa un contrato del backend. La verificación manual de conectividad que consume `GET /` se conserva en `/diagnostico`.
+La ruta inicial presenta tres pantallas de bienvenida con imágenes locales y conduce al catálogo público `/inicio` con acceso opcional a `/login`; perfil y revisión del carrito solicitan sesión local y conservan el destino de retorno. `features/auth` contiene formularios, schemas y un servicio temporal aislado mediante `AuthPreviewProvider`, sin transporte de sesión ni integración con la API. Registro verifica correo con OTP antes del login; recuperación verifica OTP antes de cambiar contraseña. Ver `AUTH_PREVIEW.md`.
+
+Inicio compone `features/home/HomeScreen`: banner y cuatro categorías editoriales originales con imágenes locales, disponibles desde el primer render, y seis productos reales. Sus acciones llevan a `/catalogo`; búsqueda y filtros consultan la API completa. `src/services/products` contiene contratos Zod, servicio HTTP y adapters compartidos por Home, catálogo y detalle. Los productos de muestra de `src/data/catalog-preview.ts` quedan para recorridos locales; sus tipos son modelos de presentación. El detalle consulta también reseñas y recomendaciones públicas. Por elección del usuario, el carrito temporal acepta snapshots de presentación de productos reales durante la sesión; muestra importes estimados y no consume el carrito autenticado del backend. La ruta histórica `/diagnostico` ya no existe.
 
 ## Arquitectura global confirmada
 
@@ -179,4 +181,18 @@ Estos patrones se aplican donde reducen acoplamiento observable. No se crean int
 - política offline;
 - navegación autenticada final;
 - soporte de tablet y breakpoints;
-- framework de tests y E2E.
+- ejecución nativa de E2E con Maestro y builds de prueba.
+
+## Decisiones de UX y rendimiento vigentes
+
+- No se requiere un AppHeader global. Cada pantalla conserva su encabezado; piezas como BackButton se comparten cuando tienen una responsabilidad común.
+- CatalogImage, ProductCard, AppBottomBar y AppSheet viven en UI compartida. Se eliminaron los cinco reexports de Home sin adaptación (incluido home-mocks); los imports apuntan a la implementación o fuente real.
+- GlobalBottomBar se monta en el layout y aparece en Inicio, Catálogo y Carrito. Explorar abre `/catalogo`; el detalle conserva sus acciones propias.
+- CatalogPreviewProvider conserva estado de sesión y acciones estables. Las tarjetas memoizadas consumen el contexto de acciones, por lo que cambiar otra selección/cantidad no fuerza su actualización. El contexto completo sigue notificando cambios legítimos a pantallas y resúmenes.
+- AuthPreviewProvider memoiza su value. ToastProvider ya crea una única instancia de store con useState; QueryProvider ya crea un único QueryClient. No se añaden providers globales de conectividad/errores sin consumidores.
+- Home conserva la key requerida por FlatList al cambiar numColumns y restaura el offset cuando se mide el contenido nuevo; el nativo puede limitarlo al final si el contenido queda más corto. No se promete conservar el mismo producto arriba cuando cambia el número de columnas.
+- useHome usa ['home', 'products'], API pública, caché de 30 segundos y políticas compartidas de conectividad/foco/retry. Catálogo usa useInfiniteQuery con filtros normalizados; promociones y detalle tienen consultas separadas. Los fixtures no son fallback de producción.
+- Home conserva cabecera/buscador durante la carga y revela sus secciones al recibir datos. ProductGridSkeleton representa tarjetas pendientes; CatalogImage representa la carga posterior de fotos. Las imágenes locales conservan hashes precalculados; el backend aún no entrega hashes remotos.
+- OTP mantiene el reloj absoluto y su comprobación en el servicio; solo OtpResendButton se actualiza cada segundo, limpia listeners/intervalo y deja de contar al finalizar. La pausa breve tras verificar conserva la confirmación animada existente, no simula latencia de red.
+
+Las convenciones para nuevas pantallas, imágenes y estados de carga están en [DESIGN_SYSTEM.md](./DESIGN_SYSTEM.md) y [CONVENTIONS.md](./CONVENTIONS.md).

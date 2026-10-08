@@ -46,3 +46,13 @@ yarn-error.*
 coverage/
 test-results/
 .tools/
+
+# Cache local
+.cache/
+
+# Logs del emulador y Metro
+emu.log
+emu.err.log
+metro.log
+metro.err.log
+metro.critical.log

@@ -1,7 +1,8 @@
-import { Image, View } from 'react-native';
+import { View } from 'react-native';
 import Bell from 'lucide-react-native/icons/bell';
 import UserRound from 'lucide-react-native/icons/user-round';
 import { AppButton } from '@/components/ui/AppButton';
+import { CatalogImage } from '@/components/ui/CatalogImage';
 import { colors } from '@/theme';
 
 const logoSource = require('../../../../assets/branding/cemydi-logo-horizontal.png');
@@ -11,10 +12,9 @@ export function HomeHeader({ onNotifications, onProfile }: HomeHeaderProps) {
   return (
     <View className="flex-row items-center justify-between gap-3 px-5 pb-4 pt-3">
       <View className="flex-1 justify-center">
-        <Image
-          accessibilityLabel="Ortopedia CEMYDI"
-          accessibilityRole="image"
-          resizeMode="contain"
+        <CatalogImage
+          label="Ortopedia CEMYDI"
+          compact
           source={logoSource}
           style={{ height: 36, width: 124 }}
         />

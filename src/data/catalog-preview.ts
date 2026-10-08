@@ -2,17 +2,23 @@ import type { ImageSourcePropType } from 'react-native';
 
 // Presentation fixtures only: these are not API contracts or real prices.
 export type CatalogMode = 'all' | 'purchase' | 'rental';
-export type HomeCategory = { id: string; label: string; image: ImageSourcePropType };
+export type HomeCategory = { id: string; label: string; image: ImageSourcePropType | undefined };
 export type HomeProduct = {
   id: string;
   name: string;
   categoryId: string;
-  image: ImageSourcePropType;
+  image: ImageSourcePropType | undefined;
+  /** Optional presentation metadata; never a presumed backend DTO field. */
+  imageBlurhash?: string;
   modes: Exclude<CatalogMode, 'all'>[];
   caption: string;
   price: string;
   priceSuffix?: string;
   priceNote?: string;
+  originalPrice?: string;
+  discountPercent?: number;
+  unavailable?: boolean;
+  prescription?: boolean;
 };
 export type HomeBanner = {
   id: string;

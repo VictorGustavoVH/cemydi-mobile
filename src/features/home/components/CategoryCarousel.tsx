@@ -1,7 +1,9 @@
 import { ScrollView, Text, View } from 'react-native';
 import { AppButton } from '@/components/ui/AppButton';
-import type { HomeCategory } from '../home-mocks';
-import { CatalogImage } from './CatalogImage';
+import type { HomeCategory } from '@/data/catalog-preview';
+import { CatalogImage } from '@/components/ui/CatalogImage';
+import Tags from 'lucide-react-native/icons/tags';
+import { colors } from '@/theme';
 
 type CategoryCarouselProps = {
   categories: HomeCategory[];
@@ -41,7 +43,17 @@ export function CategoryCarousel({ categories, selectedId, onSelect }: CategoryC
                 <View
                   className={`h-[76px] w-full rounded-2xl border p-2 ${selected ? 'border-brand bg-brand/15' : 'border-transparent bg-brand/5'}`}
                 >
-                  <CatalogImage compact label={category.label} source={category.image} />
+                  {category.image ? (
+                    <CatalogImage compact label={category.label} source={category.image} />
+                  ) : (
+                    <View className="flex-1 items-center justify-center">
+                      <Tags
+                        aria-hidden
+                        color={selected ? colors.brandStrong : colors.textSecondary}
+                        size={28}
+                      />
+                    </View>
+                  )}
                 </View>
                 <Text
                   className={`text-center text-xs ${selected ? 'font-sans-semibold text-brand-strong' : 'font-sans-medium text-secondary'}`}

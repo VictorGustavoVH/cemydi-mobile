@@ -91,6 +91,8 @@ Roles confirmados: `ADMIN` y `CLIENT`.
 
 ### Productos y catálogo
 
+Integración móvil vigente: [CATALOG.md](./CATALOG.md). Home, catálogo y detalle consumen lecturas públicas mediante schemas/adapters de `src/services/products`, sin credenciales. Promociones se consultan separadamente; no se integra el carrito autenticado ni se decide transporte de sesión.
+
 | Método | Ruta                            | Acceso                 |
 | ------ | ------------------------------- | ---------------------- |
 | GET    | `/products`                     | Público; auth opcional |

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { memo, useCallback, useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 import Animated, {
   useAnimatedStyle,
@@ -15,7 +15,13 @@ import UserRound from 'lucide-react-native/icons/user-round';
 import { AppButton } from '@/components/ui/AppButton';
 import { colors } from '@/theme';
 
-type TabKey = 'home' | 'explore' | 'cart' | 'profile';
+export type TabKey = 'home' | 'explore' | 'cart' | 'profile';
+const tabs: { key: TabKey; label: string; icon: typeof House }[] = [
+  { key: 'home', label: 'Inicio', icon: House },
+  { key: 'explore', label: 'Explorar', icon: Search },
+  { key: 'cart', label: 'Carrito', icon: ShoppingCart },
+  { key: 'profile', label: 'Perfil', icon: UserRound },
+];
 
 type AppBottomBarProps = {
   onHome: () => void;
@@ -29,12 +35,20 @@ type AppBottomBarProps = {
 type TabItemProps = {
   label: string;
   icon: typeof House;
-  onPress: () => void;
+  tabKey: TabKey;
+  onPress: (key: TabKey) => void;
   selected: boolean;
   badgeCount?: number;
 };
 
-function TabItem({ label, icon: Icon, onPress, selected, badgeCount = 0 }: TabItemProps) {
+const TabItem = memo(function TabItem({
+  label,
+  icon: Icon,
+  tabKey,
+  onPress,
+  selected,
+  badgeCount = 0,
+}: TabItemProps) {
   const reducedMotion = useReducedMotion();
   const pressScale = useSharedValue(1);
   const pop = useSharedValue(1);
@@ -42,8 +56,12 @@ function TabItem({ label, icon: Icon, onPress, selected, badgeCount = 0 }: TabIt
   const barScale = useSharedValue(selected ? 1 : 0.4);
 
   useEffect(() => {
-    barOpacity.set(withTiming(selected ? 1 : 0, { duration: 160 }));
-    barScale.set(withTiming(selected ? 1 : 0.4, { duration: 160 }));
+    barOpacity.set(
+      reducedMotion ? Number(selected) : withTiming(selected ? 1 : 0, { duration: 160 }),
+    );
+    barScale.set(
+      reducedMotion ? (selected ? 1 : 0.4) : withTiming(selected ? 1 : 0.4, { duration: 160 }),
+    );
     if (selected && !reducedMotion) {
       pop.set(1.18);
       pop.set(withSpring(1, { duration: 320, dampingRatio: 0.6 }));
@@ -75,7 +93,7 @@ function TabItem({ label, icon: Icon, onPress, selected, badgeCount = 0 }: TabIt
       }
       onPress={() => {
         void Haptics.selectionAsync().catch(() => undefined);
-        onPress();
+        onPress(tabKey);
       }}
       onPressIn={() => {
         pressScale.set(reducedMotion ? 1 : withTiming(0.94, { duration: 110 }));
@@ -119,7 +137,7 @@ function TabItem({ label, icon: Icon, onPress, selected, badgeCount = 0 }: TabIt
       </View>
     </AppButton>
   );
-}
+});
 
 export function AppBottomBar({
   onHome,
@@ -130,25 +148,25 @@ export function AppBottomBar({
   selectedTab,
 }: AppBottomBarProps) {
   const [active, setActive] = useState<TabKey>('home');
-  const items: { key: TabKey; label: string; icon: typeof House; onPress: () => void }[] = [
-    { key: 'home', label: 'Inicio', icon: House, onPress: onHome },
-    { key: 'explore', label: 'Explorar', icon: Search, onPress: onExplore },
-    { key: 'cart', label: 'Carrito', icon: ShoppingCart, onPress: onCart },
-    { key: 'profile', label: 'Perfil', icon: UserRound, onPress: onProfile },
-  ];
+  const selectTab = useCallback(
+    (key: TabKey) => {
+      if (key === 'home' || key === 'explore') setActive(key);
+      const actions = { home: onHome, explore: onExplore, cart: onCart, profile: onProfile };
+      actions[key]();
+    },
+    [onHome, onExplore, onCart, onProfile],
+  );
   return (
     <View className="flex-row border-t border-border/40 bg-background px-3 pb-1 pt-2">
-      {items.map(({ key, label, icon, onPress }) => (
+      {tabs.map(({ key, label, icon }) => (
         <TabItem
           key={key}
+          tabKey={key}
           label={label}
           icon={icon}
           selected={(selectedTab ?? active) === key}
           badgeCount={key === 'cart' ? cartCount : 0}
-          onPress={() => {
-            if (key === 'home' || key === 'explore') setActive(key);
-            onPress();
-          }}
+          onPress={selectTab}
         />
       ))}
     </View>

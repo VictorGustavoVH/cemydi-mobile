@@ -1,48 +1,23 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { homeService } from '../services/homeService.api';
 
-import { homeServiceMock } from '../services/homeService.mock';
-import type { HomeData } from '../services/homeService';
-
-/**
- * Fuente de datos de Home.
- *
- * NOTA: Por ahora se usa homeServiceMock porque no hay backend.
- * Cuando exista API real, cambia `homeServiceMock` por
- * `homeServiceApi` (src/features/home/services/homeService.api.ts);
- * el resto del feature no debe cambiar.
- */
+/** Six public products; authentication and other Home connections remain separate. */
 export function useHome() {
-  const [data, setData] = useState<HomeData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
-  const requestId = useRef(0);
-
-  const load = useCallback(async () => {
-    const id = ++requestId.current;
-    setLoading(true);
-    setError(null);
-
-    try {
-      const result = await homeServiceMock.getHome();
-      if (id === requestId.current) {
-        setData(result);
+  const query = useQuery({
+    queryKey: ['home', 'products'],
+    queryFn: async ({ signal }) => {
+      try {
+        return await homeService.getHome(signal);
+      } catch (cause) {
+        throw cause instanceof Error ? cause : new Error('Error al cargar Home.');
       }
-    } catch (cause) {
-      if (id === requestId.current) {
-        setError(cause instanceof Error ? cause : new Error('Error al cargar Home.'));
-      }
-    } finally {
-      if (id === requestId.current) {
-        setLoading(false);
-      }
-    }
-  }, []);
-
-  useEffect(() => {
-    // load() sincroniza el estado con el servicio externo (mock por ahora, API después).
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    void load();
-  }, [load]);
-
-  return { data, loading, error, refetch: load };
+    },
+    staleTime: 30_000,
+  });
+  return {
+    data: query.data ?? null,
+    loading: query.isPending || query.isFetching,
+    error: query.error,
+    refetch: query.refetch,
+  };
 }

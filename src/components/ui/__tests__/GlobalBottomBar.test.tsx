@@ -1,0 +1,55 @@
+import { fireEvent, screen } from '@testing-library/react-native';
+import { render } from '../../../../tests/support/render-with-toast';
+import { GlobalBottomBar } from '../GlobalBottomBar';
+
+const mockRouter = { push: jest.fn(), replace: jest.fn(), back: jest.fn() };
+let mockPathname = '/inicio';
+
+jest.mock('expo-router', () => ({
+  useRouter: () => mockRouter,
+  usePathname: () => mockPathname,
+}));
+
+jest.mock('expo-haptics', () => ({ selectionAsync: jest.fn().mockResolvedValue(undefined) }));
+
+jest.mock('@/providers/catalog-preview-provider', () => ({
+  useCatalogPreview: () => ({
+    items: [{ quantity: 2 }, { quantity: 1 }],
+  }),
+}));
+
+jest.mock('@/hooks/useAccountAccess', () => ({
+  useAccountAccess: () => ({ user: null, requestAccess: jest.fn(() => false) }),
+}));
+
+describe('GlobalBottomBar', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockPathname = '/inicio';
+  });
+
+  it('muestra el contador del carrito en el badge', async () => {
+    await render(<GlobalBottomBar />);
+    expect(screen.getByLabelText('Carrito, 3 unidades')).toBeTruthy();
+  });
+
+  it('ignora un doble toque rápido para no apilar navegaciones', async () => {
+    await render(<GlobalBottomBar />);
+    const cart = screen.getByLabelText('Carrito, 3 unidades');
+    await fireEvent.press(cart);
+    await fireEvent.press(cart);
+    expect(mockRouter.push).toHaveBeenCalledTimes(1);
+  });
+
+  it('explorar abre el catálogo completo', async () => {
+    await render(<GlobalBottomBar />);
+    await fireEvent.press(screen.getByRole('button', { name: 'Explorar' }));
+    expect(mockRouter.push).toHaveBeenCalledWith('/catalogo');
+  });
+
+  it('no se renderiza fuera de las pestañas principales', async () => {
+    mockPathname = '/producto/123';
+    await render(<GlobalBottomBar />);
+    expect(screen.queryByLabelText('Carrito, 3 unidades')).toBeNull();
+  });
+});
