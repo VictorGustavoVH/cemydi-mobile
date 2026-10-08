@@ -1,15 +1,7 @@
 appId: host.exp.exponent
 name: Carrito de muestra - cantidad, eliminación y deshacer
 ---
-- runFlow: support/open-catalog.yaml
-- tapOn: Buscar equipo ortopédico
-- inputText: silla
-- hideKeyboard
-- scrollUntilVisible:
-    element:
-      text: Silla de ruedas.*Ver producto.*
-    direction: DOWN
-- tapOn: Silla de ruedas.*Ver producto.*
+- runFlow: support/open-preview-product.yaml
 - extendedWaitUntil:
     visible: Añadir al carrito
     timeout: 10000
@@ -23,5 +15,5 @@ name: Carrito de muestra - cantidad, eliminación y deshacer
 - assertVisible: 'Cantidad de Silla de ruedas, compra: 2'
 - tapOn: Eliminar Silla de ruedas, compra
 - assertVisible: Tu carrito está vacío
-- tapOn: Deshacer
+- tapOn: Deshacer eliminación del producto
 - assertVisible: 'Cantidad de Silla de ruedas, compra: 2'

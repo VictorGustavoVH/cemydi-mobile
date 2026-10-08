@@ -1,8 +1,10 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-import { render, screen, waitFor } from '@testing-library/react-native';
+import { screen, waitFor } from '@testing-library/react-native';
+import { render } from '../../../../tests/support/render-with-toast';
 
 import { HomeScreen } from '../HomeScreen';
 import { CatalogPreviewProvider } from '@/providers/catalog-preview-provider';
+import { installHomePreviewApiMock } from '../../../../tests/support/home-preview-api-mock';
 
 jest.mock('expo-router', () => {
   const { useEffect } = require('react');
@@ -10,6 +12,7 @@ jest.mock('expo-router', () => {
   return {
     useFocusEffect: (callback: () => void | (() => void)) => useEffect(callback, [callback]),
     useRouter: () => ({ back: jest.fn(), push: jest.fn(), replace: jest.fn() }),
+    useLocalSearchParams: () => ({}),
   };
 });
 
@@ -17,6 +20,11 @@ jest.mock('expo-haptics', () => ({
   ImpactFeedbackStyle: { Light: 'light', Medium: 'medium' },
   impactAsync: jest.fn(),
   selectionAsync: jest.fn(),
+}));
+
+jest.mock('expo-network', () => ({
+  getNetworkStateAsync: jest.fn().mockResolvedValue({ isInternetReachable: true }),
+  addNetworkStateListener: jest.fn(() => ({ remove: jest.fn() })),
 }));
 
 jest.mock('react-native-svg', () => {
@@ -67,14 +75,16 @@ jest.mock('react-native-svg', () => {
 });
 
 describe('HomeScreen', () => {
-  it('muestra el catálogo de muestra después de cargar', async () => {
+  beforeEach(installHomePreviewApiMock);
+  it('muestra como máximo seis productos y acceso al catálogo completo', async () => {
     await render(
       <CatalogPreviewProvider>
         <HomeScreen />
       </CatalogPreviewProvider>,
     );
 
-    await waitFor(() => expect(screen.getByText('Para tu bienestar')).toBeTruthy());
-    expect(screen.getByText(/Vista de muestra/)).toBeTruthy();
+    await waitFor(() => expect(screen.getByText('Ver catálogo completo')).toBeTruthy());
+    expect(screen.getByText('Ver catálogo completo')).toBeTruthy();
+    expect(screen.getAllByRole('button', { name: /Ver producto\./ })).toHaveLength(6);
   });
 });

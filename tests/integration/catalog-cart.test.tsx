@@ -1,14 +1,18 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react-native';
+import { render } from '../support/render-with-toast';
+import { installNetworkMock } from '../support/network-mock';
 import { CatalogPreviewProvider } from '@/providers/catalog-preview-provider';
 import { HomeScreen } from '@/features/home/HomeScreen';
 import { ProductDetailScreen } from '@/features/products/ProductDetailScreen';
 import { CartPreviewScreen } from '@/features/cart/CartPreviewScreen';
-import { homeServiceMock } from '@/features/home/services/homeService.mock';
+import { homeService } from '@/features/home/services/homeService.api';
+import { installHomePreviewApiMock } from '../support/home-preview-api-mock';
 
 const mockPush = jest.fn();
 const mockReplace = jest.fn();
 jest.mock('expo-router', () => ({
   useFocusEffect: jest.fn(),
+  useLocalSearchParams: () => ({}),
   useRouter: () => ({
     push: mockPush,
     replace: mockReplace,
@@ -20,22 +24,17 @@ jest.mock('expo-router', () => ({
 jest.mock('expo-haptics', () => ({ selectionAsync: jest.fn().mockResolvedValue(undefined) }));
 
 describe('Catálogo, detalle y carrito con estado de sesión compartido', () => {
-  it('busca sin acentos, navega con modalidad y conserva carrito y favoritos entre pantallas', async () => {
+  beforeEach(() => {
+    installNetworkMock();
+    installHomePreviewApiMock();
+  });
+
+  it('conserva carrito y favoritos de muestra entre pantallas aisladas del catálogo real', async () => {
     const view = await render(
       <CatalogPreviewProvider>
-        <HomeScreen />
+        <ProductDetailScreen productId="wheelchair" initialMode="rental" />
       </CatalogPreviewProvider>,
     );
-    await screen.findByText('Para tu bienestar');
-    await fireEvent.changeText(screen.getByLabelText('Buscar equipo ortopédico'), ' SILLA ');
-    await fireEvent.press(screen.getByRole('button', { name: 'Renta' }));
-    expect(screen.getByText('1 producto de muestra')).toBeTruthy();
-    await fireEvent.press(screen.getByRole('button', { name: /Silla de ruedas.*Ver producto/ }));
-    expect(mockPush).toHaveBeenCalledWith({
-      pathname: '/producto/[id]',
-      params: { id: 'wheelchair', mode: 'rental' },
-    });
-
     // Simulate the route rendering its destination while keeping the real provider mounted.
     await view.rerender(
       <CatalogPreviewProvider>
@@ -68,28 +67,35 @@ describe('Catálogo, detalle y carrito con estado de sesión compartido', () => 
     expect(fetch).not.toHaveBeenCalled();
   });
 
-  it('combina búsqueda, categorías y modalidad y recupera una búsqueda vacía', async () => {
+  it('envía búsqueda, categorías y modalidad desde Home al catálogo completo', async () => {
     await render(
       <CatalogPreviewProvider>
         <HomeScreen />
       </CatalogPreviewProvider>,
     );
-    await screen.findByText('Para tu bienestar');
+    await screen.findByText('Ver catálogo completo');
     await fireEvent.changeText(screen.getByLabelText('Buscar equipo ortopédico'), 'oxigeno');
-    expect(screen.getByText('Concentrador de oxígeno')).toBeTruthy();
+    await fireEvent(screen.getByLabelText('Buscar equipo ortopédico'), 'submitEditing');
+    expect(mockPush).toHaveBeenLastCalledWith({
+      pathname: '/catalogo',
+      params: { search: 'oxigeno' },
+    });
     await fireEvent.press(screen.getByRole('button', { name: 'Compra' }));
-    expect(screen.getByText('No encontramos productos')).toBeTruthy();
-    await fireEvent.press(screen.getByRole('button', { name: 'Limpiar filtros' }));
+    expect(mockPush).toHaveBeenLastCalledWith({
+      pathname: '/catalogo',
+      params: { mode: 'purchase' },
+    });
     await fireEvent.press(screen.getByRole('button', { name: 'Movilidad' }));
-    await fireEvent.press(screen.getByRole('button', { name: 'Renta' }));
-    expect(screen.getByText('1 producto de muestra · Movilidad')).toBeTruthy();
-    expect(screen.getByText('Silla de ruedas')).toBeTruthy();
-    expect(screen.queryByText('Muletas ajustables')).toBeNull();
+    expect(mockPush).toHaveBeenLastCalledWith({
+      pathname: '/catalogo',
+      params: { search: 'Movilidad' },
+    });
+    expect(screen.getAllByRole('button', { name: /Ver producto\./ })).toHaveLength(6);
   });
 
   it('muestra loading y error del servicio, y reintenta con el servicio existente', async () => {
     let reject!: (error: Error) => void;
-    const service = jest.spyOn(homeServiceMock, 'getHome').mockReturnValueOnce(
+    const service = jest.spyOn(homeService, 'getHome').mockReturnValueOnce(
       new Promise((_resolve, fail) => {
         reject = fail;
       }),
@@ -100,10 +106,19 @@ describe('Catálogo, detalle y carrito con estado de sesión compartido', () => 
       </CatalogPreviewProvider>,
     );
     expect(screen.getByLabelText('Cargando catálogo…')).toBeTruthy();
+    expect(screen.getByLabelText('Buscar equipo ortopédico')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Notificaciones' })).toBeTruthy();
+    expect(screen.queryByText('No encontramos productos')).toBeNull();
+    expect(screen.getByText('Para tu bienestar')).toBeTruthy();
+    expect(screen.getByText('Categorías')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Descanso' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Ver banner 1 de 3' })).toBeTruthy();
     await act(() => reject(new Error('Catálogo no disponible')));
     await waitFor(() => expect(screen.getByText('Catálogo no disponible')).toBeTruthy());
+    expect(screen.getByText('Categorías')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Ver banner 1 de 3' })).toBeTruthy();
     await fireEvent.press(screen.getByRole('button', { name: 'Reintentar' }));
-    await screen.findByText('Para tu bienestar');
+    await screen.findByText('Ver catálogo completo');
     expect(service).toHaveBeenCalledTimes(2);
   });
 });

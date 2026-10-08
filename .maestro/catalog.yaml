@@ -1,31 +1,25 @@
 appId: host.exp.exponent
-name: Catálogo de muestra - búsqueda y recuperación
+name: Catálogo público - búsqueda remota y filtros
 ---
 - runFlow: support/open-catalog.yaml
+- tapOn: Explorar
+- extendedWaitUntil:
+    visible: Catálogo
+    timeout: 15000
 - tapOn: Buscar equipo ortopédico
-- inputText: silla
+- inputText: zzzsinresultadoscemydi
 - hideKeyboard
-- scrollUntilVisible:
-    element:
-      text: Silla de ruedas.*Ver producto.*
-    direction: DOWN
-- assertVisible: Silla de ruedas.*Ver producto.*
-- scrollUntilVisible:
-    element:
-      text: Buscar equipo ortopédico
-    direction: UP
-- tapOn: Buscar equipo ortopédico
-- eraseText
-- inputText: zzzsinresultados
-- hideKeyboard
-- scrollUntilVisible:
-    element:
-      text: No encontramos productos
-    direction: DOWN
-- assertVisible: No encontramos productos
+- extendedWaitUntil:
+    visible: No encontramos productos
+    timeout: 30000
 - tapOn: Limpiar filtros
+- tapOn: Filtrar catálogo
+- assertVisible: Ordenar por
 - scrollUntilVisible:
     element:
-      text: Silla de ruedas.*Ver producto.*
+      text: Solo disponibles
     direction: DOWN
-- assertVisible: Silla de ruedas.*Ver producto.*
+- tapOn: Solo disponibles
+- tapOn: Aplicar filtros
+- assertVisible: Catálogo
+- assertVisible: Limpiar filtros.*

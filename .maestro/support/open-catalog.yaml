@@ -1,10 +1,8 @@
 # Expo Go on Android. Override EXPO_URL from Maestro -e for a physical device.
 appId: host.exp.exponent
-env:
-  EXPO_URL: exp://127.0.0.1:8081
 ---
 - launchApp
-- openLink: ${EXPO_URL}/--/inicio
+- openLink: "${typeof EXPO_URL === 'undefined' ? 'exp://127.0.0.1:8081' : EXPO_URL}/--/inicio"
 - extendedWaitUntil:
     visible: Buscar equipo ortopédico
     timeout: 60000

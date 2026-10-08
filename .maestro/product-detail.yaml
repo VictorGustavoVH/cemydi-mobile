@@ -1,15 +1,7 @@
 appId: host.exp.exponent
 name: Detalle de muestra - favoritos y modalidades
 ---
-- runFlow: support/open-catalog.yaml
-- tapOn: Buscar equipo ortopédico
-- inputText: silla
-- hideKeyboard
-- scrollUntilVisible:
-    element:
-      text: Silla de ruedas.*Ver producto.*
-    direction: DOWN
-- tapOn: Silla de ruedas.*Ver producto.*
+- runFlow: support/open-preview-product.yaml
 - extendedWaitUntil:
     visible: Guardar en favoritos
     timeout: 10000
