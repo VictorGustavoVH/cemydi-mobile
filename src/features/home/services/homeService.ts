@@ -1,4 +1,4 @@
-import type { HomeBanner, HomeCategory, HomeProduct } from '../home-mocks';
+import type { HomeBanner, HomeCategory, HomeProduct } from '@/data/catalog-preview';
 
 export type HomeData = {
   banners: HomeBanner[];
@@ -9,10 +9,9 @@ export type HomeData = {
 /**
  * Contrato del servicio de Home.
  *
- * Por ahora la app usa homeService.mock. Cuando exista backend, crea
- * homeService.api.ts que implemente esta misma interfaz usando
- * src/services/http/client y cambia la importación en useHome.
+ * Productos públicos reales; banners y categorías editoriales siguen siendo locales.
+ * homeService.mock queda reservado para pruebas y vistas de muestra.
  */
 export interface HomeService {
-  getHome(): Promise<HomeData>;
+  getHome(signal?: AbortSignal): Promise<HomeData>;
 }
