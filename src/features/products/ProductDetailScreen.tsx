@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
-import { Modal, Pressable, ScrollView, Share, Text, View, useWindowDimensions } from 'react-native';
+import { useMemo, useRef, useState, type ReactNode } from 'react';
+import { Modal, ScrollView, Share, Text, View, useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
-import ArrowLeft from 'lucide-react-native/icons/arrow-left';
+import { BackButton } from '@/components/ui/BackButton';
 import Heart from 'lucide-react-native/icons/heart';
-import Share2 from 'lucide-react-native/icons/share-2';
+import ShareIcon from 'lucide-react-native/icons/share';
 import ShoppingBag from 'lucide-react-native/icons/shopping-bag';
 import ShoppingCart from 'lucide-react-native/icons/shopping-cart';
 import Star from 'lucide-react-native/icons/star';
@@ -15,14 +15,27 @@ import { CatalogImage } from '@/components/ui/CatalogImage';
 import { ProductCard } from '@/components/ui/ProductCard';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { getProductPreview, getRecommendationsPreview } from '@/data/product-detail-preview';
+import type { ProductDetailPreview } from '@/data/product-detail-preview';
+import type { HomeProduct } from '@/data/catalog-preview';
+import type { ProductReviews } from '@/services/products/product-schemas';
 import {
   PREVIEW_CART_QUANTITY_LIMIT,
   useCatalogPreview,
   type PreviewCartItem,
 } from '@/providers/catalog-preview-provider';
 import { colors } from '@/theme';
+import { useToast, useToastScroll } from '@/hooks/useToast';
 
-type ProductDetailScreenProps = { productId: string; initialMode?: PreviewCartItem['mode'] };
+type ProductDetailScreenProps = {
+  productId: string;
+  initialMode?: PreviewCartItem['mode'];
+  suppliedProduct?: ProductDetailPreview;
+  remoteStatus?: ReactNode;
+  suppliedReviews?: ProductReviews;
+  suppliedRecommendations?: HomeProduct[];
+  reviewsStatus?: ReactNode;
+  recommendationsStatus?: ReactNode;
+};
 const sampleReviews = [
   {
     id: '1',
@@ -38,10 +51,42 @@ const sampleReviews = [
   },
 ];
 
-export function ProductDetailScreen({ productId, initialMode }: ProductDetailScreenProps) {
+export function ProductDetailScreen({
+  productId,
+  initialMode,
+  suppliedProduct,
+  remoteStatus,
+  suppliedReviews,
+  suppliedRecommendations,
+  reviewsStatus,
+  recommendationsStatus,
+}: ProductDetailScreenProps) {
   const router = useRouter();
+  const toast = useToast();
+  const onToastScroll = useToastScroll();
   const { width, fontScale } = useWindowDimensions();
-  const product = getProductPreview(productId);
+  const product = suppliedProduct ?? getProductPreview(productId);
+  const connected = suppliedProduct !== undefined;
+  const productImages = useMemo(
+    () =>
+      product
+        ? product.images?.length
+          ? product.images
+          : [
+              {
+                id: `${product.id}-primary`,
+                source: product.image,
+                blurhash: product.imageBlurhash,
+              },
+            ]
+        : [],
+    [product],
+  );
+  const recommendations = useMemo(
+    () =>
+      suppliedRecommendations ?? (product && !connected ? getRecommendationsPreview(product) : []),
+    [product, connected, suppliedRecommendations],
+  );
   const { favorites, toggleFavorite, items, addItem } = useCatalogPreview();
   const [mode, setMode] = useState<PreviewCartItem['mode']>(
     initialMode && product?.modes.includes(initialMode)
@@ -51,8 +96,9 @@ export function ProductDetailScreen({ productId, initialMode }: ProductDetailScr
   const [section, setSection] = useState<'description' | 'characteristics'>('description');
   const [photoIndex, setPhotoIndex] = useState(0);
   const [zoomed, setZoomed] = useState(false);
-  const [notice, setNotice] = useState('');
+  const [showAllReviews, setShowAllReviews] = useState(false);
   const [sharing, setSharing] = useState(false);
+  const sharingLock = useRef(false);
   const scrollRef = useRef<ScrollView>(null);
   const carouselRef = useRef<ScrollView>(null);
   const thumbnailScrollRef = useRef<ScrollView>(null);
@@ -61,7 +107,6 @@ export function ProductDetailScreen({ productId, initialMode }: ProductDetailScr
   const targetPhotoIndexRef = useRef<number | null>(null);
   const reviewsOffset = useRef(0);
   const contentOffset = useRef(0);
-  const back = () => (router.canGoBack() ? router.back() : router.replace('/inicio'));
 
   const centerThumbnail = (index: number) => {
     const itemWidth = 64 + 10;
@@ -94,15 +139,6 @@ export function ProductDetailScreen({ productId, initialMode }: ProductDetailScr
     }
   };
 
-  useEffect(() => {
-    if (zoomed) {
-      const timer = setTimeout(() => {
-        zoomCarouselRef.current?.scrollTo({ x: photoIndex * width, animated: false });
-      }, 50);
-      return () => clearTimeout(timer);
-    }
-  }, [zoomed, photoIndex, width]);
-
   if (!product)
     return (
       <AppScreen edges={['top', 'bottom', 'left', 'right']}>
@@ -110,7 +146,7 @@ export function ProductDetailScreen({ productId, initialMode }: ProductDetailScr
           title="Producto no encontrado"
           description="Vuelve al catálogo para elegir otro producto."
           actionLabel="Volver al catálogo"
-          onAction={() => router.replace('/inicio')}
+          onAction={() => router.replace('/catalogo')}
         />
       </AppScreen>
     );
@@ -118,8 +154,22 @@ export function ProductDetailScreen({ productId, initialMode }: ProductDetailScr
   const favorite = favorites.includes(product.id);
   const rental = mode === 'rental';
   const price = rental ? product.rental?.price : product.price;
-  const reviews = product.id === 'bed' || product.id === 'wheelchair' ? sampleReviews : [];
-  const recommendations = getRecommendationsPreview(product);
+  const reviews = connected
+    ? (suppliedReviews?.reviews.map((review) => ({
+        id: String(review.id),
+        author: review.user.nombre,
+        rating: review.rating,
+        text: review.comment,
+      })) ?? [])
+    : product.id === 'bed' || product.id === 'wheelchair'
+      ? sampleReviews
+      : [];
+  const averageRating = connected
+    ? (suppliedReviews?.summary.averageRating ?? 0)
+    : reviews.length
+      ? 4.5
+      : 0;
+  const visibleReviews = showAllReviews ? reviews : reviews.slice(0, 2);
   const compact = width < 350 || fontScale > 1.3;
   const cartCount = items.reduce((count, item) => count + item.quantity, 0);
   const atQuantityLimit = items.some(
@@ -128,9 +178,10 @@ export function ProductDetailScreen({ productId, initialMode }: ProductDetailScr
       item.mode === mode &&
       item.quantity >= PREVIEW_CART_QUANTITY_LIMIT,
   );
-  const productImages = [product.image, product.image, product.image, product.image];
 
   async function shareProduct() {
+    if (sharingLock.current) return;
+    sharingLock.current = true;
     setSharing(true);
     try {
       await Share.share({
@@ -138,8 +189,9 @@ export function ProductDetailScreen({ productId, initialMode }: ProductDetailScr
         message: `${product!.name} · CEMYDI\nDisponible para ${product!.caption.toLowerCase()}.`,
       });
     } catch {
-      setNotice('No se pudo compartir. Inténtalo de nuevo.');
+      toast.error('No se pudo compartir. Inténtalo de nuevo.');
     } finally {
+      sharingLock.current = false;
       setSharing(false);
     }
   }
@@ -148,19 +200,14 @@ export function ProductDetailScreen({ productId, initialMode }: ProductDetailScr
     <AppScreen edges={['top', 'bottom', 'left', 'right']}>
       <ScrollView
         ref={scrollRef}
+        onScroll={onToastScroll}
+        scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 24 }}
       >
         <View className="bg-white">
           <View className="flex-row items-center gap-2 px-4 pt-2">
-            <AppButton
-              hideLabel
-              label="Volver"
-              variant="ghost"
-              className="h-11 w-11 rounded-full px-0 py-0"
-              onPress={back}
-              leftIcon={<ArrowLeft aria-hidden color={colors.textPrimary} size={24} />}
-            />
+            <BackButton fallbackHref={connected ? '/catalogo' : '/inicio'} />
             <View className="flex-1 flex-row items-center justify-end gap-1">
               <AppButton
                 hideLabel
@@ -170,7 +217,7 @@ export function ProductDetailScreen({ productId, initialMode }: ProductDetailScr
                 className="h-11 w-11 rounded-full px-0 py-0"
                 onPress={() => {
                   toggleFavorite(product.id);
-                  setNotice(
+                  toast.info(
                     favorite
                       ? 'Eliminado de favoritos.'
                       : 'Guardado en favoritos durante esta sesión.',
@@ -179,8 +226,8 @@ export function ProductDetailScreen({ productId, initialMode }: ProductDetailScr
                 leftIcon={
                   <Heart
                     aria-hidden
-                    color={favorite ? '#EF4444' : colors.textPrimary}
-                    fill={favorite ? '#EF4444' : 'none'}
+                    color={favorite ? colors.favorite : colors.textPrimary}
+                    fill={favorite ? colors.favorite : 'none'}
                     size={24}
                   />
                 }
@@ -193,7 +240,9 @@ export function ProductDetailScreen({ productId, initialMode }: ProductDetailScr
                 className="h-11 w-11 rounded-full px-0 py-0"
                 onPress={() => void shareProduct()}
                 leftIcon={
-                  sharing ? undefined : <Share2 aria-hidden color={colors.textPrimary} size={22} />
+                  sharing ? undefined : (
+                    <ShareIcon aria-hidden color={colors.textPrimary} size={22} />
+                  )
                 }
               />
             </View>
@@ -218,16 +267,22 @@ export function ProductDetailScreen({ productId, initialMode }: ProductDetailScr
             }}
           >
             {productImages.map((image, index) => (
-              <Pressable
-                key={index}
+              <AppButton
+                variant="unstyled"
+                label={`Ampliar foto ${index + 1} de ${product.name}`}
+                key={image.id}
                 onPress={() => setZoomed(true)}
                 accessibilityRole="imagebutton"
                 accessibilityLabel={`Ampliar foto ${index + 1} de ${product.name}`}
                 style={{ width, aspectRatio: 1, maxHeight: 360, padding: 24 }}
                 className="items-center justify-center"
               >
-                <CatalogImage source={image} label={`${product.name}, foto ${index + 1}`} />
-              </Pressable>
+                <CatalogImage
+                  source={image.source}
+                  blurhash={image.blurhash}
+                  label={`${product.name}, foto ${index + 1}`}
+                />
+              </AppButton>
             ))}
           </ScrollView>
         </View>
@@ -237,6 +292,7 @@ export function ProductDetailScreen({ productId, initialMode }: ProductDetailScr
             contentOffset.current = event.nativeEvent.layout.y;
           }}
         >
+          {remoteStatus}
           <ScrollView
             ref={thumbnailScrollRef}
             horizontal
@@ -245,7 +301,7 @@ export function ProductDetailScreen({ productId, initialMode }: ProductDetailScr
           >
             {productImages.map((image, index) => (
               <AppButton
-                key={index}
+                key={image.id}
                 variant="unstyled"
                 label={`Ver foto ${index + 1}`}
                 accessibilityState={{ selected: photoIndex === index }}
@@ -254,7 +310,12 @@ export function ProductDetailScreen({ productId, initialMode }: ProductDetailScr
                 }`}
                 onPress={() => handleSelectPhoto(index)}
               >
-                <CatalogImage source={image} label={`${product.name}, foto ${index + 1}`} compact />
+                <CatalogImage
+                  source={image.source}
+                  blurhash={image.blurhash}
+                  label={`${product.name}, foto ${index + 1}`}
+                  compact
+                />
               </AppButton>
             ))}
           </ScrollView>
@@ -263,36 +324,40 @@ export function ProductDetailScreen({ productId, initialMode }: ProductDetailScr
               <Text className="flex-1 font-sans-medium text-sm text-brand-strong" numberOfLines={1}>
                 {product.category}
               </Text>
-              <Pressable
-                className="flex-row items-center gap-1.5 active:opacity-70"
-                onPress={() =>
-                  scrollRef.current?.scrollTo({
-                    y: contentOffset.current + reviewsOffset.current,
-                    animated: true,
-                  })
-                }
-                accessibilityRole="button"
-                accessibilityLabel={
-                  reviews.length
-                    ? `Calificación 4.5 de 5 estrellas, ${reviews.length} reseñas. Ver reseñas.`
-                    : 'Sin reseñas'
-                }
-              >
-                <Star
-                  aria-hidden
-                  color={reviews.length ? '#FACC15' : colors.textSecondary}
-                  fill={reviews.length ? '#FACC15' : 'none'}
-                  size={15}
-                />
-                <Text className="font-sans-semibold text-sm text-primary">
-                  {reviews.length ? '4.5' : 'Sin reseñas'}
-                </Text>
-                {reviews.length ? (
-                  <Text className="font-sans text-xs text-secondary">
-                    ({reviews.length} {reviews.length === 1 ? 'reseña' : 'reseñas'})
+              {!connected || suppliedReviews ? (
+                <AppButton
+                  variant="unstyled"
+                  label="Ver reseñas"
+                  className="min-h-11 flex-row flex-wrap items-center gap-1.5"
+                  onPress={() =>
+                    scrollRef.current?.scrollTo({
+                      y: contentOffset.current + reviewsOffset.current,
+                      animated: true,
+                    })
+                  }
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    reviews.length
+                      ? `Calificación ${averageRating} de 5 estrellas, ${reviews.length} reseñas. Ver reseñas.`
+                      : 'Sin reseñas'
+                  }
+                >
+                  <Star
+                    aria-hidden
+                    color={reviews.length ? colors.rating : colors.textSecondary}
+                    fill={reviews.length ? colors.rating : 'none'}
+                    size={15}
+                  />
+                  <Text className="font-sans-semibold text-sm text-primary">
+                    {reviews.length ? String(averageRating) : 'Sin reseñas'}
                   </Text>
-                ) : null}
-              </Pressable>
+                  {reviews.length ? (
+                    <Text className="font-sans text-xs text-secondary">
+                      ({reviews.length} {reviews.length === 1 ? 'reseña' : 'reseñas'})
+                    </Text>
+                  ) : null}
+                </AppButton>
+              ) : null}
             </View>
             <Text
               accessibilityRole="header"
@@ -315,17 +380,38 @@ export function ProductDetailScreen({ productId, initialMode }: ProductDetailScr
                   className="flex-1 rounded-xl"
                   onPress={() => {
                     setMode(value);
-                    setNotice('');
                   }}
                 />
               ))}
             </View>
           ) : (
             <Text className="font-sans-medium text-sm text-secondary">
-              {rental ? 'Disponible para renta' : 'Disponible para compra'}
+              {product.unavailable
+                ? rental
+                  ? 'Modalidad: renta'
+                  : 'Modalidad: compra'
+                : rental
+                  ? 'Disponible para renta'
+                  : 'Disponible para compra'}
             </Text>
           )}
           <View className="gap-2">
+            {connected && !rental && product.prescription ? (
+              <Text className="font-sans-medium text-sm text-brand-strong">Requiere receta</Text>
+            ) : null}
+            {product.unavailable ? (
+              <Text className="font-sans-semibold text-base text-secondary">No disponible</Text>
+            ) : null}
+            {!rental && product.originalPrice && !product.unavailable ? (
+              <Text className="font-sans text-sm text-secondary line-through">
+                {product.originalPrice}
+              </Text>
+            ) : null}
+            {!rental && product.discountPercent && !product.unavailable ? (
+              <Text className="font-sans-semibold text-sm text-brand-strong">
+                Oferta · {product.discountPercent}%
+              </Text>
+            ) : null}
             <View className="flex-row flex-wrap items-baseline gap-2">
               <Text className="font-sans-bold text-3xl text-primary">
                 {price ?? 'Consultar tarifa'}
@@ -334,11 +420,13 @@ export function ProductDetailScreen({ productId, initialMode }: ProductDetailScr
                 {rental ? 'MXN / día' : 'MXN'}
               </Text>
             </View>
-            <Text className="font-sans text-sm leading-5 text-secondary">
-              {rental
-                ? 'Selecciona las fechas y completa tu solicitud desde el carrito.'
-                : 'Añade el producto al carrito para continuar con tu compra.'}
-            </Text>
+            {!connected ? (
+              <Text className="font-sans text-sm leading-5 text-secondary">
+                {rental
+                  ? 'Selecciona las fechas y completa tu solicitud desde el carrito.'
+                  : 'Añade el producto al carrito para continuar con tu compra.'}
+              </Text>
+            ) : null}
           </View>
           <View className="gap-4">
             <View className="flex-row gap-2 border-b border-border/50 pb-3">
@@ -406,7 +494,9 @@ export function ProductDetailScreen({ productId, initialMode }: ProductDetailScr
                 <View className="flex-row items-start gap-2">
                   <FileText aria-hidden color={colors.brandStrong} size={20} />
                   <Text className="flex-1 font-sans-medium text-sm text-brand-strong">
-                    Requiere receta. Se adjunta desde el carrito.
+                    {connected
+                      ? 'Requiere receta.'
+                      : 'Requiere receta. Se adjunta desde el carrito.'}
                   </Text>
                 </View>
               ) : null}
@@ -421,13 +511,16 @@ export function ProductDetailScreen({ productId, initialMode }: ProductDetailScr
             <Text accessibilityRole="header" className="font-sans-semibold text-xl text-primary">
               Reseñas
             </Text>
+            {reviewsStatus}
             {reviews.length ? (
               <>
                 <View className="flex-row items-baseline gap-2">
-                  <Text className="font-sans-bold text-3xl text-primary">4.5</Text>
-                  <Text className="font-sans text-sm text-secondary">de 5 · 2 reseñas</Text>
+                  <Text className="font-sans-bold text-3xl text-primary">{averageRating}</Text>
+                  <Text className="font-sans text-sm text-secondary">
+                    de 5 · {reviews.length} {reviews.length === 1 ? 'reseña' : 'reseñas'}
+                  </Text>
                 </View>
-                {reviews.map((review) => (
+                {visibleReviews.map((review) => (
                   <View key={review.id} className="gap-2 border-b border-border/30 pb-4">
                     <View className="flex-row flex-wrap items-center justify-between gap-2">
                       <Text className="font-sans-medium text-sm text-primary">{review.author}</Text>
@@ -439,8 +532,8 @@ export function ProductDetailScreen({ productId, initialMode }: ProductDetailScr
                           <Star
                             key={value}
                             aria-hidden
-                            color={value <= review.rating ? '#FACC15' : colors.disabled}
-                            fill={value <= review.rating ? '#FACC15' : 'none'}
+                            color={value <= review.rating ? colors.rating : colors.disabled}
+                            fill={value <= review.rating ? colors.rating : 'none'}
                             size={14}
                           />
                         ))}
@@ -451,46 +544,56 @@ export function ProductDetailScreen({ productId, initialMode }: ProductDetailScr
                     </Text>
                   </View>
                 ))}
-                <View className="w-full items-center justify-center pt-2">
-                  <AppButton
-                    variant="ghost"
-                    label="Ver más"
-                    accessibilityLabel="Ver más reseñas"
-                    className="self-center px-6 py-2.5"
-                    labelClassName="font-sans-semibold text-base text-brand"
-                    onPress={() => setNotice('Por ahora solo hay 2 reseñas disponibles.')}
-                  />
-                </View>
+                {reviews.length > 2 ? (
+                  <View className="w-full items-center justify-center pt-2">
+                    <AppButton
+                      variant="ghost"
+                      label={showAllReviews ? 'Ver menos' : 'Ver más'}
+                      accessibilityLabel={showAllReviews ? 'Ver menos reseñas' : 'Ver más reseñas'}
+                      className="self-center px-6 py-2.5"
+                      labelClassName="font-sans-semibold text-base text-brand"
+                      onPress={() => setShowAllReviews((current) => !current)}
+                    />
+                  </View>
+                ) : null}
               </>
-            ) : (
+            ) : !connected || suppliedReviews ? (
               <EmptyState
                 title="Todavía no hay reseñas"
                 description="Las opiniones aparecerán aquí cuando estén disponibles."
               />
-            )}
+            ) : null}
           </View>
-          <View className="gap-4">
-            <Text accessibilityRole="header" className="font-sans-semibold text-xl text-primary">
-              También te puede interesar
-            </Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ gap: 12, paddingBottom: 4, alignItems: 'flex-start' }}
-            >
-              {recommendations.map((item) => (
-                <View key={item.id} style={{ width: compact ? 210 : 170 }}>
-                  <ProductCard
-                    className="w-full"
-                    product={item}
-                    onPress={() =>
-                      router.replace({ pathname: '/producto/[id]', params: { id: item.id } })
-                    }
-                  />
-                </View>
-              ))}
-            </ScrollView>
-          </View>
+          {recommendations.length > 0 || connected ? (
+            <View className="gap-4">
+              <Text accessibilityRole="header" className="font-sans-semibold text-xl text-primary">
+                También te puede interesar
+              </Text>
+              {recommendationsStatus}
+              {connected && !recommendationsStatus && recommendations.length === 0 ? (
+                <Text className="font-sans text-sm text-secondary">
+                  No hay productos recomendados disponibles.
+                </Text>
+              ) : null}
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ gap: 12, paddingBottom: 4, alignItems: 'flex-start' }}
+              >
+                {recommendations.map((item) => (
+                  <View key={item.id} style={{ width: compact ? 210 : 170 }}>
+                    <ProductCard
+                      className="w-full"
+                      product={item}
+                      onPress={() =>
+                        router.replace({ pathname: '/producto/[id]', params: { id: item.id } })
+                      }
+                    />
+                  </View>
+                ))}
+              </ScrollView>
+            </View>
+          ) : null}
         </View>
       </ScrollView>
       <Modal
@@ -507,11 +610,14 @@ export function ProductDetailScreen({ productId, initialMode }: ProductDetailScr
               variant="ghost"
               className="h-11 w-11 rounded-full bg-white/10 px-0 py-0 active:bg-white/20"
               onPress={() => setZoomed(false)}
-              leftIcon={<X aria-hidden color="#FFFFFF" size={24} />}
+              leftIcon={<X aria-hidden color={colors.onBrand} size={24} />}
             />
           </View>
           <ScrollView
             ref={zoomCarouselRef}
+            onLayout={() =>
+              zoomCarouselRef.current?.scrollTo({ x: photoIndex * width, animated: false })
+            }
             horizontal
             pagingEnabled
             showsHorizontalScrollIndicator={false}
@@ -528,29 +634,32 @@ export function ProductDetailScreen({ productId, initialMode }: ProductDetailScr
               carouselRef.current?.scrollTo({ x: newIndex * width, animated: false });
             }}
           >
-            {productImages.map((image, index) => (
-              <Pressable
-                key={index}
-                style={{ width }}
-                className="flex-1 items-center justify-center p-4"
-                onPress={() => setZoomed(false)}
-                accessibilityLabel="Cerrar vista ampliada"
-              >
-                <View className="aspect-square max-h-[85%] w-full items-center justify-center">
-                  <CatalogImage source={image} label={`${product.name}, foto ampliada`} />
-                </View>
-              </Pressable>
-            ))}
+            {zoomed
+              ? productImages.map((image) => (
+                  <AppButton
+                    variant="unstyled"
+                    label="Cerrar vista ampliada"
+                    key={image.id}
+                    style={{ width }}
+                    className="flex-1 items-center justify-center p-4"
+                    onPress={() => setZoomed(false)}
+                    accessibilityLabel="Cerrar vista ampliada"
+                  >
+                    <View className="aspect-square max-h-[85%] w-full items-center justify-center">
+                      <CatalogImage
+                        source={image.source}
+                        blurhash={image.blurhash}
+                        label={`${product.name}, foto ampliada`}
+                      />
+                    </View>
+                  </AppButton>
+                ))
+              : null}
           </ScrollView>
           <View className="pb-6" />
         </View>
       </Modal>
       <View className="gap-2 border-t border-border/40 bg-background px-5 pb-2 pt-3">
-        {notice ? (
-          <Text accessibilityLiveRegion="polite" className="font-sans text-sm text-brand-strong">
-            {notice}
-          </Text>
-        ) : null}
         <View className={compact ? 'gap-2' : 'flex-row items-center gap-3'}>
           <AppButton
             label={`Ver carrito${cartCount ? ` (${cartCount})` : ''}`}
@@ -569,11 +678,13 @@ export function ProductDetailScreen({ productId, initialMode }: ProductDetailScr
                   : 'Añadir al carrito'
             }
             className={`${compact ? '' : 'flex-1'} rounded-full`}
-            disabled={!price || atQuantityLimit}
+            disabled={
+              !price || atQuantityLimit || product.unavailable || (rental && !product.rental)
+            }
             leftIcon={<ShoppingBag aria-hidden color={colors.onBrand} size={20} />}
             onPress={() => {
-              addItem(product.id, mode);
-              setNotice(`${rental ? 'Renta' : 'Producto'} añadido al carrito.`);
+              addItem(product.id, mode, connected ? product : undefined);
+              toast.success('Producto agregado');
             }}
           />
         </View>

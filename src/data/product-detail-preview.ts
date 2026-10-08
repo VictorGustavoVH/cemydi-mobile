@@ -1,6 +1,7 @@
 import { homeProducts, type HomeProduct } from './catalog-preview';
 
 export type ProductDetailPreview = HomeProduct & {
+  images?: { id: string; source: HomeProduct['image']; blurhash?: string }[];
   category: string;
   description: string;
   characteristics: { label: string; value: string }[];
@@ -9,7 +10,10 @@ export type ProductDetailPreview = HomeProduct & {
 };
 
 // Illustrative presentation content only, never API contracts or real specifications.
-const details: Record<string, Omit<ProductDetailPreview, keyof HomeProduct>> = {
+const details: Record<
+  string,
+  Omit<ProductDetailPreview, Exclude<keyof HomeProduct, 'prescription'>>
+> = {
   bed: {
     category: 'Descanso y cuidado',
     description:
