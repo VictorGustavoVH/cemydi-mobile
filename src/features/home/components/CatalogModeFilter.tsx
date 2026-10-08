@@ -1,6 +1,6 @@
 import { View } from 'react-native';
 import { AppButton } from '@/components/ui/AppButton';
-import { catalogModes, type CatalogMode } from '../home-mocks';
+import { catalogModes, type CatalogMode } from '@/data/catalog-preview';
 
 type CatalogModeFilterProps = { value: CatalogMode; onChange: (mode: CatalogMode) => void };
 export function CatalogModeFilter({ value, onChange }: CatalogModeFilterProps) {
