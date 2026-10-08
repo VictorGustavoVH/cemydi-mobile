@@ -6,8 +6,8 @@ import * as Network from 'expo-network';
  *
  * Nota: QueryProvider ya integra expo-network con TanStack Query
  * (onlineManager). Este hook es para pantallas/componentes que necesiten
- * conocer la conectividad directamente; aún no se consume en ninguna
- * pantalla.
+ * conocer la conectividad directamente (ej. HomeScreen, que lo usa para
+ * priorizar OfflineState cuando no hay datos).
  */
 export function useNetworkStatus() {
   const [isOnline, setIsOnline] = useState<boolean | null>(null);
