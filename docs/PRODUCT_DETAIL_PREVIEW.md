@@ -1,6 +1,10 @@
 # Detalle de producto
 
-## Diseño y navegación
+## Estado vigente
+
+Los ids numéricos consultan el backend y reutilizan la galería/composición de detalle. Presentan precio, stock, ofertas y condiciones reales, sin carrito, reseñas o recomendaciones de muestra. Véase [CATALOG.md](./CATALOG.md). Las secciones siguientes describen el detalle histórico de fixtures conservado para pruebas del carrito local.
+
+## Diseño y navegación históricos
 
 `/producto/[id]` reemplaza la ficha modal de Inicio. La composición toma la segunda referencia del usuario: imagen protagonista con acciones superiores, miniatura, categoría, nombre, valoración, precio y acciones inferiores fijas. Conserva fondo blanco y marca CEMYDI `#258e8b`.
 
@@ -29,7 +33,7 @@ Compartir usa `Share` de React Native y envía texto de muestra. No inventa una 
 
 - `src/data/catalog-preview.ts`: catálogo compartido de presentación, incluyendo las imágenes nuevas de bota, concentrador y muletas.
 - `src/data/product-detail-preview.ts`: contenido ilustrativo de detalle.
-- `src/components/ui/CatalogImage.tsx` y `ProductCard.tsx`: componentes existentes promovidos para uso en Inicio y Detalle; las rutas anteriores reexportan para compatibilidad.
+- `src/components/ui/CatalogImage.tsx` y `ProductCard.tsx`: componentes existentes promovidos para uso en Inicio y Detalle; los consumidores importan directamente UI compartida; ya no hay reexports en Home.
 - `src/features/products/ProductDetailScreen.tsx`: composición e interacciones del detalle.
 - `src/features/cart/CartPreviewScreen.tsx`: revisión del carrito de muestra.
 - Rutas delgadas bajo `src/app`; estado de sesión local en el provider compartido.
@@ -45,3 +49,5 @@ Validación requerida: lint, typecheck, format check y Jest. La comprobación de
 Resultado: typecheck, format check y lint sin errores; lint advierte un directive no usado en tipos generados de `.expo`. Las tres suites y siete tests pasan; las pruebas anteriores de Inicio emiten warnings de `act`. Export iOS generado correctamente en `.expo/product-detail-ios`.
 
 En Expo Go sobre Android se comprobó el render del detalle, cambio a renta y tarifa diaria, contenido de condiciones, scroll, acción de favorito, añadir una renta y navegación al carrito con el item y modalidad correctos.
+
+Auditoría correctiva: se eliminó la repetición artificial de cuatro imágenes idénticas. ProductDetailPreview.images admite una galería opcional con id/source/blurhash de presentación; sin ella se usa solo la imagen principal. Miniaturas/carrusel/zoom permanecen; el zoom no monta imágenes mientras está cerrado y se posiciona al medir layout, sin timeout artificial. Recomendaciones y galería se derivan una vez por producto. Compartir tiene bloqueo inmediato contra doble pulsación y estado busy/error.

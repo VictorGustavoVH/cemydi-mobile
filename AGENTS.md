@@ -63,3 +63,5 @@ npm run format:check
 ## Done
 
 Una tarea está Done cuando cumple aceptación, contratos confirmados, validación aplicable, estados loading/empty/error/offline, accesibilidad, Android/iOS según riesgo y documentación actualizada. Compilar por sí solo no basta.
+
+Las decisiones permanentes de encabezados, reutilización, Skeleton/BlurHash, imágenes, teclado y rendimiento están en `docs/ARCHITECTURE.md`, `docs/DESIGN_SYSTEM.md` y `docs/CONVENTIONS.md`; consultar antes de añadir UI o fuentes de datos.

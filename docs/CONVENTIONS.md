@@ -134,3 +134,13 @@ No declares campos opcionales solo para hacer pasar una respuesta incompatible. 
 ## Formato
 
 Prettier es la autoridad de formato. El baseline de `format:check` está normalizado y pasa correctamente.
+
+## Rendimiento y UX de nuevas funcionalidades
+
+- Leer las decisiones de [ARCHITECTURE.md](./ARCHITECTURE.md) y los ejemplos de Skeleton/BlurHash en [DESIGN_SYSTEM.md](./DESIGN_SYSTEM.md). No imponer encabezado global ni providers sin consumidor real.
+- Usar React.memo cuando las props y suscripciones permitan omitir trabajo real; estabilizar callbacks pasados a esas hojas. Ejemplo implementado: CartItemCard recibe item/product sin recrearlos y usa acciones estables del provider.
+- useMemo se justifica para resultados derivados reutilizados (entradas/secciones/resumen de carrito, galería/recomendaciones). No memoizar todo cálculo trivial ni ocultar dependencias de estado.
+- Listas con ids estables, renderItem y separadores estables; conservar numColumns/key compatibles con FlatList y restaurar scroll al remontar por cambio de columnas. No inventar getItemLayout para filas de altura variable por texto.
+- Diferenciar estado de interfaz, fuente de datos y caché: filtros/selección local; servicio mock explícito; queries con keys propias. Confirmar contrato antes de sustituir mocks por API y revisar retry, staleTime, invalidación y conectividad.
+- AppScreen controla teclado en formularios; no duplicar ajustes. No conservar contraseñas en borradores ni caché. AuthPreviewProvider solo conserva nombre/correo al volver para corregirlos tras enviar OTP.
+- Documentar qué está implementado, qué es una decisión y qué depende de la API. Medir fluidez/CPU/memoria en dispositivo antes de atribuir mejoras numéricas; Jest verifica comportamiento y omisión de renders, no FPS.

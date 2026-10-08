@@ -38,6 +38,8 @@ EXPO_PUBLIC_APP_ENV=development
 - `staging` debe usar su propia URL desplegada.
 - `production` debe usar su propia URL HTTPS.
 - `localhost` en un dispositivo físico apunta al propio dispositivo, no a la computadora de desarrollo.
+- En el emulador Android, `http://10.0.2.2:4000` alcanza el backend de la computadora. En un teléfono físico, usa la IP LAN actual de la computadora y conecta ambos a la misma red.
+- Si cambia la IP de la computadora, actualiza `EXPO_PUBLIC_API_URL`. Después de cambiar `.env`, recarga completamente Expo Go; si Metro conserva la configuración anterior, reinícialo con `npm run start -- --clear`.
 
 > **Regla de seguridad:** `EXPO_PUBLIC_*` se empaqueta en el bundle de la app y es legible para cualquiera. Nunca pongas ahí claves, tokens, contraseñas ni ningún secreto; solo configuración pública.
 
@@ -50,6 +52,8 @@ npm run ios
 ```
 
 El script web heredado todavía requiere `react-native-web`; el soporte web no forma parte de la foundation móvil actual.
+
+Para probar Expo Go en Android mediante ADB reverse, usa `npm run start:local`: limita Metro a localhost y prioriza IPv4 para evitar conexiones fallidas en Windows. Consulta [TESTING.md](./docs/TESTING.md) para los recorridos Maestro y puertos alternativos.
 
 ## Comandos de calidad
 
@@ -86,8 +90,8 @@ src/
 
 ## Estado actual
 
-- La app funciona con **mocks**: `HomeScreen` consume `useHome` → `homeServiceMock` (`src/features/home/services/homeService.mock.ts`).
-- **Pendiente para cuando exista backend:** crear `homeService.api.ts` con la misma interfaz `HomeService`, cambiar el hook `useHome`, integrar autenticación, `expo-secure-store` para tokens y certificate pinning.
+- La app funciona con **mocks**: `HomeScreen` consume `useHome` (TanStack Query, caché local y operación offline) → `homeServiceMock` (`src/features/home/services/homeService.mock.ts`).
+- **Pendiente al conectar la API existente:** confirmar contratos y crear el servicio/adapters correspondientes; revisar políticas de TanStack Query e integrar autenticación solo tras aprobar cookies o tokens según AUTHENTICATION.md. No se presupone almacenamiento de tokens.
 - Las pruebas unitarias/componentes ya están configuradas con Jest + React Native Testing Library; ver [TESTING.md](docs/TESTING.md).
 
 Las features se crean de forma incremental fuera de `src/app`. El flujo preferido es `screen → hook/query → service → API`.
