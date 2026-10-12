@@ -43,7 +43,14 @@
         }
       ],
       "expo-font",
-      "expo-image"
+      "expo-image",
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Permite que CEMYDI use el micrófono para buscar productos por voz.",
+          "speechRecognitionPermission": "Permite que CEMYDI convierta tu voz en texto para buscar productos."
+        }
+      ]
     ]
   }
 }

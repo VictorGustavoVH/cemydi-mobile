@@ -3,16 +3,19 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
   type ReactNode,
+  type RefObject,
 } from 'react';
 import {
   Keyboard,
   Platform,
   ScrollView,
   StatusBar,
+  StyleSheet,
   View,
   type TextInputFocusEvent,
 } from 'react-native';
@@ -36,6 +39,24 @@ type InputVisibility = {
 const InputVisibilityContext = createContext<InputVisibility | null>(null);
 export const useInputVisibility = () => useContext(InputVisibilityContext);
 
+type ScreenOverlay = {
+  viewport: RefObject<View | null>;
+  layoutVersion: number;
+  setContent: (content: ReactNode) => void;
+};
+const ScreenOverlayContext = createContext<ScreenOverlay | null>(null);
+export const useScreenOverlay = () => useContext(ScreenOverlayContext);
+
+export function AppScreenOverlay({ children }: { children: ReactNode }) {
+  const overlay = useScreenOverlay();
+  const setContent = overlay?.setContent;
+  useLayoutEffect(() => {
+    setContent?.(children);
+    return () => setContent?.(null);
+  }, [children, setContent]);
+  return setContent ? null : children;
+}
+
 export function AppScreen({
   children,
   className = '',
@@ -45,6 +66,17 @@ export function AppScreen({
 }: AppScreenProps) {
   const toast = useContext(ToastContext);
   const scrollRef = useRef<ScrollView>(null);
+  const overlayViewport = useRef<View>(null);
+  const [overlayContent, setOverlayContent] = useState<ReactNode>(null);
+  const [overlayLayoutVersion, setOverlayLayoutVersion] = useState(0);
+  const overlay = useMemo<ScreenOverlay>(
+    () => ({
+      viewport: overlayViewport,
+      layoutVersion: overlayLayoutVersion,
+      setContent: setOverlayContent,
+    }),
+    [overlayLayoutVersion],
+  );
 
   useEffect(() => {
     return () => {
@@ -124,33 +156,47 @@ export function AppScreen({
   );
   return (
     <SafeAreaView className={`flex-1 bg-background ${className}`} edges={edges}>
-      {scroll ? (
-        <InputVisibilityContext.Provider value={visibility}>
-          <ScrollView
-            ref={scrollRef}
-            onLayout={() => {
-              updateKeyboardSpace();
-              scheduleReveal();
-            }}
-            onContentSizeChange={scheduleReveal}
-            onScroll={(event) => {
-              const y = event.nativeEvent.contentOffset.y;
-              scrollOffset.current = y;
-              toast?.setScrolled(y > 15);
-            }}
-            scrollEventThrottle={16}
-            style={{ flex: 1 }}
-            contentContainerStyle={[scrollContentStyle, { paddingBottom: keyboardSpace }]}
-            contentInsetAdjustmentBehavior="automatic"
-            keyboardShouldPersistTaps="handled"
-            keyboardDismissMode="on-drag"
-          >
+      <ScreenOverlayContext.Provider value={overlay}>
+        <View style={{ flex: 1 }}>
+          {scroll ? (
+            <InputVisibilityContext.Provider value={visibility}>
+              <ScrollView
+                ref={scrollRef}
+                onLayout={() => {
+                  updateKeyboardSpace();
+                  scheduleReveal();
+                }}
+                onContentSizeChange={scheduleReveal}
+                onScroll={(event) => {
+                  const y = event.nativeEvent.contentOffset.y;
+                  scrollOffset.current = y;
+                  toast?.setScrolled(y > 15);
+                }}
+                scrollEventThrottle={16}
+                style={{ flex: 1 }}
+                contentContainerStyle={[scrollContentStyle, { paddingBottom: keyboardSpace }]}
+                contentInsetAdjustmentBehavior="automatic"
+                keyboardShouldPersistTaps="handled"
+                keyboardDismissMode="on-drag"
+              >
+                <View className={`flex-1 ${contentClassName}`}>{children}</View>
+              </ScrollView>
+            </InputVisibilityContext.Provider>
+          ) : (
             <View className={`flex-1 ${contentClassName}`}>{children}</View>
-          </ScrollView>
-        </InputVisibilityContext.Provider>
-      ) : (
-        <View className={`flex-1 ${contentClassName}`}>{children}</View>
-      )}
+          )}
+          <View
+            ref={overlayViewport}
+            testID="screen-overlay-host"
+            collapsable={false}
+            pointerEvents="box-none"
+            style={[StyleSheet.absoluteFill, { zIndex: 100, elevation: 20 }]}
+            onLayout={() => setOverlayLayoutVersion((version) => version + 1)}
+          >
+            {overlayContent}
+          </View>
+        </View>
+      </ScreenOverlayContext.Provider>
     </SafeAreaView>
   );
 }

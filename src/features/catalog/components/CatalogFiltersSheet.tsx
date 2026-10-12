@@ -13,7 +13,7 @@ import { colors } from '@/theme';
 type CatalogFiltersSheetProps = {
   applied: ProductFilters;
   options?: { clasificaciones: string[]; marcas: string[] };
-  onApply: (filters: ProductFilters) => void;
+  onChange: (filters: ProductFilters) => void;
   onClose: () => void;
 };
 
@@ -45,21 +45,35 @@ function FilterChoice({
 export function CatalogFiltersSheet({
   applied,
   options,
-  onApply,
+  onChange,
   onClose,
 }: CatalogFiltersSheetProps) {
-  const [draft, setDraft] = useState(applied);
+  const [availableOptions, setAvailableOptions] = useState(options);
+  if (options && options !== availableOptions) setAvailableOptions(options);
+  const filters = applied;
+
   const toggle = (key: 'clasificaciones' | 'marcas', value: string) =>
-    setDraft((current) => ({
-      ...current,
-      [key]: current[key].includes(value)
-        ? current[key].filter((item) => item !== value)
-        : [...current[key], value],
-    }));
+    onChange({
+      ...filters,
+      [key]: filters[key].includes(value)
+        ? filters[key].filter((item) => item !== value)
+        : [...filters[key], value],
+    });
   return (
-    <AppSheet visible title="Filtrar catálogo" onClose={onClose}>
+    <AppSheet
+      visible
+      title="Filtrar catálogo"
+      onClose={onClose}
+      headerContent={
+        <AppButton
+          label="Aplicar filtros"
+          onPress={onClose}
+          accessibilityHint="Los cambios ya están aplicados. Cierra el panel para ver el catálogo."
+        />
+      }
+    >
       <Text className="font-sans text-sm text-secondary">
-        Selecciona tus filtros y aplícalos para ver los resultados.
+        Los filtros se aplican al seleccionarlos.
       </Text>
       <Text accessibilityRole="header" className="font-sans-semibold text-base text-primary">
         Ordenar por
@@ -68,8 +82,8 @@ export function CatalogFiltersSheet({
         <FilterChoice
           key={option.value}
           label={option.label}
-          selected={draft.sort === option.value}
-          onPress={() => setDraft({ ...draft, sort: option.value })}
+          selected={filters.sort === option.value}
+          onPress={() => onChange({ ...filters, sort: option.value })}
         />
       ))}
       <Text accessibilityRole="header" className="font-sans-semibold text-base text-primary">
@@ -85,13 +99,13 @@ export function CatalogFiltersSheet({
         <FilterChoice
           key={value}
           label={label}
-          selected={draft.tipos.includes(value)}
+          selected={filters.tipos.includes(value)}
           onPress={() =>
-            setDraft({
-              ...draft,
-              tipos: draft.tipos.includes(value)
-                ? draft.tipos.filter((item) => item !== value)
-                : [...draft.tipos, value],
+            onChange({
+              ...filters,
+              tipos: filters.tipos.includes(value)
+                ? filters.tipos.filter((item) => item !== value)
+                : [...filters.tipos, value],
             })
           }
         />
@@ -101,17 +115,17 @@ export function CatalogFiltersSheet({
           <Text accessibilityRole="header" className="font-sans-semibold text-base text-primary">
             {key === 'marcas' ? 'Marcas' : 'Clasificaciones'}
           </Text>
-          {!options ? (
+          {!availableOptions ? (
             <Text className="font-sans text-sm text-secondary">
               Las opciones aparecerán al cargar el catálogo.
             </Text>
           ) : null}
-          {options?.[key].map((value) => (
+          {availableOptions?.[key].map((value) => (
             <FilterChoice
               key={value}
               label={value}
-              selected={draft[key].includes(value)}
-              disabled={!draft[key].includes(value) && draft[key].length >= 20}
+              selected={filters[key].includes(value)}
+              disabled={!filters[key].includes(value) && filters[key].length >= 20}
               onPress={() => toggle(key, value)}
             />
           ))}
@@ -130,21 +144,20 @@ export function CatalogFiltersSheet({
         <FilterChoice
           key={label}
           label={label}
-          selected={draft.requiereReceta === value}
-          onPress={() => setDraft({ ...draft, requiereReceta: value })}
+          selected={filters.requiereReceta === value}
+          onPress={() => onChange({ ...filters, requiereReceta: value })}
         />
       ))}
       <FilterChoice
         label="Solo disponibles"
-        selected={draft.soloDisponibles}
-        onPress={() => setDraft({ ...draft, soloDisponibles: !draft.soloDisponibles })}
+        selected={filters.soloDisponibles}
+        onPress={() => onChange({ ...filters, soloDisponibles: !filters.soloDisponibles })}
       />
       <AppButton
         label="Limpiar filtros"
         variant="ghost"
-        onPress={() => setDraft({ ...emptyProductFilters, search: applied.search })}
+        onPress={() => onChange({ ...emptyProductFilters, search: applied.search })}
       />
-      <AppButton label="Aplicar filtros" onPress={() => onApply(draft)} />
     </AppSheet>
   );
 }
