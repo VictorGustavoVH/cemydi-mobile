@@ -90,7 +90,9 @@ describe('Catálogo, detalle y carrito con estado de sesión compartido', () => 
       pathname: '/catalogo',
       params: { search: 'Movilidad' },
     });
-    expect(screen.getAllByRole('button', { name: /Ver producto\./ })).toHaveLength(6);
+    await waitFor(() =>
+      expect(screen.getAllByRole('button', { name: /Ver producto$/ })).toHaveLength(6),
+    );
   });
 
   it('muestra loading y error del servicio, y reintenta con el servicio existente', async () => {

@@ -9,6 +9,43 @@ const metrics = {
   insets: { top: 44, bottom: 34, left: 0, right: 0 },
 };
 
+it('positions only the requested deletion countdown above the measured navigation bar', async () => {
+  const store = createToastStore();
+  store.setBottomBarHeight(112);
+  store.api.undoable({
+    message: 'Producto eliminado',
+    placement: 'bottom',
+    onUndo: async () => undefined,
+    errorMessage: 'No se pudo restaurar',
+  });
+  const view = await render(
+    <SafeAreaProvider initialMetrics={metrics}>
+      <ToastContext.Provider value={store}>
+        <ToastViewport />
+      </ToastContext.Provider>
+    </SafeAreaProvider>,
+  );
+  expect(screen.getByTestId('toast-viewport')).toHaveStyle({ bottom: 124 });
+  expect(screen.getByTestId('toast-viewport')).not.toHaveStyle({ top: 82 });
+  await act(async () => store.setBottomBarHeight(140));
+  expect(screen.getByTestId('toast-viewport')).toHaveStyle({ bottom: 152 });
+  await act(async () => store.setBottomBarHeight(0));
+  expect(screen.getByTestId('toast-viewport')).toHaveStyle({ bottom: 46 });
+  await fireEvent.press(screen.getByRole('button', { name: 'Deshacer eliminación del producto' }));
+  expect(screen.getByText('Producto restaurado')).toBeTruthy();
+  expect(screen.getByTestId('toast-viewport')).toHaveStyle({ top: 82 });
+  await act(async () => {
+    store.api.undoable({
+      message: 'Otra eliminación',
+      onUndo: async () => undefined,
+      errorMessage: 'Error',
+    });
+  });
+  expect(screen.getByTestId('toast-viewport')).toHaveStyle({ top: 82 });
+  await view.unmount();
+  store.dispose();
+});
+
 it('renders a single countdown, routes to the modal host and invokes the accessible undo action', async () => {
   const store = createToastStore();
   let finish!: () => void;
