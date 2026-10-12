@@ -1,101 +1,197 @@
 import { memo } from 'react';
 import { Text, View, useWindowDimensions } from 'react-native';
+import Star from 'lucide-react-native/icons/star';
+
 import { AppButton } from '@/components/ui/AppButton';
 import type { HomeProduct } from '@/data/catalog-preview';
+import { useThrottledCallback } from '@/hooks/useThrottledCallback';
 import { CatalogImage } from './CatalogImage';
 
 type ProductCardProps = {
   product: HomeProduct;
   onPress: () => void;
   className?: string;
+  throttleMs?: number;
 };
 
 export const ProductCard = memo(function ProductCard({
   className = '',
   product,
   onPress,
+  throttleMs = 750,
 }: ProductCardProps) {
   const { fontScale } = useWindowDimensions();
+
+  const handlePress = useThrottledCallback(onPress, throttleMs);
+
   const unavailable = product.unavailable === true;
+  const hasPurchase = product.modes.includes('purchase');
+  const hasRental = product.modes.includes('rental');
+
+  const hasDiscount = !unavailable && Boolean(product.originalPrice && product.discountPercent);
+
   const acquisitionLabel =
-    product.modes.includes('purchase') && product.modes.includes('rental')
-      ? 'Venta y renta'
-      : product.modes.includes('rental')
-        ? 'Renta'
-        : 'Venta';
+    hasPurchase && hasRental ? 'Venta y renta' : hasRental ? 'Renta' : 'Venta';
+
   const priceLabel =
-    product.modes.length > 1 ? (product.priceSuffix ? 'Precio de renta' : 'Precio de venta') : '';
+    hasPurchase && hasRental
+      ? product.priceSuffix
+        ? 'Precio de renta'
+        : 'Precio de venta'
+      : hasRental
+        ? 'Precio de renta'
+        : 'Precio de venta';
+
+  // Calificaciones temporales.
+  // Posteriormente se obtendrán del backend.
+  const rating = 4.8;
+  const reviewCount = 24;
+
+  const accessibilityLabel = [
+    product.name,
+    acquisitionLabel,
+    product.caption,
+    priceLabel,
+    product.price,
+    product.priceSuffix,
+    hasDiscount ? `Antes ${product.originalPrice}` : '',
+    hasDiscount ? `Descuento del ${product.discountPercent}%` : '',
+    unavailable ? 'No disponible' : '',
+    product.prescription ? 'Requiere receta' : '',
+    `Calificación ${rating} de 5, ${reviewCount} opiniones`,
+    'Ver producto',
+  ]
+    .filter(Boolean)
+    .join('. ');
+
   return (
     <AppButton
-      className={`w-full grow flex-col items-stretch justify-start overflow-hidden rounded-2xl border border-border/50 px-0 py-0 ${unavailable ? 'bg-surface-muted' : 'bg-white'} ${className}`}
-      label={`${product.name}. ${acquisitionLabel}. ${product.caption}. ${priceLabel} ${product.price} ${product.priceSuffix ?? ''}. ${unavailable ? 'No disponible.' : ''} ${product.originalPrice ? `Antes ${product.originalPrice}. Oferta ${product.discountPercent}%.` : ''} ${product.prescription ? 'Requiere receta.' : ''} Ver producto.`}
-      onPress={onPress}
+      className={`w-full grow flex-col items-stretch justify-start overflow-hidden rounded-xl border border-[#e7edef] px-0 py-0 ${unavailable ? 'bg-[#f7f9f9]' : 'bg-white'} ${className} `}
+      label={accessibilityLabel}
+      onPress={handlePress}
       variant="unstyled"
     >
       <View className="w-full grow">
+        {/* IMAGEN DEL PRODUCTO */}
         <View
-          className="w-full bg-surface-muted p-3"
-          style={{ aspectRatio: 3 / 2, maxHeight: 160 }}
+          className="relative w-full overflow-hidden border-b border-[#fff] bg-[#fff]"
+          style={{ aspectRatio: 1 }}
         >
-          <CatalogImage
-            label={product.name}
-            source={product.image}
-            blurhash={product.imageBlurhash}
-            accessible={false}
-            style={unavailable ? { opacity: 0.4 } : undefined}
-          />
-          <View
-            className="absolute left-2 top-2 rounded-md border border-border/50 bg-white px-2 py-1"
-            style={{ maxWidth: '90%' }}
-          >
-            <Text className="font-sans-semibold text-xs text-brand-strong">{acquisitionLabel}</Text>
+          <View className="absolute inset-0 px-1 pb-1 pt-6">
+            <CatalogImage
+              label={product.name}
+              source={product.image}
+              blurhash={product.imageBlurhash}
+              accessible={false}
+              style={unavailable ? { opacity: 0.4 } : undefined}
+            />
           </View>
-        </View>
-        <View className="grow gap-1 p-3">
-          {product.caption ? (
-            <Text numberOfLines={1} className="font-sans text-xs text-secondary">
-              {product.caption}
-            </Text>
+
+          {/* ETIQUETAS DE ADQUISICIÓN */}
+          <View className="absolute left-2 top-2 flex-row flex-wrap gap-1">
+            {hasPurchase ? (
+              <View className="rounded bg-[#258e8b] px-2 py-1">
+                <Text className="font-sans-semibold text-[9px] uppercase tracking-wide text-white">
+                  Venta
+                </Text>
+              </View>
+            ) : null}
+
+            {hasRental ? (
+              <View className="rounded bg-[#2f6fa3] px-2 py-1">
+                <Text className="font-sans-semibold text-[9px] uppercase tracking-wide text-white">
+                  Renta
+                </Text>
+              </View>
+            ) : null}
+          </View>
+
+          {/* PRODUCTO NO DISPONIBLE */}
+          {unavailable ? (
+            <View className="absolute bottom-2 left-2 rounded bg-white/95 px-2 py-1">
+              <Text className="font-sans-semibold text-[10px] text-secondary">No disponible</Text>
+            </View>
           ) : null}
+        </View>
+
+        {/* INFORMACIÓN DEL PRODUCTO */}
+        <View className="grow p-3">
+          {/* CAPTION Y CALIFICACIÓN */}
+          <View className="mb-1 flex-row items-center justify-between gap-2">
+            {/* CAPTION */}
+            <Text
+              numberOfLines={1}
+              className="min-w-0 flex-1 font-sans-semibold text-[10px] uppercase tracking-wide text-[#667b84]"
+            >
+              {product.caption ?? ''}
+            </Text>
+
+            {/* ESTRELLA Y CALIFICACIÓN */}
+            <View className="shrink-0 flex-row items-center gap-1">
+              <Star size={13} color="#E5A500" fill="#E5A500" strokeWidth={1.5} />
+
+              <Text className="font-sans-semibold text-xs text-[#172f38]">{rating.toFixed(1)}</Text>
+            </View>
+          </View>
+
+          {/* NOMBRE DEL PRODUCTO */}
           <Text
             numberOfLines={2}
             style={{ minHeight: 40 * fontScale }}
-            className={`font-sans-semibold text-sm leading-5 ${unavailable ? 'text-secondary' : 'text-primary'}`}
+            className={`font-sans-semibold text-sm leading-5 ${
+              unavailable ? 'text-secondary' : 'text-[#142734]'
+            }`}
           >
             {product.name}
           </Text>
-          <View className="mt-auto pt-1">
-            {priceLabel ? (
-              <Text className="font-sans text-xs text-secondary">{priceLabel}</Text>
-            ) : null}
-            {product.originalPrice && !unavailable ? (
-              <Text className="font-sans text-xs text-secondary line-through">
+
+          {/* PRECIO Y PROMOCIONES */}
+          <View className="mt-auto pt-3">
+            {/* TIPO DE PRECIO */}
+            <Text className="font-sans text-[11px] text-[#71858d]">{priceLabel}</Text>
+
+            {/* PRECIO ORIGINAL */}
+            {hasDiscount ? (
+              <Text className="mt-1 font-sans text-xs text-[#84959b] line-through">
                 {product.originalPrice}
               </Text>
             ) : null}
-            <View className="flex-row flex-wrap items-baseline gap-x-1 pt-1">
+
+            {/* PRECIO ACTUAL */}
+            <View className="mt-1 flex-row flex-wrap items-baseline gap-x-1">
               <Text
-                className={`font-sans-bold text-lg ${unavailable ? 'text-secondary' : 'text-brand-strong'}`}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.8}
+                className={`font-sans-bold text-lg ${
+                  unavailable ? 'text-secondary' : 'text-[#172f38]'
+                }`}
               >
                 {product.price}
               </Text>
+
               {product.priceSuffix ? (
-                <Text className="font-sans text-xs text-secondary">{product.priceSuffix}</Text>
+                <Text className="font-sans text-[10px] text-[#71858d]">{product.priceSuffix}</Text>
               ) : null}
             </View>
-          </View>
-          <View className="pt-1">
-            <Text
-              className={`font-sans-medium text-xs ${unavailable ? 'text-secondary' : 'text-brand-strong'}`}
-            >
-              {unavailable
-                ? 'No disponible'
-                : product.discountPercent
-                  ? `Oferta · ${product.discountPercent}%`
-                  : product.prescription
-                    ? 'Requiere receta'
-                    : 'Disponible'}
-            </Text>
+
+            {/* DESCUENTO */}
+            {hasDiscount ? (
+              <View className="mt-2 flex-row">
+                <View className="rounded-full bg-[#e9f5f3] px-2 py-1">
+                  <Text className="font-sans-semibold text-[10px] text-[#258e8b]">
+                    -{product.discountPercent}%
+                  </Text>
+                </View>
+              </View>
+            ) : null}
+
+            {/* RECETA MÉDICA */}
+            {product.prescription ? (
+              <Text className="mt-2 font-sans-medium text-[10px] text-[#667b84]">
+                Requiere receta
+              </Text>
+            ) : null}
           </View>
         </View>
       </View>
