@@ -5,6 +5,7 @@ export type ToastConfig =
 
 export type UndoToastOptions = {
   message: string;
+  placement?: 'bottom';
   duration?: number;
   onUndo: () => Promise<void>;
   restoringMessage?: string;
@@ -28,6 +29,7 @@ const durationOf = (config: ToastConfig) =>
 export function createToastStore() {
   let current: ToastEntry | null = null;
   let isScrolled = false;
+  let bottomBarHeight = 0;
   let serial = 0;
   let alive = true;
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -118,6 +120,12 @@ export function createToastStore() {
     },
     getSnapshot: () => current,
     getIsScrolled: () => isScrolled,
+    getBottomBarHeight: () => bottomBarHeight,
+    setBottomBarHeight: (height: number) => {
+      if (!alive || bottomBarHeight === height) return;
+      bottomBarHeight = height;
+      emit();
+    },
     setScrolled,
     subscribe: (listener: () => void) => {
       listeners.add(listener);

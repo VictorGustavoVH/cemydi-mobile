@@ -18,6 +18,7 @@ import { ToastProvider } from '@/providers/toast-provider';
 import { AuthPreviewProvider } from '@/providers/auth-preview-provider';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GlobalBottomBar } from '@/components/ui/GlobalBottomBar';
+import { colors } from '@/theme';
 
 SplashScreen.preventAutoHideAsync().catch(() => {
   /* Ignorar errores de carrera en recarga */
@@ -54,8 +55,14 @@ export default function RootLayout() {
           <SafeAreaProvider>
             <ToastProvider>
               <AuthPreviewProvider>
-                <View style={{ flex: 1 }}>
-                  <Stack>
+                <View style={{ flex: 1, backgroundColor: colors.background }}>
+                  <Stack
+                    screenOptions={{
+                      // Avoid Android native transitions leaving screen content partially transparent.
+                      animation: Platform.OS === 'android' ? 'none' : 'default',
+                      contentStyle: { backgroundColor: colors.background },
+                    }}
+                  >
                     <Stack.Screen name="index" options={{ headerShown: false }} />
                     <Stack.Screen name="inicio" options={{ headerShown: false }} />
                     <Stack.Screen name="catalogo" options={{ headerShown: false }} />

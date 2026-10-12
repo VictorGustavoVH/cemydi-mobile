@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { Text } from 'react-native';
 import { usePathname, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -6,6 +6,7 @@ import { AppBottomBar } from '@/components/ui/AppBottomBar';
 import { AppSheet } from '@/components/ui/AppSheet';
 import { useCatalogPreview } from '@/providers/catalog-preview-provider';
 import { useAccountAccess } from '@/hooks/useAccountAccess';
+import { ToastContext } from '@/hooks/useToast';
 
 const NAV_LOCK_MS = 600;
 const MAIN_TABS = ['/inicio', '/catalogo', '/carrito'] as const;
@@ -18,6 +19,12 @@ const MAIN_TABS = ['/inicio', '/catalogo', '/carrito'] as const;
  */
 export function GlobalBottomBar() {
   const pathname = usePathname();
+  const toastStore = useContext(ToastContext);
+  const visible = MAIN_TABS.some((tab) => pathname === tab || pathname?.startsWith(`${tab}/`));
+  useEffect(() => {
+    if (!visible) toastStore?.setBottomBarHeight(0);
+    return () => toastStore?.setBottomBarHeight(0);
+  }, [toastStore, visible]);
   const router = useRouter();
   const { items } = useCatalogPreview();
   const { user, requestAccess } = useAccountAccess();
@@ -52,12 +59,16 @@ export function GlobalBottomBar() {
     setProfileOpen(true);
   }, [pathname, requestAccess]);
 
-  if (!MAIN_TABS.some((tab) => pathname === tab || pathname?.startsWith(`${tab}/`))) {
+  if (!visible) {
     return null;
   }
 
   return (
-    <SafeAreaView edges={['bottom']} className="bg-background">
+    <SafeAreaView
+      edges={['bottom']}
+      className="bg-background"
+      onLayout={(event) => toastStore?.setBottomBarHeight(event.nativeEvent.layout.height)}
+    >
       <AppBottomBar
         cartCount={items.reduce((sum, item) => sum + item.quantity, 0)}
         onCart={onCart}

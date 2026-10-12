@@ -21,6 +21,7 @@ import type { ToastEntry } from './toast-store';
 type AnimatedToastProps = {
   entry: ToastEntry;
   scrolled?: boolean;
+  bottom?: boolean;
   blurTarget?: RefObject<View | null>;
   onUndo: (id: number) => Promise<void>;
   onDismiss: (id: number) => void;
@@ -30,6 +31,7 @@ type AnimatedToastProps = {
 export function AnimatedToast({
   entry,
   scrolled = false,
+  bottom = false,
   blurTarget,
   onUndo,
   onDismiss,
@@ -83,7 +85,7 @@ export function AnimatedToast({
   };
 
   const style = useAnimatedStyle(() => {
-    const entranceY = reduced ? 0 : -32 * (1 - progress.get());
+    const entranceY = reduced ? 0 : (bottom ? 32 : -32) * (1 - progress.get());
     return {
       opacity: progress.get(),
       transform: [

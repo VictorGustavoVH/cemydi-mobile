@@ -35,14 +35,23 @@ function Viewport({
     store.getIsScrolled,
   );
   const insets = useSafeAreaInsets();
+  const bottomBarHeight = useSyncExternalStore(
+    store.subscribe,
+    store.getBottomBarHeight,
+    store.getBottomBarHeight,
+  );
   useEffect(() => (modal ? store.registerHost(id) : undefined), [modal, store, id]);
   if (!entry || (modal ? host !== id : host !== null)) return null;
+  const bottom = entry.type === 'undo' && entry.placement === 'bottom';
   return (
     <View
+      testID="toast-viewport"
       pointerEvents="box-none"
       style={{
         position: 'absolute',
-        top: insets.top + 38,
+        ...(bottom
+          ? { bottom: Math.max(insets.bottom, modal ? 0 : bottomBarHeight) + 12 }
+          : { top: insets.top + 38 }),
         left: Math.max(12, insets.left),
         right: Math.max(12, insets.right),
         zIndex: 1000,
@@ -53,7 +62,8 @@ function Viewport({
         <AnimatedToast
           key={entry.id}
           entry={entry}
-          scrolled={isScrolled}
+          scrolled={bottom ? false : isScrolled}
+          bottom={bottom}
           blurTarget={blurTarget}
           onUndo={store.undo}
           onDismiss={store.api.dismiss}

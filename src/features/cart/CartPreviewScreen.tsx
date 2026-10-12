@@ -18,6 +18,7 @@ import { colors } from '@/theme';
 
 import { useToast, useToastScroll } from '@/hooks/useToast';
 import { useAccountAccess } from '@/hooks/useAccountAccess';
+import { useThrottledCallback } from '@/hooks/useThrottledCallback';
 import { CartItemCard } from './components/CartItemCard';
 import { RentalConfigurationSheet } from './components/RentalConfigurationSheet';
 import {
@@ -126,19 +127,20 @@ export function CartPreviewScreen() {
   const summary = useMemo(() => getPreviewSummary(entries), [entries]);
   const goToCatalog = useCallback(() => router.replace('/inicio'), [router]);
   const startSelection = useCallback(() => setSelectionMode(true), []);
-  const openProduct = useCallback(
+  const openProduct = useThrottledCallback(
     (item: PreviewCartItem) =>
       router.push({
         pathname: '/producto/[id]',
         params: { id: item.productId, mode: item.mode },
       }),
-    [router],
+    750,
   );
   const remove = useCallback(
     (item: PreviewCartItem, index: number) => {
       removeItem(item.productId, item.mode);
       toast.undoable({
         message: 'Producto eliminado',
+        placement: 'bottom',
         duration: 6000,
         onUndo: async () => {
           restoreItem(item, index);
