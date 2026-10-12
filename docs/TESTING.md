@@ -1,5 +1,13 @@
 # Pruebas de CEMYDI Mobile
 
+## Mitigación de pantalla desvanecida en Android — 10 de octubre de 2026
+
+El Stack raíz usa `animation: 'none'` en Android y fondo semántico explícito en escenas/contenedor; iOS conserva `default`. Hipótesis: transición nativa que deja el contenido parcialmente transparente, consistente con el síntoma reportado y [reportes de react-native-screens](https://github.com/software-mansion/react-native-screens/discussions/2746). No se confirmó la causa exacta ni se modificó el desenfoque de notificaciones.
+
+Lint, typecheck, format:check y git diff --check aprobados. Jest: 35 suites aprobadas y una fallida; 189 pruebas aprobadas y tres fallidas en ProductCard. Esos tests aislados no montan el layout modificado y esperan las etiquetas anteriores «Venta y renta» / «Oferta · 15%», mientras el componente actual usa etiquetas separadas y «-15%». Fallos ajenos a esta mitigación; se conservaron los cambios locales existentes. La suite useHome emitió un aviso de actualización fuera de act.
+
+QA nativa pendiente: `adb devices` no encontró dispositivos. En el Android afectado, recargar completamente la app y repetir Inicio → Login → Registro → Recuperación → Inicio y Catálogo → Detalle → volver, incluyendo segundo plano/retorno y toques rápidos. Comprobar contraste completo, ausencia de blanco persistente y controles operables. Sin reproducción en el teléfono no declarar resuelto el fallo. iOS visual también pendiente.
+
 ## Catálogo conectado — 8 de octubre de 2026
 
 El estado vigente de Home/catálogo/detalle está en [CATALOG.md](./CATALOG.md). Home usa API pública y seis productos; catálogo acumula páginas de 24. Las referencias posteriores a Home mock corresponden al alcance histórico o a fixtures explícitos de pruebas. Carrito/autenticación siguen aislados y locales.

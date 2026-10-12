@@ -14,12 +14,14 @@ name: Catálogo público - búsqueda remota y filtros
     timeout: 30000
 - tapOn: Limpiar filtros
 - tapOn: Filtrar catálogo
+- assertVisible: Aplicar filtros
 - assertVisible: Ordenar por
 - scrollUntilVisible:
     element:
       text: Solo disponibles
     direction: DOWN
 - tapOn: Solo disponibles
+- assertVisible: Aplicar filtros
 - tapOn: Aplicar filtros
 - assertVisible: Catálogo
 - assertVisible: Limpiar filtros.*
