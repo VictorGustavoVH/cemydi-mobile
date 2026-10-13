@@ -22,6 +22,8 @@ import {
 } from '@/data/catalog-preview';
 import { useHome } from './hooks/useHome';
 import { useAccountAccess } from '@/hooks/useAccountAccess';
+import { useThrottledCallback } from '@/hooks/useThrottledCallback';
+import { getFriendlyErrorMessage } from '@/services/http/api-error';
 import { useToastScroll } from '@/hooks/useToast';
 import { colors } from '@/theme';
 import { useProductOffers } from '@/hooks/useProductOffers';
@@ -67,6 +69,8 @@ export function HomeScreen() {
   const reducedMotion = useReducedMotion();
   const { width, fontScale } = useWindowDimensions();
   const [search, setSearch] = useState('');
+  const [suggestionsInteracting, setSuggestionsInteracting] = useState(false);
+  const [searchDismissSignal, setSearchDismissSignal] = useState(0);
   const [preview, setPreview] = useState<Preview | null>(null);
   const { data, loading, error, refetch } = useHome();
   const offers = useProductOffers();
@@ -88,20 +92,21 @@ export function HomeScreen() {
     previousColumns.current = columns;
   }, [columns]);
 
-  const openProduct = useCallback(
+  const openProduct = useThrottledCallback(
     (productId: string, productMode: CatalogMode | undefined) => {
       router.push({
         pathname: '/producto/[id]',
         params: { id: productId, mode: productMode },
       });
     },
-    [router],
+    750,
   );
 
-  const explore = useCallback(() => {
+  const exploreSearch = useThrottledCallback((term: string) => {
     Keyboard.dismiss();
-    router.push({ pathname: '/catalogo', params: { search: search.trim() } });
-  }, [router, search]);
+    router.push({ pathname: '/catalogo', params: { search: term } });
+  }, 750);
+  const explore = useCallback(() => exploreSearch(search.trim()), [exploreSearch, search]);
   const showProfile = useCallback(() => {
     if (!requestAccess('/inicio')) return;
     setPreview({
@@ -141,7 +146,10 @@ export function HomeScreen() {
   return (
     <AppScreen edges={['top', 'left', 'right']}>
       <FlatList
+        accessibilityLabel="Contenido de inicio"
         ref={scrollRef}
+        scrollEnabled={!suggestionsInteracting}
+        onScrollBeginDrag={() => setSearchDismissSignal((signal) => signal + 1)}
         onScroll={(event) => {
           if (!restoreScroll.current) scrollOffset.current = event.nativeEvent.contentOffset.y;
           onToastScroll(event);
@@ -162,6 +170,7 @@ export function HomeScreen() {
         ItemSeparatorComponent={ProductSeparator}
         contentContainerStyle={{ paddingBottom: 24 }}
         keyboardShouldPersistTaps="handled"
+        nestedScrollEnabled
         keyboardDismissMode="on-drag"
         showsVerticalScrollIndicator={false}
         refreshControl={
@@ -175,10 +184,6 @@ export function HomeScreen() {
         }
         ListHeaderComponent={
           <>
-            {data && isOnline === false ? (
-              <OfflineState description="Mostramos los productos cargados. Actualizaremos la información al recuperar la conexión." />
-            ) : null}
-            {error && data ? <ErrorState description={error.message} onRetry={refetch} /> : null}
             <HomeHeader
               onNotifications={() =>
                 setPreview({
@@ -190,6 +195,8 @@ export function HomeScreen() {
               onProfile={showProfile}
             />
             <CatalogSearch
+              dismissSignal={searchDismissSignal}
+              onSuggestionsInteractionChange={setSuggestionsInteracting}
               onChange={setSearch}
               onFilters={() => {
                 Keyboard.dismiss();
@@ -198,9 +205,20 @@ export function HomeScreen() {
                   params: { search: search.trim(), filters: '1' },
                 });
               }}
-              onSubmit={explore}
+              onSelectProduct={(productId) => {
+                router.push({
+                  pathname: '/producto/[id]',
+                  params: { id: productId },
+                });
+              }}
+              onSubmit={exploreSearch}
               value={search}
             />
+
+            {data && isOnline === false ? (
+              <OfflineState description="Mostramos los productos cargados. Actualizaremos la información al recuperar la conexión." />
+            ) : null}
+            {error && data ? <ErrorState description={error.message} onRetry={refetch} /> : null}
             <>
               <Animated.View style={reducedMotion ? undefined : sectionReveal}>
                 <BannerCarousel
@@ -262,7 +280,7 @@ export function HomeScreen() {
           ) : !data && loading ? (
             <ProductGridSkeleton columns={columns} />
           ) : !data && error ? (
-            <ErrorState description={error.message} onRetry={refetch} />
+            <ErrorState description={getFriendlyErrorMessage(error)} onRetry={refetch} />
           ) : (
             <View className="px-5">
               <View className="items-center gap-3 rounded-2xl bg-surface-muted px-5 py-8">

@@ -139,6 +139,7 @@ ProductCard comparte el diseño compacto entre Inicio y Catálogo: foto con prop
 
 ### Feedback
 
+- Solo el toast con contador de eliminación del carrito usa posición inferior, con 12 puntos de separación sobre la altura medida de GlobalBottomBar (incluye safe area). Sin menú visible respeta el inset inferior. No se desplaza con el scroll; entra desde abajo. Los demás avisos, incluyendo restauración, conservan la posición superior.
 - loading: skeleton o indicador proporcional al tiempo esperado;
 - empty: explicación y siguiente acción útil;
 - error: mensaje claro y retry cuando sea seguro;
@@ -213,5 +214,7 @@ La API pública ya valida URLs/campos mediante schema/adapter y conecta OfflineS
 APIs contrastadas con [expo-image SDK 57](https://docs.expo.dev/versions/v57.0.0/sdk/image/) y [networkMode de TanStack Query](https://tanstack.com/query/latest/docs/framework/react/guides/network-mode), además de los tipos de las versiones instaladas.
 
 ## Teclado y nuevas pantallas
+
+Catálogo usa una fila de filtros debajo del input: botón «Filtros» a la izquierda y accesos rápidos desplazables horizontalmente en la misma línea, con AppButton y estado seleccionado. Su panel aplica los cambios al elegirlos. AppSheet admite headerContent para alojar «Aplicar filtros» debajo del título, fuera del scroll de opciones; las otras pantallas conservan su contenido habitual. No fijar la cabecera de Home/catálogo como solución al scroll: el desplegable del buscador usa la capa anclada de AppScreen.
 
 AppScreen scroll es el único responsable del ajuste y del desplazamiento al campo enfocado en AuthLayout. Mide la intersección de su viewport con el teclado y añade solo el espacio restante, incluyendo cuando Android ya redimensionó la ventana. No anidar KeyboardAvoidingView u otro ajuste automático de insets sobre este mecanismo sin evidencia nativa. Mantener safe areas, scroll y botones alcanzables; validar Android/iOS y fuentes grandes. Onboarding permite escalado del sistema mediante su scroll, sin maxFontSizeMultiplier arbitrario. Usar AppButton para tarjetas/controles con pressed, rol, etiqueta y disabled; compartir componentes antes de crear duplicados.

@@ -14,6 +14,7 @@ import { AppScreen } from '@/components/ui/AppScreen';
 import { CatalogImage } from '@/components/ui/CatalogImage';
 import { ProductCard } from '@/components/ui/ProductCard';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { SkeletonBlock } from '@/components/ui/Skeleton';
 import { getProductPreview, getRecommendationsPreview } from '@/data/product-detail-preview';
 import type { ProductDetailPreview } from '@/data/product-detail-preview';
 import type { HomeProduct } from '@/data/catalog-preview';
@@ -25,7 +26,6 @@ import {
 } from '@/providers/catalog-preview-provider';
 import { colors } from '@/theme';
 import { useToast, useToastScroll } from '@/hooks/useToast';
-
 type ProductDetailScreenProps = {
   productId: string;
   initialMode?: PreviewCartItem['mode'];
@@ -50,8 +50,13 @@ const sampleReviews = [
     text: 'Me resultó útil revisar las características antes de añadirlo al carrito.',
   },
 ];
+export function ProductDetailScreen(props: ProductDetailScreenProps) {
+  // Remontar el contenido cuando cambia de producto, evitando setState en efectos.
+  const identity = `${props.productId}:${props.suppliedProduct?.id ?? ''}:${props.initialMode ?? ''}`;
+  return <ProductDetailContent key={identity} {...props} />;
+}
 
-export function ProductDetailScreen({
+function ProductDetailContent({
   productId,
   initialMode,
   suppliedProduct,
@@ -65,6 +70,7 @@ export function ProductDetailScreen({
   const toast = useToast();
   const onToastScroll = useToastScroll();
   const { width, fontScale } = useWindowDimensions();
+  const galleryHeight = Math.min(width, 360);
   const product = suppliedProduct ?? getProductPreview(productId);
   const connected = suppliedProduct !== undefined;
   const productImages = useMemo(
@@ -107,13 +113,11 @@ export function ProductDetailScreen({
   const targetPhotoIndexRef = useRef<number | null>(null);
   const reviewsOffset = useRef(0);
   const contentOffset = useRef(0);
-
   const centerThumbnail = (index: number) => {
     const itemWidth = 64 + 10;
     const targetX = Math.max(0, index * itemWidth - width / 2 + 32 + 20);
     thumbnailScrollRef.current?.scrollTo({ x: targetX, animated: true });
   };
-
   const handleSelectPhoto = (index: number) => {
     activePhotoIndexRef.current = index;
     targetPhotoIndexRef.current = index;
@@ -121,9 +125,8 @@ export function ProductDetailScreen({
     centerThumbnail(index);
     carouselRef.current?.scrollTo({ x: index * width, animated: true });
   };
-
   const handleCarouselScroll = (contentOffsetX: number) => {
-    if (width <= 0) return;
+    if (width <= 0 || productImages.length === 0) return;
     const newIndex = Math.min(
       Math.max(Math.round(contentOffsetX / width), 0),
       productImages.length - 1,
@@ -138,7 +141,6 @@ export function ProductDetailScreen({
       centerThumbnail(newIndex);
     }
   };
-
   if (!product)
     return (
       <AppScreen edges={['top', 'bottom', 'left', 'right']}>
@@ -150,7 +152,6 @@ export function ProductDetailScreen({
         />
       </AppScreen>
     );
-
   const favorite = favorites.includes(product.id);
   const rental = mode === 'rental';
   const price = rental ? product.rental?.price : product.price;
@@ -178,7 +179,6 @@ export function ProductDetailScreen({
       item.mode === mode &&
       item.quantity >= PREVIEW_CART_QUANTITY_LIMIT,
   );
-
   async function shareProduct() {
     if (sharingLock.current) return;
     sharingLock.current = true;
@@ -195,7 +195,6 @@ export function ProductDetailScreen({
       setSharing(false);
     }
   }
-
   return (
     <AppScreen edges={['top', 'bottom', 'left', 'right']}>
       <ScrollView
@@ -254,7 +253,7 @@ export function ProductDetailScreen({
             showsHorizontalScrollIndicator={false}
             decelerationRate="fast"
             className="aspect-square w-full"
-            style={{ maxHeight: 360 }}
+            style={{ height: galleryHeight }}
             scrollEventThrottle={16}
             onScrollBeginDrag={() => {
               targetPhotoIndexRef.current = null;
@@ -274,7 +273,7 @@ export function ProductDetailScreen({
                 onPress={() => setZoomed(true)}
                 accessibilityRole="imagebutton"
                 accessibilityLabel={`Ampliar foto ${index + 1} de ${product.name}`}
-                style={{ width, aspectRatio: 1, maxHeight: 360, padding: 24 }}
+                style={{ width, height: galleryHeight, padding: 24 }}
                 className="items-center justify-center"
               >
                 <CatalogImage
@@ -320,15 +319,19 @@ export function ProductDetailScreen({
             ))}
           </ScrollView>
           <View className="gap-2">
-            <View className="flex-row items-center justify-between gap-3">
-              <Text className="flex-1 font-sans-medium text-sm text-brand-strong" numberOfLines={1}>
+            {/* Categoría y calificación, siempre en una sola fila */}
+            <View className="min-h-11 flex-row items-center justify-between gap-2">
+              <Text
+                numberOfLines={1}
+                className="min-w-0 flex-1 font-sans-medium text-sm text-brand-strong"
+              >
                 {product.category}
               </Text>
               {!connected || suppliedReviews ? (
                 <AppButton
                   variant="unstyled"
                   label="Ver reseñas"
-                  className="min-h-11 flex-row flex-wrap items-center gap-1.5"
+                  className="min-h-11 shrink-0 flex-row items-center justify-end gap-1 px-0 py-0"
                   onPress={() =>
                     scrollRef.current?.scrollTo({
                       y: contentOffset.current + reviewsOffset.current,
@@ -339,7 +342,7 @@ export function ProductDetailScreen({
                   accessibilityLabel={
                     reviews.length
                       ? `Calificación ${averageRating} de 5 estrellas, ${reviews.length} reseñas. Ver reseñas.`
-                      : 'Sin reseñas'
+                      : 'Sin reseñas. Ver reseñas.'
                   }
                 >
                   <Star
@@ -348,16 +351,25 @@ export function ProductDetailScreen({
                     fill={reviews.length ? colors.rating : 'none'}
                     size={15}
                   />
-                  <Text className="font-sans-semibold text-sm text-primary">
-                    {reviews.length ? String(averageRating) : 'Sin reseñas'}
+                  <Text numberOfLines={1} className="font-sans-semibold text-sm text-primary">
+                    {reviews.length ? averageRating.toFixed(1) : 'Sin reseñas'}
                   </Text>
-                  {reviews.length ? (
-                    <Text className="font-sans text-xs text-secondary">
-                      ({reviews.length} {reviews.length === 1 ? 'reseña' : 'reseñas'})
+                  {reviews.length > 0 ? (
+                    <Text numberOfLines={1} className="font-sans text-xs text-secondary">
+                      ({reviews.length})
                     </Text>
                   ) : null}
                 </AppButton>
-              ) : null}
+              ) : (
+                <View
+                  className="min-h-11 shrink-0 flex-row items-center justify-end gap-1"
+                  accessibilityLabel="Cargando calificación…"
+                >
+                  <SkeletonBlock className="h-4 w-4 rounded" />
+                  <SkeletonBlock className="h-4 w-7 rounded" />
+                  <SkeletonBlock className="h-3 w-6 rounded" />
+                </View>
+              )}
             </View>
             <Text
               accessibilityRole="header"

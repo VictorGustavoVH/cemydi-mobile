@@ -112,11 +112,14 @@ async function request<TResponse = unknown>(
     const data = await parseResponse(response);
 
     if (!response.ok) {
-      throw new ApiError(getErrorMessage(data, `La API respondió con estado ${response.status}.`), {
-        data,
-        kind: 'http',
-        status: response.status,
-      });
+      throw new ApiError(
+        getErrorMessage(data, `El servidor respondió con estado ${response.status}.`),
+        {
+          data,
+          kind: 'http',
+          status: response.status,
+        },
+      );
     }
 
     return data as TResponse;
@@ -135,7 +138,7 @@ async function request<TResponse = unknown>(
       );
     }
 
-    throw new ApiError('No fue posible conectar con la API.', {
+    throw new ApiError('No fue posible conectar con el servidor.', {
       cause: error,
       kind: 'network',
     });

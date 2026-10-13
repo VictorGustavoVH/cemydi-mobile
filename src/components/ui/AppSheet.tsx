@@ -12,8 +12,9 @@ type AppSheetProps = {
   visible: boolean;
   onClose: () => void;
   children: ReactNode;
+  headerContent?: ReactNode;
 };
-export function AppSheet({ title, visible, onClose, children }: AppSheetProps) {
+export function AppSheet({ title, visible, onClose, children, headerContent }: AppSheetProps) {
   const blurTarget = useRef<View | null>(null);
   return (
     <Modal animationType="none" onRequestClose={onClose} transparent visible={visible}>
@@ -44,7 +45,9 @@ export function AppSheet({ title, visible, onClose, children }: AppSheetProps) {
                   leftIcon={<X aria-hidden color={colors.textSecondary} size={22} />}
                 />
               </View>
+              {headerContent ? <View className="px-5 pt-3">{headerContent}</View> : null}
               <ScrollView
+                style={{ flexShrink: 1 }}
                 keyboardShouldPersistTaps="handled"
                 keyboardDismissMode="on-drag"
                 contentContainerStyle={{ padding: 20, gap: 16 }}
