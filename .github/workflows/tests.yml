@@ -37,4 +37,16 @@ jobs:
       - name: Install dependencies
         run: npm ci
       - name: Run tests
+        id: run-tests
         run: npm run test:${{ matrix.suite }} -- --ci
+      - name: Summarize test results
+        if: always()
+        run: node scripts/test-summary.cjs ${{ matrix.suite }} ${{ steps.run-tests.outcome }}
+      - name: Upload test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jest-${{ matrix.suite }}-${{ github.run_attempt }}
+          path: test-results/jest/${{ matrix.suite }}/
+          retention-days: 14
+          if-no-files-found: warn

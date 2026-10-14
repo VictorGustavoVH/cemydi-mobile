@@ -35,6 +35,7 @@ Las ramas `feature/*` se integran de regreso a `develop` mediante Pull Request. 
 
 - pequeños, coherentes y revisables;
 - mensaje imperativo que explique el cambio;
+- seguir Conventional Commits (`ci:`, `test:`, `docs:`, `fix:`, `feat:` según el cambio);
 - no incluir secretos, artefactos locales ni archivos generados innecesarios;
 - separar cambios funcionales, pruebas y documentación solo cuando ayude a la revisión, sin fragmentar artificialmente.
 
@@ -49,6 +50,12 @@ Un PR hacia `develop` debe incluir:
 - pruebas agregadas y comandos ejecutados;
 - riesgos, migraciones y decisiones pendientes;
 - cambios de dependencias justificados, si los hay.
+
+Quality y Tests se ejecutan en PR hacia `develop`/`main` y en push a esas ramas. El merge a `develop` genera un push y vuelve a validar el estado integrado; no requiere un workflow adicional de merge. Los pushes de ramas de trabajo con PR se validan por el evento del PR, evitando otro run idéntico en cada push de feature.
+
+Configurar manualmente protección/rulesets en `develop` y `main` para exigir PR, revisión y los checks `validate` (Quality), `unit` e `integration` (Tests), verificando sus nombres en el primer run. Detalles de orden, reportes y límites en [TESTING.md](./TESTING.md). Un fallo no se ignora y debe bloquear el merge cuando esos checks sean obligatorios.
+
+Los agentes dejan cambios sin confirmar para revisión humana: no ejecutan `git add`, commit, push, merge, cambios/creación de ramas ni creación de PR salvo autorización explícita para esa operación. Los reportes generados permanecen ignorados; no se versionan automáticamente.
 
 ## Release
 
