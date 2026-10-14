@@ -18,8 +18,26 @@ const shared = {
   clearMocks: true,
 };
 
+// Reporters belong to the root config, not to individual Jest projects.
+const reportSuite =
+  { 'test:unit': 'unit', 'test:integration': 'integration' }[process.env.npm_lifecycle_event] ||
+  'all';
+
 module.exports = {
   maxWorkers: 2,
+  reporters: [
+    'default',
+    [
+      'jest-junit',
+      {
+        outputDirectory: `<rootDir>/test-results/jest/${reportSuite}`,
+        outputName: 'junit.xml',
+        suiteName: `CEMYDI ${reportSuite}`,
+        addFileAttribute: 'true',
+        reportTestSuiteErrors: 'true',
+      },
+    ],
+  ],
   projects: [
     {
       ...shared,
