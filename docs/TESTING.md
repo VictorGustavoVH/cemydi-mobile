@@ -194,7 +194,7 @@ Jest exitoso devuelve 0; una aserción fallida, suite que no carga o ausencia de
 
 `scripts/test-summary.cjs` lee el JSON real, verifica que exista JUnit y crea una tabla de suites/pruebas aprobadas, fallidas, pendientes y todo; enumera hasta diez archivos con fallos. Escribe `summary.md` y agrega el mismo texto a `GITHUB_STEP_SUMMARY`. Si Jest falla, el resumen también devuelve error. Si el paso informó éxito pero faltan reportes o hay cero pruebas, el resumen falla para evitar evidencia falsamente aprobada. Si la instalación falló y Jest fue omitido, el resumen indica ausencia de evidencia y conserva el fallo original.
 
-La subida con [actions/upload-artifact@v4](https://github.com/actions/upload-artifact) conserva XML, JSON y resumen durante 14 días, incluso con pruebas fallidas. Si no llegó a ejecutarse Jest puede existir solo el resumen; nunca se etiqueta como aprobado. Un runner perdido, cancelación forzada, timeout o fallo antes de checkout puede impedir producir/subir evidencia: `always()` es un intento, no garantía de reportes que no se generaron.
+La subida con [actions/upload-artifact@v7.0.2](https://github.com/actions/upload-artifact/releases/tag/v7.0.2) conserva XML, JSON y resumen durante 14 días, incluso con pruebas fallidas. Si no llegó a ejecutarse Jest puede existir solo el resumen; nunca se etiqueta como aprobado. Un runner perdido, cancelación forzada, timeout o fallo antes de checkout puede impedir producir/subir evidencia: `always()` es un intento, no garantía de reportes que no se generaron.
 
 Para consultar: GitHub → Actions → ejecución Quality/Tests del PR o push → revisar estado/log de cada job y sección Summary. En la ejecución Tests, descargar los artefactos `jest-unit-*` y `jest-integration-*` desde Artifacts; abrir `summary.md` o importar `junit.xml` en un lector JUnit. GitHub conserva el log del paso con los detalles, y el JSON contiene los mensajes completos. No se publica un comentario automático en el PR.
 
@@ -213,7 +213,7 @@ La **regresión automatizada** repite las mismas suites ante PR, integración y 
 
 En rulesets/protección de `develop` y `main`, exigir Pull Request, revisión y los tres checks de GitHub Actions: `validate` (workflow Quality), `unit` e `integration` (workflow Tests). Elegir los nombres exactos que GitHub muestre tras el primer run; no usar solo el nombre del workflow. `validate` incluye TypeScript, lint, formato y Doctor. Exigir rama actualizada antes de merge según la política del equipo y restringir bypass/push directo; configurar esto requiere administración de GitHub.
 
-Habilitar Actions y las acciones utilizadas (`checkout@v4`, `setup-node@v4`, `upload-artifact@v4`); permitir retención de 14 días. No se necesita permiso `checks: write`. Los PR desde forks pueden requerir aprobación manual del primer run. Si se habilita merge queue, añadir `merge_group` a ambos workflows antes de usarla; no está configurada en esta actividad.
+Habilitar Actions y las acciones utilizadas (`checkout@v7.0.1`, `setup-node@v7.1.0`, `upload-artifact@v7.0.2`); permitir retención de 14 días. No se necesita permiso `checks: write`. Los PR desde forks pueden requerir aprobación manual del primer run. Si se habilita merge queue, añadir `merge_group` a ambos workflows antes de usarla; no está configurada en esta actividad.
 
 Queda pendiente comprobar en GitHub un PR real exitoso y uno con fallo controlado, descarga de artefactos y bloqueo de merge por checks. Esta actividad solo valida configuración/comandos localmente: no crea PR, no hace push/merge, no configura protección remota ni modifica historial. E2E móvil, QA Android/iOS, servicios Expo y comportamiento de un runner remoto requieren su entorno. No se implementan EAS Build ni Google Play.
 
@@ -241,6 +241,40 @@ Se ejecutó una sonda aislada bajo `.tools/ci-report-probe/`, ignorada por Git, 
 Una ejecución controlada sin coincidencias de tests también devolvió código 1. Las sondas se pueden repetir con `node .tools/ci-report-probe/verify.cjs` y `node .tools/ci-report-probe/check-workflows.cjs` en este checkout; son herramientas de evidencia local ignoradas, no suites adicionales de la app.
 
 Las evidencias locales de la sonda quedan en `.tools/ci-report-probe/` y los resultados reales en `test-results/jest/{unit,integration}/`. Los archivos generados no forman parte del diff. Pendiente exclusivamente remoto para este alcance: runs reales en Ubuntu/Node 22, subida/descarga de artefactos y branch protection con bloqueo de merge. No se intentaron push, PR o merge para validarlos.
+
+### Actualización del runtime de acciones — 14 de octubre de 2026
+
+Los workflows fijan `runs-on: ubuntu-24.04` y versiones completas de las acciones para evitar cambios automáticos de versión mayor. Se verificaron releases oficiales estables (sin draft/prerelease) y sus manifiestos `action.yml`:
+
+| Acción          | Versión fijada | Runtime del manifiesto | Fuente oficial                                                            |
+| --------------- | -------------- | ---------------------- | ------------------------------------------------------------------------- |
+| checkout        | `v7.0.1`       | `node24`               | [Release](https://github.com/actions/checkout/releases/tag/v7.0.1)        |
+| setup-node      | `v7.1.0`       | `node24`               | [Release](https://github.com/actions/setup-node/releases/tag/v7.1.0)      |
+| upload-artifact | `v7.0.2`       | `node24`               | [Release](https://github.com/actions/upload-artifact/releases/tag/v7.0.2) |
+
+El runtime interno de las acciones es independiente de `node-version: 22`: los comandos npm del proyecto siguen usando Node 22. `setup-node` admite ese major y `cache: npm`; los inputs de upload (nombre, ruta, retención y archivos ausentes) siguen admitidos y `archive` conserva su valor predeterminado true. No se cambian nombres de checks, eventos, permisos, paralelismo, Jest, JUnit ni scripts de reportes.
+
+Se revisaron las notas de migración: checkout v7 restringe código de forks en `pull_request_target`/`workflow_run`, eventos que estos workflows no utilizan; setup-node v7 retira el token ficticio para configuraciones de registry, que aquí no se utilizan. El runtime Node 24 requiere runner >=2.327.1, según [setup-node](https://github.com/actions/setup-node/blob/v7.1.0/README.md). Se utiliza el runner hospedado de GitHub con la [etiqueta Ubuntu 24.04](https://docs.github.com/en/actions/reference/runners/github-hosted-runners). Fijar la etiqueta del sistema operativo no congela las actualizaciones de paquetes de la imagen, ni `22` congela el patch de Node.
+
+La comprobación local ignorada `.tools/ci-report-probe/check-workflows.cjs` ahora verifica las tres versiones, Ubuntu 24.04, Node 22 y cache npm; se corrigió su expectativa de upload-artifact v4. Se añadió `.tools/ci-report-probe/check-action-runtime.cjs` para contrastar versiones estables, runtime Node 24 e inputs contra los manifiestos oficiales, sin instalar dependencias.
+
+Validación en Windows/Node 24.11.0/npm 11.12.1, rama existente `feature/ci-testing-improvements`, working tree inicialmente limpio:
+
+| Comando                                                | Resultado real                                                                                                                                      |
+| ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `node .tools/ci-report-probe/check-workflows.cjs`      | Código 0: YAML sin errores/claves duplicadas e invariantes aprobadas.                                                                               |
+| `node .tools/ci-report-probe/check-action-runtime.cjs` | Código 0: las tres releases son estables, usan node24 y admiten todos los inputs actuales; ZIP predeterminado conservado. Requiere acceso a GitHub. |
+| `npm run typecheck`                                    | Código 0.                                                                                                                                           |
+| `npm run lint`                                         | Código 0, sin errores ni advertencias.                                                                                                              |
+| `npm run format:check`                                 | Código 0.                                                                                                                                           |
+| `npm run test:unit -- --ci`                            | Código 0: 32 suites/168 pruebas aprobadas, 26.605 s. Aviso de HookContainer fuera de act en useHome, ya documentado históricamente; no se silenció. |
+| `npm run test:integration -- --ci`                     | Código 0: 4 suites/25 pruebas aprobadas, 13.455 s.                                                                                                  |
+| `npm run doctor`                                       | Código 0: 21/21 checks aprobados.                                                                                                                   |
+| `git diff --check`                                     | Código 0.                                                                                                                                           |
+
+No se repitió `npm ci`: package.json, lock y dependencias no cambiaron y la instalación existente permitió ejecutar todas las validaciones. actionlint no está instalado; se verificó sintaxis YAML, invariantes e inputs oficiales, sin afirmar una ejecución de GitHub Actions local.
+
+El usuario informó que los tres checks del PR #136 y los reportes existentes ya aprobaron. Queda pendiente un nuevo run remoto con estas versiones para confirmar la desaparición de advertencias, checkout/cache y subida de artefactos en Ubuntu 24.04/Node 22. No se hace push, se crea PR ni se modifica el historial para provocarlo. Todos los cambios quedan sin confirmar.
 
 ## Maestro local Android
 
