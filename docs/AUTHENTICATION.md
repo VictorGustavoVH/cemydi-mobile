@@ -1,240 +1,59 @@
 # Autenticación de CEMYDI Mobile
 
-La estrategia móvil no está resuelta. Este documento separa comportamiento comprobado de propuestas y no autoriza cambios al backend.
+## Decisión aprobada — 16 de octubre de 2026
 
-Existe un recorrido de formularios **temporal y local** autorizado: bienvenida → catálogo público con login opcional, registro → OTP → login y recuperación → OTP → nueva contraseña → login. Sus credenciales de prueba, validaciones, enlaces legales y límites están en [AUTH_PREVIEW.md](AUTH_PREVIEW.md). No integra la API, no emite tokens ni resuelve la persistencia de sesión móvil; los bloqueos de transporte siguientes siguen vigentes.
+El usuario aprobó tokens explícitos para móvil y la adaptación del backend. La aplicación usa access token en memoria y refresh rotatorio en `expo-secure-store` al seleccionar «Mantener sesión iniciada». Sin esa opción, ambos tokens viven solo en memoria durante el proceso. No se guardan contraseñas, códigos OTP ni credenciales en TanStack Query, AsyncStorage, rutas o logs.
 
-## CURRENT BACKEND BEHAVIOR
+Se verificó Expo instalado 57.0.28; SecureStore se instaló con `npx expo install` y su config plugin queda en `app.json`, conservando CNG. Se contrastaron los tipos instalados del SDK 57 y la [documentación oficial de SecureStore](https://docs.expo.dev/versions/latest/sdk/securestore/). iOS usa `WHEN_UNLOCKED_THIS_DEVICE_ONLY`; el plugin configura la exclusión del backup Android. Se requiere validación nativa en ambas plataformas.
 
-### Registro
+## Contratos móviles
 
-`POST /auth/register` recibe `nombre`, `correo` y `password`. La contraseña normativa exige 10–72 caracteres, una mayúscula, un número y un símbolo.
+`MobileAuthController` reutiliza AuthService/AuthSessionService: validación de contraseña, estado, correo verificado, bloqueo de intentos, sesiones, duración y revocación siguen en el servidor. El cambio de credenciales agrega una migración aditiva para dos propósitos OTP y avisos de seguridad.
 
-El backend:
+| Método | Ruta                   | Body                 | Respuesta                                    |
+| ------ | ---------------------- | -------------------- | -------------------------------------------- |
+| POST   | `/auth/mobile/login`   | `correo`, `password` | Sesión móvil                                 |
+| POST   | `/auth/mobile/refresh` | `refreshToken`       | Sesión móvil con refresh rotado              |
+| POST   | `/auth/mobile/logout`  | `refreshToken`       | `{ message }`; revoca la sesión              |
+| GET    | `/users/me`            | —                    | `{ user }` o `{ user: null }`, usando Bearer |
 
-1. normaliza el correo;
-2. crea un usuario con rol `CLIENT` si no existe;
-3. almacena la contraseña con bcrypt;
-4. envía verificación por correo;
-5. devuelve un mensaje genérico para evitar enumeración de cuentas.
+Sesión móvil: `{ user, accessToken, refreshToken, accessExpiresInMs, refreshExpiresInMs }`. El usuario contiene `id`, `nombre`, `correo`, `activo`, `rol` (`ADMIN` o `CLIENT`), `emailVerified`, `emailVerifiedAt`. Los intervalos provienen del servidor. El refresh es un valor aleatorio de 32 bytes codificado como 64 caracteres hexadecimales; solo su hash se guarda en el backend.
 
-El registro no crea una sesión. El login exige correo verificado, usuario activo y credenciales válidas.
+Los tres endpoints móviles no emiten cookies y llevan `Cache-Control: no-store`. Login y refresh conservan los límites de frecuencia del backend; logout reutiliza el límite de refresh. DTO de refresh obligatorio, validado y sin campos extra. La rotación actualiza de forma condicional el hash vigente: dos solicitudes con el mismo refresh no pueden completarse ambas.
 
-### Login y tokens
+`httpClient` admite `authenticated: true`: envía Bearer con `credentials: omit`, coordina una única renovación concurrente y repite la operación como máximo una vez. Si vuelve a recibir 401, expira la sesión. Una petición de una sesión anterior no se repite con otra cuenta. Requests públicos siguen sin requerir sesión. HTTPS es obligatorio en producción según `src/config/env.ts`.
 
-`POST /auth/login` devuelve:
+## Formularios y códigos
 
-```ts
-{
-  user: {
-    id: number;
-    nombre: string;
-    correo: string;
-    activo: boolean;
-    rol: 'ADMIN' | 'CLIENT';
-    emailVerified: boolean;
-    emailVerifiedAt: string | null;
-  }
-}
-```
+- Registro usa `POST /auth/register` con solo `nombre`, `correo`, `password`; no crea sesión. Mensaje genérico, seguido de OTP.
+- Verificación usa `POST /auth/email-verification/confirm-code` con `correo`, `codigo`. Login incluye «Verificar mi correo» para solicitar/reanudar con `/auth/email-verification/send`, sin exigir contraseña.
+- Recuperación usa `/auth/password-reset/request`, `/auth/password-reset/verify-code` y `/auth/password-reset/confirm` con `correo`, `codigo`, `newPassword`.
+- Reenvío usa el endpoint de cada propósito. Espera visual de 60 segundos; el servidor aplica expiración, intentos y rate limiting. El móvil no inventa vencimiento para la solicitud inicial; después de verificar recuperación usa `expiresAt` real.
+- El código confirmado de recuperación permanece únicamente en el cierre del servicio para el request final. No aparece en rutas, estado público ni almacenamiento persistente; cancelar, reenviar y completar lo elimina. Reiniciar el proceso requiere solicitar otro código.
+- Cambio de contraseña revoca sesiones en backend, elimina la credencial local y devuelve a login. El servidor vuelve a comprobar el código al confirmar; la validación previa no es autorización local.
+- Los formularios conservan React Hook Form/Zod, AppInput, AppButton, PasswordField, errores accesibles y loading sin reintentos automáticos. Red/timeout, código inválido, 429 y errores contractuales no simulan éxito.
+- Borradores guardan solo nombre/correo; los campos de contraseña se vacían al remontar. «Mantener sesión iniciada» persiste sesión, no contraseña.
 
-No devuelve tokens en el body.
+## Ciclo de sesión y navegación
 
-El servidor genera internamente:
+`AuthProvider` sustituye el provider de muestra. Distingue carga inicial, invitado, autenticado, sesión expirada y error de restauración. Al abrir la app restaura mediante refresh; al volver a foreground revalida `/users/me`. Una pérdida de red conserva la credencial segura y permite reintentar, sin presentar datos sensibles como sesión comprobada durante la restauración. Perfil y revisión del carrito esperan la comprobación o dirigen al login, conservando destino. Una sección privada de Perfil abierta por un invitado (enlace directo, «Atrás» desde el login o sesión vencida) no muestra una pantalla intermedia: vuelve a `/inicio` con un aviso. `returnToAuthDestination` centraliza el retorno: si el login está apilado, lo cierra con `dismiss` y cambia de pestaña con `navigate` (o apila una subruta de perfil con `push`); si no hay stack, reemplaza login por el destino.
 
-- un JWT access token en la cookie HTTP-only `cemydi_access`;
-- un refresh token aleatorio en la cookie HTTP-only `cemydi_refresh`;
-- una cookie CSRF legible llamada `cemydi_csrf`.
+El perfil muestra nombre/correo reales y «Cerrar sesión». Logout bloquea de inmediato las operaciones de la sesión saliente, limpia memoria y caché privada, y elimina el refresh de SecureStore. Si la eliminación falla, intenta sustituirlo por un marcador que impide restaurar la sesión; si tampoco puede confirmar ese paso, muestra error y permite reintentar. La revocación remota se intenta sin bloquear el cierre local y se informa cuando falla o sigue pendiente. Una rotación tardía se revoca y no puede restaurar el estado. La integración del carrito se describe en CART.md.
 
-El hash del refresh token y el identificador de sesión se almacenan en PostgreSQL. El payload del access token contiene usuario, correo, rol y session ID.
+## Cambios de credenciales de perfil
 
-### Cookies
+`PATCH /users/me` acepta solo `nombre`, `telefono` y `direccion`. Correo y contraseña usan `/users/me/email-change/{request,resend,confirm}` y `/users/me/password-change/{request,resend,confirm}`. La solicitud exige contraseña actual; el correo nuevo recibe un OTP de ocho dígitos para cambio de correo, y el correo vigente lo recibe para cambio de contraseña. El backend aplica 60 segundos entre envíos, expiración e intentos limitados. Tras confirmar, revoca todas las sesiones. El móvil limpia su sesión y vuelve a login. Las rutas privadas esperan la restauración y conservan solo destinos internos permitidos.
 
-Access y refresh usan:
+## Compatibilidad web y CSRF
 
-- `httpOnly: true`;
-- `path: /`;
-- `secure` dinámico;
-- `sameSite: lax` cuando no son seguras;
-- `sameSite: none` cuando son seguras.
+La web conserva `/auth/login`, `/auth/refresh`, `/auth/logout` y cookies HTTP-only `cemydi_access`/`cemydi_refresh`; no recibe tokens en JSON. CSRF sigue requiriendo double-submit para mutaciones basadas en cookies. Solo un request Bearer sin cookies access/refresh queda exento de CSRF; sus guards JWT y de rol siguen obligatorios. Requests mixtos conservan CSRF porque la estrategia JWT prioriza cookie.
 
-La cookie CSRF usa los mismos valores de transporte, pero `httpOnly: false`.
+El backend actual exige usuario activo y correo verificado. Roles y permisos permanecen definidos en backend; el panel administrativo no forma parte de la app.
 
-No se configura un dominio de cookie explícito.
+## Pendientes explícitos
 
-### Bearer
+Google móvil quedó pendiente por decisión del usuario. `/auth/google` y su callback son exclusivamente web; no se abren para fingir una sesión nativa. También siguen pendientes app/universal links para tokens de correo; el recorrido móvil implementado usa códigos reales de ocho dígitos.
 
-La estrategia JWT puede extraer el access token desde `cemydi_access` o desde:
+El scheme personalizado `cemydi://` no transporta tokens ni secretos: solo abre rutas internas cuya lectura sigue protegida por el servidor. Por eso un hipotético registro ajeno del scheme no expone sesión ni datos. Antes de mover cualquier token a un enlace serán obligatorios app/universal links con verificación de dominio (App Links/Associated Domains); no se añaden esquemas alternativos para sortear esa verificación.
 
-```http
-Authorization: Bearer <access-token>
-```
-
-Esto no constituye por sí solo un flujo móvil completo, porque login no entrega el access token en JSON.
-
-### Persistencia y expiración
-
-- Default de access token: 15 minutos.
-- Default de refresh: 7 días.
-- Ambos son configurables por entorno; los valores desplegados no se verificaron.
-- La sesión se valida contra la tabla de sesiones en cada autenticación.
-- Una sesión revocada, expirada o de usuario inactivo se rechaza.
-- El refresh token se rota en cada renovación.
-
-### Refresh
-
-`POST /auth/refresh`:
-
-1. obtiene el refresh token exclusivamente de `cemydi_refresh`;
-2. busca una sesión activa no expirada;
-3. exige usuario activo y correo verificado;
-4. rota el refresh token;
-5. emite cookies nuevas;
-6. devuelve `{ user }`.
-
-No existe soporte confirmado para enviar refresh token por body o Authorization.
-
-### CSRF
-
-Existe un guard CSRF global. Se activa cuando la petición produce cookies `Secure + SameSite=None`.
-
-Para mutaciones no excluidas exige:
-
-- cookie `cemydi_csrf`;
-- header `x-csrf-token` con el mismo valor.
-
-`GET /auth/csrf` emite la cookie. Registro, login, refresh, logout, verificación y recuperación están excluidos expresamente del guard.
-
-El guard no distingue actualmente entre autenticación por cookie y Bearer. Una mutación Bearer en producción puede seguir necesitando el double-submit CSRF.
-
-### Sesión actual
-
-`GET /users/me` usa un guard de sesión opcional:
-
-- sin credenciales devuelve `{ user: null }`;
-- con sesión válida devuelve perfil, rol, estado y verificación;
-- con credenciales presentes pero inválidas puede devolver 401.
-
-### Logout
-
-`POST /auth/logout`:
-
-1. extrae access y refresh de donde están disponibles;
-2. limpia las tres cookies;
-3. intenta revocar la sesión por access token;
-4. intenta revocarla por refresh token;
-5. devuelve un mensaje de éxito.
-
-### Roles y rutas
-
-Los únicos roles confirmados son `ADMIN` y `CLIENT`. Las rentas del cliente exigen `CLIENT`. Ocultar UI nunca sustituye los guards del backend.
-
-## CURRENT WEB BEHAVIOR
-
-La web implementa una sesión basada en cookies:
-
-1. login usa `credentials: include`;
-2. guarda el usuario solamente en memoria mediante `AuthContext`;
-3. elimina claves legacy de `localStorage`, incluido `accessToken`;
-4. consulta `/users/me` para hidratar la sesión;
-5. usa `apiFetch` para operaciones autenticadas;
-6. obtiene CSRF y añade `X-CSRF-Token` en mutaciones;
-7. ante 401 intenta una sola llamada compartida a `/auth/refresh`;
-8. repite una vez la solicitud original si el refresh funciona.
-
-Los uploads de receta usan `XMLHttpRequest`, `document.cookie`, objetos `File` y eventos del navegador. Este código no es portable directamente a React Native.
-
-La protección `/admin` usa proxy y Server Components de Next.js. No es un patrón de navegación móvil.
-
-## MOBILE ADAPTATION PROPOSAL
-
-### Bloqueo actual
-
-No existe un contrato de sesión nativo completo:
-
-- login no expone tokens;
-- refresh solo acepta cookie;
-- el guard CSRF puede exigir cookie y header incluso con Bearer;
-- el comportamiento de cookies HTTP-only no ha sido validado end-to-end en Android e iOS.
-
-No implementes una capa definitiva de auth móvil hasta que se elija y pruebe una alternativa.
-
-### Alternativa A — cookies
-
-Mantener el contrato actual y usar un cookie jar compatible con Android/iOS.
-
-Requeriría confirmar:
-
-- recepción y envío fiable de `Set-Cookie`/cookies HTTP-only;
-- lectura o recuperación del token CSRF no HTTP-only;
-- persistencia entre reinicios;
-- comportamiento con `SameSite=None; Secure`;
-- refresh concurrente;
-- logout y limpieza local;
-- pruebas en dispositivo físico para ambas plataformas.
-
-Ventaja: menor cambio conceptual al backend.
-
-Riesgo: el flujo depende de comportamiento nativo no validado y posiblemente de una dependencia adicional de cookies.
-
-### Alternativa B — tokens explícitos para cliente nativo
-
-Agregar deliberadamente al backend un contrato móvil que entregue credenciales apropiadas y permita refresh explícito.
-
-Requeriría diseñar:
-
-- endpoint o variante inequívocamente móvil;
-- access token de corta duración;
-- refresh token rotatorio;
-- almacenamiento del refresh token con `expo-secure-store`;
-- access token preferentemente en memoria;
-- revocación de sesión;
-- tratamiento CSRF para requests Bearer autenticados;
-- rate limiting, auditoría y compatibilidad con la web existente.
-
-Ventaja: transporte explícito para un cliente no navegador.
-
-Riesgo: requiere cambios de backend, revisión de seguridad y migración contractual controlada.
-
-### Almacenamiento móvil
-
-Si se aprueba la alternativa de tokens:
-
-- usa almacenamiento seguro del sistema para refresh o credencial persistente;
-- mantén access token en memoria cuando sea viable;
-- nunca uses AsyncStorage para secretos;
-- no guardes credenciales en TanStack Query, logs o crash reports;
-- borra estado seguro y caché sensible al cerrar sesión.
-
-Si se aprueban cookies, no agregues `expo-secure-store` solo por anticipación.
-
-### Protección de rutas
-
-La navegación móvil debe distinguir:
-
-- sesión desconocida/cargando;
-- usuario ausente;
-- cliente autenticado;
-- sesión expirada;
-- rol no permitido.
-
-Los route groups de Expo Router son una ayuda de navegación y UX; la autorización permanece en el backend.
-
-### Refresh y concurrencia
-
-La implementación futura debe:
-
-- permitir un solo refresh simultáneo;
-- pausar o coordinar requests que reciben 401;
-- repetir como máximo una vez;
-- cerrar sesión cuando refresh sea inválido;
-- evitar loops de refresh;
-- limpiar caché asociada al usuario anterior.
-
-### Background y foreground
-
-Al volver a foreground se debe revalidar la sesión y datos sensibles según la estrategia elegida. No asumas que un token o cookie sigue vigente después de una suspensión prolongada.
-
-## Decisión requerida
-
-Debe aprobarse **Alternativa A — cookies** o **Alternativa B — tokens explícitos** antes de implementar login, persistencia, refresh, cliente autenticado o guards finales en el móvil. Esta documentación no toma esa decisión ni modifica el backend.
+No se considera validado el recorrido real de correo ni la persistencia nativa solo por pasar Jest o exportar bundles. Validar con backend actualizado y correo de pruebas: registro, OTP/reenvío, login persistente/no persistente, reinicio, refresh, revocación, recuperación, logout, offline y foreground en Android e iOS. Ver `TESTING.md`.

@@ -3,7 +3,7 @@ import { Redirect, useRouter } from 'expo-router';
 import { Controller, useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { AppButton } from '@/components/ui/AppButton';
-import { useAuthPreview } from '@/providers/auth-preview-provider';
+import { useAuth } from '@/providers/auth-provider';
 import { AuthLayout } from './components/AuthLayout';
 import { PasswordField } from '@/components/ui/PasswordField';
 import { PasswordStrength } from './components/PasswordStrength';
@@ -12,7 +12,7 @@ import { passwordSchema, newPasswordSchema, type NewPasswordValues } from './sch
 
 export function NewPasswordScreen() {
   const router = useRouter();
-  const { service, challenge, setChallenge, setUser } = useAuthPreview();
+  const { service, challenge, setChallenge } = useAuth();
   const { execute, pending } = useAuthAction();
   const {
     control,
@@ -34,13 +34,12 @@ export function NewPasswordScreen() {
     return <Redirect href="/forgot-password" />;
   const submit = handleSubmit((values) =>
     execute(
-      () => {
-        service.resetPassword(values.password);
+      async () => {
+        await service.resetPassword(values.password);
       },
       'Contraseña actualizada. Inicia sesión con tu nueva contraseña.',
       () => {
         setChallenge(null);
-        setUser(null);
         router.replace('/login');
       },
     ),
@@ -70,6 +69,7 @@ export function NewPasswordScreen() {
             placeholder="Crea una contraseña"
             autoComplete="new-password"
             textContentType="newPassword"
+            maxLength={72}
           />
         )}
       />
@@ -94,6 +94,7 @@ export function NewPasswordScreen() {
             placeholder="Repite tu nueva contraseña"
             autoComplete="new-password"
             textContentType="newPassword"
+            maxLength={72}
             returnKeyType="done"
             onSubmitEditing={() => void submit()}
           />

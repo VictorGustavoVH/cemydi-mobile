@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Controller, useForm } from 'react-hook-form';
@@ -6,7 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import Mail from 'lucide-react-native/icons/mail';
 import { AppInput } from '@/components/ui/AppInput';
 import { AppButton } from '@/components/ui/AppButton';
-import { useAuthPreview } from '@/providers/auth-preview-provider';
+import { useAuth } from '@/providers/auth-provider';
 import { colors } from '@/theme';
 import { AuthLayout } from './components/AuthLayout';
 import { AuthCheckbox } from './components/AuthCheckbox';
@@ -14,6 +14,7 @@ import { AuthTerms } from './components/AuthTerms';
 import { GoogleAuthButton } from './components/GoogleAuthButton';
 import { PasswordField } from '@/components/ui/PasswordField';
 import { useAuthAction } from './hooks/useAuthAction';
+import { returnToAuthDestination } from './return-to-auth-destination';
 import { emailSchema, loginSchema, type LoginValues } from './schemas/auth-schemas';
 
 export function LoginScreen() {
@@ -22,29 +23,34 @@ export function LoginScreen() {
     service,
     rememberedEmail,
     setRememberedEmail,
-    setUser,
+    status,
+    retrySession,
+    setChallenge,
     authDestination,
     setAuthDestination,
-  } = useAuthPreview();
+  } = useAuth();
   const [remember, setRemember] = useState(Boolean(rememberedEmail));
   const { execute, pending } = useAuthAction();
-  const { control, handleSubmit, setFocus } = useForm<LoginValues>({
+  const redirected = useRef(false);
+  useEffect(() => {
+    if (status !== 'authenticated' || pending || redirected.current) return;
+    redirected.current = true;
+    returnToAuthDestination(router, authDestination);
+    setAuthDestination('/inicio');
+  }, [status, pending, router, authDestination, setAuthDestination]);
+  const { control, handleSubmit, setFocus, trigger, getValues } = useForm<LoginValues>({
     resolver: zodResolver(loginSchema),
     mode: 'onTouched',
     defaultValues: { correo: rememberedEmail, password: '' },
   });
   const submit = handleSubmit((values) =>
     execute(
-      () => {
-        const user = service.login(values.correo, values.password);
-        setUser(user);
-        setRememberedEmail(remember ? user.correo : '');
+      async () => {
+        await service.login(values.correo, values.password, remember);
+        setRememberedEmail(remember ? values.correo : '');
       },
       'Sesión iniciada correctamente',
-      () => {
-        router.replace(authDestination);
-        setAuthDestination('/inicio');
-      },
+      () => undefined,
     ),
   );
 
@@ -52,8 +58,20 @@ export function LoginScreen() {
     <AuthLayout
       title="Qué gusto verte"
       description="Inicia sesión y sigue cuidando de tu bienestar."
-      backTo={authDestination}
+      onBack={() => returnToAuthDestination(router, authDestination)}
     >
+      {status === 'expired' ? (
+        <Text accessibilityLiveRegion="polite" className="font-sans text-sm text-secondary">
+          Tu sesión venció. Inicia sesión para continuar.
+        </Text>
+      ) : null}
+      {status === 'error' ? (
+        <AppButton
+          label="Reintentar restaurar sesión"
+          variant="secondary"
+          onPress={() => void retrySession()}
+        />
+      ) : null}
       <Controller
         control={control}
         name="correo"
@@ -73,6 +91,7 @@ export function LoginScreen() {
             autoCorrect={false}
             autoComplete="email"
             textContentType="emailAddress"
+            maxLength={254}
             returnKeyType="next"
             onSubmitEditing={() => setFocus('password')}
             leadingIcon={
@@ -101,6 +120,7 @@ export function LoginScreen() {
             placeholder="Tu contraseña"
             autoComplete="current-password"
             textContentType="password"
+            maxLength={72}
             returnKeyType="go"
             onSubmitEditing={() => void submit()}
           />
@@ -108,7 +128,7 @@ export function LoginScreen() {
       />
       <View className="flex-row flex-wrap items-center justify-between gap-x-2">
         <AuthCheckbox
-          label="Recuérdame"
+          label="Mantener sesión iniciada"
           checked={remember}
           onChange={setRemember}
           disabled={pending}
@@ -125,10 +145,27 @@ export function LoginScreen() {
       <AppButton
         label="Iniciar sesión"
         className="min-h-14 rounded-2xl"
-        loading={pending}
+        loading={pending || status === 'loading'}
         onPress={() => void submit()}
       />
-      <GoogleAuthButton disabled={pending} />
+      <GoogleAuthButton disabled={pending} remember={remember} />
+      <AppButton
+        label="Verificar mi correo"
+        variant="ghost"
+        disabled={pending}
+        onPress={() =>
+          void (async () => {
+            if (!(await trigger('correo'))) return;
+            await execute(
+              async () => {
+                setChallenge(await service.requestVerification(getValues('correo')));
+              },
+              'Si la cuenta requiere verificación, recibirás un código',
+              () => router.replace('/otp'),
+            );
+          })()
+        }
+      />
       <View className="flex-row flex-wrap items-center justify-center gap-x-1 pt-2">
         <Text className="font-sans text-sm text-secondary">¿Aún no tienes cuenta?</Text>
         <AppButton
