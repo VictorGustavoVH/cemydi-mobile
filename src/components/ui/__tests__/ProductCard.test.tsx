@@ -4,6 +4,11 @@ import { toProductCard } from '@/services/products/product-adapter';
 import { ProductCard } from '../ProductCard';
 
 describe('ProductCard', () => {
+  it('no inventa calificaciones cuando todavía no hay resumen', async () => {
+    await render(<ProductCard product={toProductCard(productFixture())} onPress={jest.fn()} />);
+    expect(screen.getByRole('button', { name: /Sin valoraciones/ })).toBeTruthy();
+    expect(screen.queryByText('4.8')).toBeNull();
+  });
   it.each([
     ['VENTA', ['Venta'], 'Venta'],
     ['RENTA', ['Renta'], 'Renta'],

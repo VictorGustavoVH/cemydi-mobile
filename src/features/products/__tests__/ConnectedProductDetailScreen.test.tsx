@@ -2,9 +2,13 @@ import { act, fireEvent, screen, waitFor } from '@testing-library/react-native';
 import { QueryClient } from '@tanstack/react-query';
 import { render } from '../../../../tests/support/render-with-toast';
 import { installNetworkMock } from '../../../../tests/support/network-mock';
-import { productFixture, productOfferFixture } from '../../../../tests/support/product-fixtures';
+import {
+  productFixture,
+  productOfferFixture,
+  productPage,
+} from '../../../../tests/support/product-fixtures';
+import { emptyProductFilters, productService } from '@/services/products/product-service';
 import { productDetailKey } from '@/services/products/product-cache';
-import { productService } from '@/services/products/product-service';
 import { CatalogPreviewProvider } from '@/providers/catalog-preview-provider';
 import { ApiError } from '@/services/http/api-error';
 import { ConnectedProductDetailScreen } from '../ConnectedProductDetailScreen';
@@ -187,4 +191,43 @@ describe('Detalle público conectado', () => {
     expect(screen.getByText('Producto 1')).toBeTruthy();
     expect(screen.getByLabelText('Añadir al carrito')).toBeTruthy();
   });
+
+  it.each(['list', 'recommendations'] as const)(
+    'refresca disponibilidad antigua recuperada desde %s',
+    async (source) => {
+      let finish!: (value: Awaited<ReturnType<typeof productService.detail>>) => void;
+      const detail = jest.spyOn(productService, 'detail').mockReturnValue(
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+      );
+      const client = new QueryClient({
+        defaultOptions: { queries: { retry: false, gcTime: Infinity } },
+      });
+      const old = productFixture(1, { nombre: 'Equipo en caché', stock: 3 });
+      const key =
+        source === 'list'
+          ? ['products', 'list', emptyProductFilters]
+          : ['products', 'recommendations', '2'];
+      client.setQueryData(
+        key,
+        source === 'list'
+          ? { pages: [{ ...productPage(1, 1), products: [old] }], pageParams: [1] }
+          : { recommendations: [old] },
+        { updatedAt: Date.now() - 60_000 },
+      );
+      client.setQueryData(['promotions', 'active'], { promotions: [] });
+      await render(
+        <CatalogPreviewProvider>
+          <ConnectedProductDetailScreen productId="1" />
+        </CatalogPreviewProvider>,
+        { client },
+      );
+      expect(screen.getByText('Equipo en caché')).toBeTruthy();
+      await waitFor(() => expect(detail).toHaveBeenCalledTimes(1));
+      await act(() => finish({ product: productFixture(1, { stock: 0 }) }));
+      await screen.findByText('Producto 1');
+      expect(screen.getByLabelText('Añadir al carrito')).toBeDisabled();
+    },
+  );
 });
