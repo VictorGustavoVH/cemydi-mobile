@@ -3,6 +3,7 @@ import type { CatalogMode } from '@/data/catalog-preview';
 import type { ProductDetailPreview } from '@/data/product-detail-preview';
 
 export type PreviewCartItem = {
+  serverId?: number;
   productId: string;
   mode: Exclude<CatalogMode, 'all'>;
   quantity: number;
@@ -22,10 +23,15 @@ type CatalogPreviewState = {
     productSnapshot?: ProductDetailPreview,
   ) => void;
   removeItem: (productId: string, mode: PreviewCartItem['mode']) => void;
-  updateQuantity: (productId: string, mode: PreviewCartItem['mode'], quantity: number) => void;
-  toggleSelection: (productId: string, mode: PreviewCartItem['mode']) => void;
+  updateQuantity: (
+    productId: string,
+    mode: PreviewCartItem['mode'],
+    quantity: number,
+    serverId?: number,
+  ) => void;
+  toggleSelection: (productId: string, mode: PreviewCartItem['mode'], serverId?: number) => void;
   selectMode: (mode: PreviewCartItem['mode'], selected: boolean) => void;
-  saveRentalDraft: (productId: string, draft: RentalDraft) => void;
+  saveRentalDraft: (productId: string, draft: RentalDraft, serverId?: number) => void;
   restoreItem: (item: PreviewCartItem, index: number) => void;
 };
 type CatalogPreviewActions = Omit<CatalogPreviewState, 'favorites' | 'items'>;
@@ -137,6 +143,10 @@ export function useCatalogPreview() {
   const context = useContext(CatalogPreviewContext);
   if (!context) throw new Error('CatalogPreviewProvider is required.');
   return context;
+}
+
+export function useOptionalCatalogPreview() {
+  return useContext(CatalogPreviewContext);
 }
 
 /** Action-only consumers do not subscribe to cart/favorite changes. */
