@@ -130,14 +130,14 @@ export function HomeScreen() {
   const exploreSearch = useRouteCallback(
     (term: string) => {
       Keyboard.dismiss();
-      router.push({ pathname: '/catalogo', params: { search: term } });
+      router.navigate({ pathname: '/catalogo', params: { search: term, t: String(Date.now()) } });
     },
     (term) => `/catalogo?search=${term}`,
   );
   const explore = useCallback(() => exploreSearch(search.trim()), [exploreSearch, search]);
   const showProfile = useRouteCallback(
     () => {
-      if (requestAccess('/perfil')) router.push('/perfil');
+      if (requestAccess('/perfil')) router.navigate('/perfil');
     },
     () => '/perfil',
   );
@@ -214,9 +214,9 @@ export function HomeScreen() {
               onChange={setSearch}
               onFilters={() => {
                 Keyboard.dismiss();
-                router.push({
+                router.navigate({
                   pathname: '/catalogo',
-                  params: { search: search.trim(), filters: '1' },
+                  params: { search: search.trim(), filters: '1', t: String(Date.now()) },
                 });
               }}
               onSelectProduct={(id) => openProduct(id, undefined)}
@@ -244,9 +244,9 @@ export function HomeScreen() {
                   onSelect={(id) => {
                     const category = homeCategories.find((item) => item.id === id);
                     if (category)
-                      router.push({
+                      router.navigate({
                         pathname: '/catalogo',
-                        params: { search: category.label },
+                        params: { search: category.label, t: String(Date.now()) },
                       });
                   }}
                   selectedId={null}
@@ -264,7 +264,12 @@ export function HomeScreen() {
                     Filtros
                   </Text>
                   <CatalogModeFilter
-                    onChange={(mode) => router.push({ pathname: '/catalogo', params: { mode } })}
+                    onChange={(mode) =>
+                      router.navigate({
+                        pathname: '/catalogo',
+                        params: { mode, t: String(Date.now()) },
+                      })
+                    }
                     value="all"
                   />
                 </View>

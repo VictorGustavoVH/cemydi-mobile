@@ -1,5 +1,5 @@
-import { useEffect, useRef, type ReactNode } from 'react';
-import { useRouter } from 'expo-router';
+import { useCallback, useRef, type ReactNode } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { Text, View } from 'react-native';
 import { AppScreen } from '@/components/ui/AppScreen';
 import { BackButton } from '@/components/ui/BackButton';
@@ -31,21 +31,23 @@ export function ProfileLayout({
   const router = useRouter();
   const toast = useToast();
   const redirecting = useRef(false);
-  useEffect(() => {
-    if (publicAccess || status === 'loading' || status === 'error') return;
-    if (status === 'authenticated' && user) {
-      redirecting.current = false;
-      return;
-    }
-    if (redirecting.current) return;
-    redirecting.current = true;
-    // Un invitado nunca se queda en una sección privada: vuelve a Inicio en
-    // lugar de mostrar una pantalla intermedia sin salida (por ejemplo al
-    // volver con «Atrás» desde el inicio de sesión o al vencer la sesión).
-    if (consumeExplicitLogout?.()) return;
-    toast.info('Inicia sesión para continuar');
-    router.navigate('/inicio');
-  }, [publicAccess, status, user, consumeExplicitLogout, router, toast]);
+  useFocusEffect(
+    useCallback(() => {
+      if (publicAccess || status === 'loading' || status === 'error') return;
+      if (status === 'authenticated' && user) {
+        redirecting.current = false;
+        return;
+      }
+      if (redirecting.current) return;
+      redirecting.current = true;
+      // Un invitado nunca se queda en una sección privada: vuelve a Inicio en
+      // lugar de mostrar una pantalla intermedia sin salida (por ejemplo al
+      // volver con «Atrás» desde el inicio de sesión o al vencer la sesión).
+      if (consumeExplicitLogout?.()) return;
+      toast.info('Inicia sesión para continuar');
+      router.navigate('/inicio');
+    }, [publicAccess, status, user, consumeExplicitLogout, router, toast]),
+  );
   return (
     <AppScreen
       scroll={scroll}
