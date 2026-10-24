@@ -4,7 +4,7 @@ import { addRecentSearch, clearRecentSearches } from '@/hooks/useRecentSearches'
 import { render } from '../../../../tests/support/render-with-toast';
 
 import { HomeScreen } from '../HomeScreen';
-import { CatalogPreviewProvider } from '@/providers/catalog-preview-provider';
+import { CatalogPreviewProvider } from '../../../../tests/support/catalog-cart-provider';
 import { productService } from '@/services/products/product-service';
 import { installHomePreviewApiMock } from '../../../../tests/support/home-preview-api-mock';
 

@@ -1,7 +1,7 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react-native';
 import { render } from '../../../../tests/support/render-with-toast';
 import { Share } from 'react-native';
-import { CatalogPreviewProvider } from '@/providers/catalog-preview-provider';
+import { CatalogPreviewProvider } from '../../../../tests/support/catalog-cart-provider';
 import { CartPreviewScreen } from '@/features/cart/CartPreviewScreen';
 import { ProductDetailScreen } from '../ProductDetailScreen';
 import * as preview from '@/data/product-detail-preview';

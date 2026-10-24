@@ -2,7 +2,7 @@ import { UserFacingError } from '@/services/http/api-error';
 import { act, fireEvent, screen, waitFor } from '@testing-library/react-native';
 import { render } from '../support/render-with-toast';
 import { installNetworkMock } from '../support/network-mock';
-import { CatalogPreviewProvider } from '@/providers/catalog-preview-provider';
+import { CatalogPreviewProvider } from '../support/catalog-cart-provider';
 import { HomeScreen } from '@/features/home/HomeScreen';
 import { ProductDetailScreen } from '@/features/products/ProductDetailScreen';
 import { CartPreviewScreen } from '@/features/cart/CartPreviewScreen';

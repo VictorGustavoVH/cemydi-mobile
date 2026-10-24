@@ -13,10 +13,8 @@ jest.mock('expo-router', () => ({
 
 jest.mock('expo-haptics', () => ({ selectionAsync: jest.fn().mockResolvedValue(undefined) }));
 
-jest.mock('@/providers/catalog-preview-provider', () => ({
-  useCatalogPreview: () => ({
-    items: [{ quantity: 2 }, { quantity: 1 }],
-  }),
+jest.mock('@/providers/cart-provider', () => ({
+  useCartCount: () => 3,
 }));
 
 jest.mock('@/hooks/useAccountAccess', () => ({
