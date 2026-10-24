@@ -10,6 +10,10 @@ jest.mock('@/providers/auth-provider', () => ({
   useAuth: jest.fn(),
 }));
 jest.mock('expo-router', () => ({
+  useFocusEffect: (callback: () => void | (() => void)) => {
+    const { useEffect } = jest.requireActual<typeof import('react')>('react');
+    useEffect(callback, [callback]);
+  },
   useRouter: () => ({
     push: jest.fn(),
     replace: jest.fn(),

@@ -2,7 +2,7 @@ import { fireEvent, screen } from '@testing-library/react-native';
 import { render } from '../../../../tests/support/render-with-toast';
 import { GlobalBottomBar } from '../GlobalBottomBar';
 
-const mockRouter = { push: jest.fn(), replace: jest.fn(), back: jest.fn() };
+const mockRouter = { push: jest.fn(), replace: jest.fn(), back: jest.fn(), navigate: jest.fn() };
 const mockRequestAccess = jest.fn(() => false);
 let mockPathname = '/inicio';
 
@@ -38,19 +38,30 @@ describe('GlobalBottomBar', () => {
     const cart = screen.getByLabelText('Carrito, 3 unidades');
     await fireEvent.press(cart);
     await fireEvent.press(cart);
-    expect(mockRouter.push).toHaveBeenCalledTimes(1);
+    expect(mockRouter.navigate).toHaveBeenCalledTimes(1);
   });
 
   it('explorar abre el catálogo completo', async () => {
     await render(<GlobalBottomBar />);
     await fireEvent.press(screen.getByRole('button', { name: 'Explorar' }));
-    expect(mockRouter.push).toHaveBeenCalledWith('/catalogo');
+    expect(mockRouter.navigate).toHaveBeenCalledWith('/catalogo');
   });
 
   it('no se renderiza fuera de las pestañas principales', async () => {
     mockPathname = '/producto/123';
     await render(<GlobalBottomBar />);
     expect(screen.queryByLabelText('Carrito, 3 unidades')).toBeNull();
+  });
+  it('marca Perfil como seleccionado y oculta la barra en sus subrutas', async () => {
+    mockPathname = '/perfil';
+    const view = await render(<GlobalBottomBar />);
+    expect(screen.getByLabelText('Perfil')).toHaveProp(
+      'accessibilityState',
+      expect.objectContaining({ selected: true }),
+    );
+    mockPathname = '/perfil/notificaciones';
+    await view.rerender(<GlobalBottomBar />);
+    expect(screen.queryByLabelText('Perfil')).toBeNull();
   });
 });
 
@@ -61,6 +72,6 @@ it('abre el perfil conectado al autorizar el acceso', async () => {
   await render(<GlobalBottomBar />);
   await fireEvent.press(screen.getByRole('button', { name: 'Perfil' }));
   expect(mockRequestAccess).toHaveBeenCalledWith('/perfil');
-  expect(mockRouter.push).toHaveBeenCalledWith('/perfil');
+  expect(mockRouter.navigate).toHaveBeenCalledWith('/perfil');
   expect(screen.queryByText('Tu perfil')).toBeNull();
 });

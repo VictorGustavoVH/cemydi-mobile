@@ -12,7 +12,13 @@ const mockPush = jest.fn();
 jest.mock('expo-router', () => ({
   useLocalSearchParams: () => mockParams,
   useFocusEffect: jest.fn(),
-  useRouter: () => ({ push: mockPush, back: jest.fn(), replace: jest.fn(), canGoBack: () => true }),
+  useRouter: () => ({
+    navigate: mockPush,
+    push: mockPush,
+    back: jest.fn(),
+    replace: jest.fn(),
+    canGoBack: () => true,
+  }),
 }));
 
 it('conecta Inicio, búsqueda, filtros y detalle usando contratos HTTP y caché reales', async () => {
@@ -51,7 +57,10 @@ it('conecta Inicio, búsqueda, filtros y detalle usando contratos HTTP y caché 
   );
   await fireEvent.changeText(screen.getByLabelText('Buscar equipo ortopédico'), 'silla');
   await fireEvent(screen.getByLabelText('Buscar equipo ortopédico'), 'submitEditing');
-  expect(mockPush).toHaveBeenLastCalledWith({ pathname: '/catalogo', params: { search: 'silla' } });
+  expect(mockPush).toHaveBeenLastCalledWith({
+    pathname: '/catalogo',
+    params: { search: 'silla', t: expect.any(String) },
+  });
 
   mockParams = { search: 'silla' };
   await view.rerender(

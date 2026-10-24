@@ -40,7 +40,7 @@ jest.mock('expo-blur', () => {
 });
 
 jest.mock('react-native-reanimated', () => {
-  const { ScrollView, Text, View } = require('react-native');
+  const { FlatList, ScrollView, Text, View } = require('react-native');
 
   const sharedValue = (initial: unknown) => ({
     value: initial,
@@ -52,6 +52,7 @@ jest.mock('react-native-reanimated', () => {
     __esModule: true,
     default: {
       View,
+      FlatList,
       ScrollView,
       Text,
       createAnimatedComponent: (component: unknown) => component,
@@ -59,6 +60,9 @@ jest.mock('react-native-reanimated', () => {
     useReducedMotion: () => false,
     cubicBezier: jest.requireActual('react-native-reanimated/src/css/easing').cubicBezier,
     useSharedValue: sharedValue,
+    useAnimatedScrollHandler: () => jest.fn(),
+    Extrapolation: { CLAMP: 'clamp' },
+    interpolate: (_value: number, _input: number[], output: number[]) => output[0],
     useAnimatedStyle: (updater: () => object) => updater(),
     useAnimatedProps: (updater: () => object) => updater(),
     cancelAnimation: jest.fn(),

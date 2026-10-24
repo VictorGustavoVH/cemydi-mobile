@@ -26,6 +26,10 @@ const mockRouter = {
 const mockDispatch = jest.fn();
 const mockPreventRemove = jest.fn();
 jest.mock('expo-router', () => ({
+  useFocusEffect: (callback: () => void | (() => void)) => {
+    const { useEffect } = jest.requireActual<typeof import('react')>('react');
+    useEffect(callback, [callback]);
+  },
   useRouter: () => mockRouter,
   usePathname: () => '/perfil',
   useNavigation: () => ({ dispatch: mockDispatch }),
