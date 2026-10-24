@@ -12,32 +12,18 @@ const localImageBlurhashes = new Map<ImageSourcePropType, string>([
   [require('../../assets/images/auth/newpassword.webp'), 'LUP%w;%L~X%g%2xGR*tR?bxaIUoK'],
   // SHA-256: 40b47be177be79d56d3b14f77cd7114408e2acd0cb9b1b751257d5b4275f22bb
   [require('../../assets/images/auth/otpEmail.webp'), 'LgQc;oxu^+%g-poLWBkC~Wt7E0Rj'],
-  // SHA-256: eeccb4cf02fab1ab1e7dcaa21b4ec4177dcfb2c0ec7a19b8c8c2704b66b46f57
-  [require('../../assets/images/catalog/crutches.jpg'), 'LESY{q?b~q_3?bj[t7ofWBayofj['],
   // SHA-256: 23e7dc75d37b7e37f35c2dfcb35a0a73aed1ed881b32d0a4f176b0ba6adc8c15
   [require('../../assets/images/catalog/crutches.webp'), 'LESY{q?b~q_3?bj[t7ofWBazofj@'],
-  // SHA-256: a62df6b997afc91e011cb34f472400834d18b170d5d955eabd665fec4adae292
-  [require('../../assets/images/catalog/hospital-bed.png'), 'LdQ]=[xuxuxu%NNGRjt6~pofRkay'],
   // SHA-256: d5e0a79cfe0e61ffabfc5044ae7bbf97afa67af47e45cb4566c2e488701cfeaa
   [require('../../assets/images/catalog/hospital-bed.webp'), 'LdQ]=[xuxuxu%NNGRjt6~pofRkay'],
-  // SHA-256: 76a034397c481483cee84f303ddf81b06bbe9b54504a717c6b6586facb829a82
-  [require('../../assets/images/catalog/knee-brace.png'), 'L|Op*}xu~qt7ofayofofxuWBRjt7'],
   // SHA-256: 000d7aeb772248db8408d6bbd1aabf8b10269714e7d5fb82266b43c850ffc9ca
   [require('../../assets/images/catalog/knee-brace.webp'), 'L|Op*}xu~qt7ofayofofxuWBRjt7'],
-  // SHA-256: 413bf4257b9d26b769408eccc298e97e03674c043413eafd7a75d0be918e9edb
-  [require('../../assets/images/catalog/oxygen-concentrator.jpg'), 'LqPs*Kt7~qxux]oejZWB-;j[M{jt'],
   // SHA-256: 9eef46944ab0e620faefe215cbc177538ac53f601e2dacdea0e5236e258dbd7a
   [require('../../assets/images/catalog/oxygen-concentrator.webp'), 'LpPs*Kt7~qxux]ofjZWB-;j[M{jt'],
-  // SHA-256: 63853772969d2bd6d7aab2aeaf3adb9b559a96756481ae10061115cf245051c1
-  [require('../../assets/images/catalog/walker-boot.jpg'), 'LtPs*KRj~q^+%MRjRjxu%Mt7M{M{'],
   // SHA-256: c56094f94cb48a48cad740dc354dde4a7a00720b5ae5e22ca7b42a844ff91f9a
   [require('../../assets/images/catalog/walker-boot.webp'), 'LtPs*KRj~q^+%MRjRjxu%Mt7M{M{'],
-  // SHA-256: c1ee51e7b5be0ef2d4706aff1dc8ce1ab83e215adbb7b2b7950a0e56feb87ca8
-  [require('../../assets/images/catalog/walker.png'), 'L9RfkC~q~q_3-;Rj%M-;~pfQRjay'],
   // SHA-256: bcd0666942e27443b75283d4947843ed77930b7d5e8452922b117865c79c422c
   [require('../../assets/images/catalog/walker.webp'), 'L9RfkB~q~q_3-;Rj%M-;~pfjRjay'],
-  // SHA-256: 37f5cdbf48fac1de8f9b861fff2a11b452e6352cdf74572f07c11b59dce73d9b
-  [require('../../assets/images/catalog/wheelchair.png'), 'LoO43jj[~q%MxuM{t7xu_3ofIUof'],
   // SHA-256: 4f1cb304bd53a03ff230fffee696bcd003803d2e624b157fdb1c45c1c6dcc82a
   [require('../../assets/images/catalog/wheelchair.webp'), 'LoO43jj[~q%MxuM{t7xu_3ofIUof'],
   // SHA-256: 05aab5660392d65f4e25191f41edd956254fc11e8d47854a32ed6fd7841682d6
