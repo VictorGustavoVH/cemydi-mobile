@@ -1,6 +1,4 @@
-const base = require('./app.json').expo;
-
-module.exports = () => {
+module.exports = ({ config: base }) => {
   const iosClientId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID?.trim();
   const webClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID?.trim();
   const iosClientSuffix = '.apps.googleusercontent.com';
