@@ -1,3 +1,4 @@
+import { UserFacingError } from '@/services/http/api-error';
 import { act, fireEvent, screen, waitFor } from '@testing-library/react-native';
 import { render } from '../support/render-with-toast';
 import { installNetworkMock } from '../support/network-mock';
@@ -115,7 +116,7 @@ describe('Catálogo, detalle y carrito con estado de sesión compartido', () => 
     expect(screen.getByText('Categorías')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Descanso' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Ver banner 1 de 3' })).toBeTruthy();
-    await act(() => reject(new Error('Catálogo no disponible')));
+    await act(() => reject(new UserFacingError('Catálogo no disponible')));
     await waitFor(() => expect(screen.getByText('Catálogo no disponible')).toBeTruthy());
     expect(screen.getByText('Categorías')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Ver banner 1 de 3' })).toBeTruthy();

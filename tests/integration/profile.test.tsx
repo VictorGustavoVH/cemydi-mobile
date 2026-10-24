@@ -3,7 +3,6 @@ import { act, fireEvent, screen, waitFor } from '@testing-library/react-native';
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { render } from '../support/render-with-toast';
 import { installAuthApiMock, AUTH_ACCOUNT } from '../support/auth-api-mock';
-import { installCartApiMock } from '../support/cart-api-mock';
 import { installProfileApiMock, PROFILE_USER } from '../support/profile-api-mock';
 import { installNetworkMock } from '../support/network-mock';
 import { useAuth } from '@/providers/auth-provider';
@@ -58,7 +57,6 @@ describe('Perfil conectado', () => {
     jest.clearAllMocks();
     installNetworkMock();
     installAuthApiMock();
-    installCartApiMock();
     installProfileApiMock();
   });
   it('muestra identidad y accesos reales; devuelve al invitado a Inicio', async () => {

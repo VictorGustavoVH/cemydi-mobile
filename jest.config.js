@@ -42,12 +42,12 @@ module.exports = {
     {
       ...shared,
       displayName: 'unit',
-      testMatch: ['<rootDir>/src/**/*.test.[jt]s?(x)'],
+      testMatch: ['**/src/**/*.test.[jt]s?(x)'],
     },
     {
       ...shared,
       displayName: 'integration',
-      testMatch: ['<rootDir>/tests/integration/**/*.test.[jt]s?(x)'],
+      testMatch: ['**/tests/integration/**/*.test.[jt]s?(x)'],
     },
   ],
 };

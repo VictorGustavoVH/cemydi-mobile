@@ -4,6 +4,7 @@ import { render } from '../../../../tests/support/render-with-toast';
 import { installNetworkMock } from '../../../../tests/support/network-mock';
 import { productPage } from '../../../../tests/support/product-fixtures';
 import { productService } from '@/services/products/product-service';
+import { UserFacingError } from '@/services/http/api-error';
 import { CatalogScreen } from '../CatalogScreen';
 
 const mockPush = jest.fn();
@@ -188,7 +189,7 @@ describe('Catálogo móvil público', () => {
     await render(<CatalogScreen />);
     expect(screen.getByLabelText('Cargando catálogo…')).toBeTruthy();
     expect(screen.queryByText('No encontramos productos')).toBeNull();
-    await act(() => reject(new Error('No pudimos cargar el catálogo')));
+    await act(() => reject(new UserFacingError('No pudimos cargar el catálogo')));
     await screen.findByText('No pudimos cargar el catálogo');
     await fireEvent.press(screen.getByRole('button', { name: 'Reintentar' }));
     await screen.findByText('No encontramos productos');

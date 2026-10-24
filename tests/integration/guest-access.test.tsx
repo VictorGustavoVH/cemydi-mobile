@@ -1,6 +1,5 @@
 import { AUTH_ACCOUNT as DEFAULT_ACCOUNT, installAuthApiMock } from '../support/auth-api-mock';
 import { useEffect } from 'react';
-import { installCartApiMock } from '../support/cart-api-mock';
 import { fireEvent, screen, waitFor } from '@testing-library/react-native';
 import { render } from '../support/render-with-toast';
 import { installNetworkMock } from '../support/network-mock';
@@ -47,7 +46,6 @@ describe('Acceso como invitado', () => {
   beforeEach(() => {
     installNetworkMock();
     installAuthApiMock();
-    installCartApiMock();
     installHomePreviewApiMock();
   });
 

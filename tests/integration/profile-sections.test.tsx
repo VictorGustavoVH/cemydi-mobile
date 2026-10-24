@@ -5,7 +5,6 @@ import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { render } from '../support/render-with-toast';
 import { installNetworkMock } from '../support/network-mock';
 import { installAuthApiMock, AUTH_ACCOUNT } from '../support/auth-api-mock';
-import { installCartApiMock } from '../support/cart-api-mock';
 import { installProfileApiMock } from '../support/profile-api-mock';
 import { installAccountApiMock, RENTAL } from '../support/account-api-mock';
 import { useAuth } from '@/providers/auth-provider';
@@ -55,7 +54,6 @@ describe('Secciones de Perfil', () => {
     mockParams = {};
     installNetworkMock();
     installAuthApiMock();
-    installCartApiMock();
     installProfileApiMock();
     installAccountApiMock();
   });

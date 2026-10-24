@@ -3,7 +3,8 @@ import { fireEvent, screen } from '@testing-library/react-native';
 import { render } from '../../../../tests/support/render-with-toast';
 import { CatalogPreviewProvider, useCatalogPreview } from '@/providers/catalog-preview-provider';
 import { CartPreviewScreen } from '../CartPreviewScreen';
-import { useAuthPreview } from '@/providers/auth-preview-provider';
+import { useAuth } from '@/providers/auth-provider';
+import { AUTH_ACCOUNT, installAuthApiMock } from '../../../../tests/support/auth-api-mock';
 import * as CatalogImageModule from '@/components/ui/CatalogImage';
 
 const mockRouter = { canGoBack: () => true, back: jest.fn(), push: jest.fn(), replace: jest.fn() };
@@ -23,9 +24,9 @@ function Seed({
   signedIn?: boolean;
 }) {
   const { addItem, updateQuantity } = useCatalogPreview();
-  const { setUser } = useAuthPreview();
+  const { service } = useAuth();
   useEffect(() => {
-    if (signedIn) setUser({ nombre: 'Cliente CEMYDI', correo: 'cliente@cemydi.test' });
+    if (signedIn) void service.login(AUTH_ACCOUNT.correo, AUTH_ACCOUNT.password, false);
     addItem('wheelchair', 'purchase');
     addItem('wheelchair', 'rental');
     if (quantity > 1) updateQuantity('wheelchair', 'purchase', quantity);
@@ -37,6 +38,7 @@ function Seed({
 }
 
 describe('Carrito de muestra', () => {
+  beforeEach(() => installAuthApiMock());
   it('no renderiza la imagen de otra tarjeta al cambiar selección o cantidad', async () => {
     const image = jest.spyOn(CatalogImageModule, 'CatalogImage');
     const view = await render(
