@@ -2,14 +2,18 @@ import { act, fireEvent, screen, waitFor } from '@testing-library/react-native';
 import { onlineManager } from '@tanstack/react-query';
 import { render } from '../../../../tests/support/render-with-toast';
 import { installNetworkMock } from '../../../../tests/support/network-mock';
-import { productPage } from '../../../../tests/support/product-fixtures';
+import { productOfferFixture, productPage } from '../../../../tests/support/product-fixtures';
 import { productService } from '@/services/products/product-service';
-import { UserFacingError } from '@/services/http/api-error';
 import { CatalogScreen } from '../CatalogScreen';
 
 const mockPush = jest.fn();
 jest.mock('expo-router', () => ({
-  useRouter: () => ({ push: mockPush, back: jest.fn(), canGoBack: () => true }),
+  useRouter: () => ({
+    push: mockPush,
+    back: jest.fn(),
+    canGoBack: () => true,
+    navigate: jest.fn(),
+  }),
   useLocalSearchParams: () => ({}),
 }));
 
@@ -33,6 +37,9 @@ describe('Catálogo móvil público', () => {
     expect(list.mock.calls.map((call) => call[1])).toEqual([1, 2]);
     expect(screen.queryByLabelText('Ver más productos')).toBeNull();
     await fireEvent.press(screen.getByRole('button', { name: /Producto 1\..*Ver producto/ }));
+    await fireEvent.press(screen.getByRole('button', { name: /Producto 1\..*Ver producto/ }));
+    await fireEvent.press(screen.getByRole('button', { name: /Producto 2\..*Ver producto/ }));
+    expect(mockPush).toHaveBeenCalledTimes(2);
     expect(mockPush).toHaveBeenCalledWith({
       pathname: '/producto/[id]',
       params: { id: '1', mode: undefined },
@@ -108,13 +115,13 @@ describe('Catálogo móvil público', () => {
     );
     await fireEvent.changeText(screen.getByLabelText('Buscar equipo ortopédico'), 'silla');
     await waitFor(() => expect(list).toHaveBeenCalledTimes(2));
-    await fireEvent.press(screen.getByRole('button', { name: 'Compra' }));
+    await fireEvent.press(screen.getByRole('radio', { name: 'Compra' }));
     await waitFor(() => expect(list).toHaveBeenCalledTimes(3));
     expect(list.mock.calls[2][0]).toMatchObject({ search: 'silla', tipos: ['MIXTO', 'VENTA'] });
-    await fireEvent.press(screen.getByRole('button', { name: 'Disponibles' }));
+    await fireEvent.press(screen.getByRole('checkbox', { name: 'Disponibles' }));
     await waitFor(() => expect(list).toHaveBeenCalledTimes(4));
     expect(list.mock.calls[3][0].soloDisponibles).toBe(true);
-    await fireEvent.press(screen.getByRole('button', { name: 'Menor precio' }));
+    await fireEvent.press(screen.getByRole('checkbox', { name: 'Menor precio' }));
     await waitFor(() => expect(list).toHaveBeenCalledTimes(5));
     expect(list.mock.calls[4][0]).toMatchObject({
       search: 'silla',
@@ -122,30 +129,30 @@ describe('Catálogo móvil público', () => {
       soloDisponibles: true,
       sort: 'precio-asc',
     });
-    await fireEvent.press(screen.getByRole('button', { name: 'Renta' }));
+    await fireEvent.press(screen.getByRole('radio', { name: 'Renta' }));
     await waitFor(() => expect(list).toHaveBeenCalledTimes(6));
     expect(list.mock.calls[5][0].tipos).toEqual(['MIXTO', 'RENTA']);
-    expect(screen.getByRole('button', { name: 'Renta' }).props.accessibilityState.selected).toBe(
+    expect(screen.getByRole('radio', { name: 'Renta' }).props.accessibilityState.checked).toBe(
       true,
     );
-    await fireEvent.press(screen.getByRole('button', { name: 'Todos' }));
+    await fireEvent.press(screen.getByRole('radio', { name: 'Todos' }));
     await waitFor(() =>
-      expect(screen.getByRole('button', { name: 'Todos' }).props.accessibilityState.selected).toBe(
+      expect(screen.getByRole('radio', { name: 'Todos' }).props.accessibilityState.checked).toBe(
         true,
       ),
     );
     expect(screen.getByLabelText('Buscar equipo ortopédico').props.value).toBe('silla');
     expect(
-      screen.getByRole('button', { name: 'Disponibles' }).props.accessibilityState.selected,
+      screen.getByRole('checkbox', { name: 'Disponibles' }).props.accessibilityState.checked,
     ).toBe(false);
     expect(
-      screen.getByRole('button', { name: 'Menor precio' }).props.accessibilityState.selected,
+      screen.getByRole('checkbox', { name: 'Menor precio' }).props.accessibilityState.checked,
     ).toBe(false);
     // Returning to a cached selection need not issue another request.
     expect(screen.queryByRole('button', { name: 'Aplicar filtros' })).toBeNull();
   });
 
-  it('conserva las opciones del panel mientras carga una selección nueva y limpia al instante', async () => {
+  it('retira opciones obsoletas durante la carga y restaura las opciones recibidas', async () => {
     let resolve!: (page: ReturnType<typeof productPage>) => void;
     const list = jest
       .spyOn(productService, 'list')
@@ -160,10 +167,9 @@ describe('Catálogo móvil público', () => {
     await fireEvent.press(screen.getByLabelText('Filtrar catálogo'));
     await fireEvent.press(screen.getByRole('checkbox', { name: 'Movilidad' }));
     await waitFor(() => expect(list).toHaveBeenCalledTimes(2));
-    expect(
-      screen.getByRole('checkbox', { name: 'Movilidad' }).props.accessibilityState.checked,
-    ).toBe(true);
-    expect(screen.getByRole('checkbox', { name: 'Marca de prueba' })).toBeTruthy();
+    expect(screen.queryByRole('checkbox', { name: 'Movilidad' })).toBeNull();
+    expect(screen.queryByRole('checkbox', { name: 'Marca de prueba' })).toBeNull();
+    expect(screen.getAllByText('Las opciones aparecerán al cargar el catálogo.')[0]).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Aplicar filtros' })).toBeTruthy();
     await act(() => resolve(productPage()));
     await fireEvent.press(screen.getByRole('button', { name: 'Limpiar filtros' }));
@@ -171,7 +177,7 @@ describe('Catálogo móvil público', () => {
       screen.getByRole('checkbox', { name: 'Movilidad' }).props.accessibilityState.checked,
     ).toBe(false);
     await fireEvent.press(screen.getByRole('button', { name: 'Aplicar filtros' }));
-    expect(screen.getByRole('button', { name: 'Todos' }).props.accessibilityState.selected).toBe(
+    expect(screen.getByRole('radio', { name: 'Todos' }).props.accessibilityState.checked).toBe(
       true,
     );
   });
@@ -189,8 +195,8 @@ describe('Catálogo móvil público', () => {
     await render(<CatalogScreen />);
     expect(screen.getByLabelText('Cargando catálogo…')).toBeTruthy();
     expect(screen.queryByText('No encontramos productos')).toBeNull();
-    await act(() => reject(new UserFacingError('No pudimos cargar el catálogo')));
-    await screen.findByText('No pudimos cargar el catálogo');
+    await act(() => reject(new Error('No pudimos cargar el catálogo')));
+    await screen.findByText('Ocurrió un error. Intenta de nuevo.');
     await fireEvent.press(screen.getByRole('button', { name: 'Reintentar' }));
     await screen.findByText('No encontramos productos');
     expect(list).toHaveBeenCalledTimes(2);
@@ -289,5 +295,42 @@ describe('Catálogo móvil público', () => {
     expect(await screen.findByLabelText('Sugerencias de búsqueda')).toBeTruthy();
     await fireEvent(screen.getByLabelText('Productos del catálogo'), 'scrollBeginDrag');
     expect(screen.queryByLabelText('Sugerencias de búsqueda')).toBeNull();
+  });
+
+  it('espera las ofertas antes de pintar precios para no cambiar el alto de las tarjetas', async () => {
+    let resolveOffers!: (value: Awaited<ReturnType<typeof productService.offers>>) => void;
+    jest.spyOn(productService, 'offers').mockReturnValue(
+      new Promise((done) => {
+        resolveOffers = done;
+      }),
+    );
+    jest.spyOn(productService, 'list').mockResolvedValue(productPage(1, 1));
+    await render(<CatalogScreen />);
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    // La lista ya respondió, pero la tarjeta todavía no debe mostrarse: al
+    // aplicar la oferta gana precio tachado y descuento, y con ellos alto.
+    expect(productService.list).toHaveBeenCalledTimes(1);
+    expect(screen.getByLabelText('Cargando catálogo…')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /^Producto 1\./ })).toBeNull();
+    expect(screen.queryByText('No encontramos productos')).toBeNull();
+    await act(() => resolveOffers({ promotions: [productOfferFixture(1)] }));
+    expect(await screen.findByRole('button', { name: /^Producto 1\./ })).toBeTruthy();
+    expect(screen.getByText('-25%')).toBeTruthy();
+  });
+
+  it('no ancla la lista al hacer scroll', async () => {
+    jest.spyOn(productService, 'list').mockResolvedValue(productPage(1, 2));
+    await render(<CatalogScreen />);
+    await waitFor(() =>
+      expect(screen.getAllByRole('button', { name: /^Producto \d\./ }).length).toBeGreaterThan(0),
+    );
+    const list = screen.getByLabelText('Productos del catálogo');
+    // La lista no compensa cambios de alto: las pestañas conservan la instancia
+    // y las alturas de cabecera/tarjetas se estabilizan en su origen.
+    expect(list.props.maintainVisibleContentPosition).toBeUndefined();
+    await fireEvent.scroll(list, { nativeEvent: { contentOffset: { y: 320 } } });
+    expect(list.props.maintainVisibleContentPosition).toBeUndefined();
   });
 });

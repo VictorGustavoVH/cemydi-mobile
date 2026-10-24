@@ -1,4 +1,4 @@
-import type { Product, ProductList } from '@/services/products/product-schemas';
+import type { Product, ProductList, ProductOffer } from '@/services/products/product-schemas';
 
 export function productFixture(id = 1, changes: Partial<Product> = {}): Product {
   return {
@@ -52,5 +52,17 @@ export function productPage(page = 1, total = 26, pageSize = 24): ProductList {
       hasPrevious: page > 1,
       hasNext: page * pageSize < total,
     },
+  };
+}
+
+/** Active relative to the test clock, so waiting for offers is deterministic. */
+export function productOfferFixture(productId = 1): ProductOffer {
+  return {
+    id: 1,
+    productId,
+    discountPercent: 25,
+    discountedPrice: 900,
+    startAt: new Date(Date.now() - 60_000).toISOString(),
+    endAt: new Date(Date.now() + 3_600_000).toISOString(),
   };
 }
