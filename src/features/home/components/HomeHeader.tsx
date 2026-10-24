@@ -5,7 +5,7 @@ import { AppButton } from '@/components/ui/AppButton';
 import { CatalogImage } from '@/components/ui/CatalogImage';
 import { colors } from '@/theme';
 
-const logoSource = require('../../../../assets/branding/cemydi-logo-horizontal.png');
+const logoSource = require('../../../../assets/branding/cemydi-logo-horizontal.webp');
 
 type HomeHeaderProps = { onNotifications: () => void; onProfile: () => void };
 export function HomeHeader({ onNotifications, onProfile }: HomeHeaderProps) {
