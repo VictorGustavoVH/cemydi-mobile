@@ -16,7 +16,6 @@ import { CatalogModeFilter } from './components/CatalogModeFilter';
 import { CatalogSearch } from '@/components/ui/CatalogSearch';
 import { CategoryCarousel } from './components/CategoryCarousel';
 import { HomeHeader } from './components/HomeHeader';
-import { AppSheet } from '@/components/ui/AppSheet';
 import { ProductCard } from '@/components/ui/ProductCard';
 import type { CatalogMode, HomeProduct } from '@/data/catalog-preview';
 import {
@@ -80,7 +79,6 @@ export function HomeScreen() {
   const [search, setSearch] = useState('');
   const [suggestionsInteracting, setSuggestionsInteracting] = useState(false);
   const [searchDismissSignal, setSearchDismissSignal] = useState(0);
-  const [preview, setPreview] = useState(false);
   const queryClient = useQueryClient();
   const { data, loading, isPending, error } = useHome();
   const offers = useProductOffers();
@@ -207,7 +205,12 @@ export function HomeScreen() {
         refreshControl={<AppRefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         ListHeaderComponent={
           <>
-            <HomeHeader onNotifications={() => setPreview(true)} onProfile={showProfile} />
+            <HomeHeader
+              onNotifications={() => {
+                if (requestAccess('/perfil/notificaciones')) router.push('/perfil/notificaciones');
+              }}
+              onProfile={showProfile}
+            />
             <CatalogSearch
               dismissSignal={searchDismissSignal}
               onSuggestionsInteractionChange={setSuggestionsInteracting}
@@ -235,7 +238,7 @@ export function HomeScreen() {
                 <BannerCarousel
                   banners={homeBanners}
                   onExplore={explore}
-                  suspended={preview || search.length > 0}
+                  suspended={search.length > 0}
                 />
               </Animated.View>
               <Animated.View style={reducedMotion ? undefined : categoryReveal}>
@@ -329,11 +332,6 @@ export function HomeScreen() {
           ) : null
         }
       />
-      <AppSheet onClose={() => setPreview(false)} title="Notificaciones" visible={preview}>
-        <Text className="font-sans text-base leading-6 text-secondary">
-          No tienes notificaciones en esta vista de muestra.
-        </Text>
-      </AppSheet>
     </AppScreen>
   );
 }
