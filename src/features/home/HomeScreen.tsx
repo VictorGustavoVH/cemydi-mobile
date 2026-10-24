@@ -60,7 +60,7 @@ const ProductItem = memo(function ProductItem({ product, mode, onOpen }: Product
 
 export function HomeScreen() {
   const router = useRouter();
-  const { user, requestAccess } = useAccountAccess();
+  const { requestAccess } = useAccountAccess();
   const onToastScroll = useToastScroll();
   const scrollRef = useRef<FlatList<HomeProduct>>(null);
   const scrollOffset = useRef(0);
@@ -108,13 +108,9 @@ export function HomeScreen() {
   }, 750);
   const explore = useCallback(() => exploreSearch(search.trim()), [exploreSearch, search]);
   const showProfile = useCallback(() => {
-    if (!requestAccess('/inicio')) return;
-    setPreview({
-      kind: 'info',
-      title: 'Tu perfil',
-      description: `${user?.nombre}\n${user?.correo}`,
-    });
-  }, [requestAccess, user]);
+    if (!requestAccess('/perfil')) return;
+    router.push('/perfil');
+  }, [requestAccess, router]);
   // Acciones pedidas por la barra global (Inicio/Explorar) via params.
   const params = useLocalSearchParams<{ action?: 'top' | 'explore'; t?: string }>();
   const lastActionRef = useRef<string | null>(null);

@@ -1,11 +1,19 @@
-import type { ReactElement, ReactNode } from 'react';
+import { useState, type ReactElement, type ReactNode } from 'react';
 import { render as renderNative } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ToastProvider } from '@/providers/toast-provider';
-import { AuthPreviewProvider } from '@/providers/auth-preview-provider';
+import { AuthProvider } from '@/providers/auth-provider';
+import { createAuthSession } from '@/features/auth/services/auth-session';
 import { QueryTestProvider } from './query-wrapper';
 
 function ToastTestProvider({ children }: { children: ReactNode }) {
+  const [session] = useState(() =>
+    createAuthSession({
+      get: async () => null,
+      set: async () => undefined,
+      remove: async () => undefined,
+    }),
+  );
   return (
     <SafeAreaProvider
       initialMetrics={{
@@ -15,7 +23,7 @@ function ToastTestProvider({ children }: { children: ReactNode }) {
     >
       <ToastProvider>
         <QueryTestProvider>
-          <AuthPreviewProvider>{children}</AuthPreviewProvider>
+          <AuthProvider session={session}>{children}</AuthProvider>
         </QueryTestProvider>
       </ToastProvider>
     </SafeAreaProvider>

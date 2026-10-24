@@ -35,7 +35,11 @@ const passwordFields = {
 
 export const loginSchema = z.object({
   correo: emailSchema,
-  password: z.string().min(1, 'Ingresa tu contraseña'),
+  password: z
+    .string()
+    .min(1, 'Ingresa tu contraseña')
+    .min(8, 'Mínimo 8 caracteres')
+    .max(72, 'Máximo 72 caracteres'),
 });
 
 export const registerSchema = z

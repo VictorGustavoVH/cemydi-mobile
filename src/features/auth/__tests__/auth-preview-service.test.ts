@@ -1,4 +1,4 @@
-import { createAuthPreviewService, DEFAULT_ACCOUNT } from '../services/auth-preview-service';
+import { createAuthPreviewService, DEFAULT_ACCOUNT } from './auth-preview-service';
 import {
   emailSchema,
   getPasswordRules,
@@ -105,4 +105,26 @@ describe('Contratos locales de autenticación', () => {
       createAuthPreviewService().login(DEFAULT_ACCOUNT.correo, DEFAULT_ACCOUNT.password),
     ).toBeTruthy();
   });
+});
+
+it('permite cinco intentos de OTP y exige un nuevo desafío tras agotarlos', () => {
+  let now = 0;
+  const service = createAuthPreviewService(() => now);
+  service.requestRecovery(DEFAULT_ACCOUNT.correo);
+  for (let attempt = 0; attempt < 5; attempt++) {
+    expect(() => service.verify('11111111')).toThrow('incorrecto');
+  }
+  expect(() => service.verify('00000000')).toThrow('límite');
+  now = 60_000;
+  service.resend();
+  expect(service.verify('00000000')?.verified).toBe(true);
+});
+
+it('acepta un código correcto en el quinto intento', () => {
+  const service = createAuthPreviewService();
+  service.requestRecovery(DEFAULT_ACCOUNT.correo);
+  for (let attempt = 0; attempt < 4; attempt++) {
+    expect(() => service.verify('11111111')).toThrow('incorrecto');
+  }
+  expect(service.verify('00000000')?.verified).toBe(true);
 });

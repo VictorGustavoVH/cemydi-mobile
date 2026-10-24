@@ -1,4 +1,6 @@
-# Formularios móviles de acceso
+# Historial de formularios móviles de acceso
+
+> Este documento conserva el historial de la etapa local anterior. La app usa la API y tokens móviles; ver [AUTHENTICATION.md](./AUTHENTICATION.md). El fixture vive en `src/features/auth/__tests__/auth-preview-service.ts`, sin importaciones desde runtime. Sus variables son `TEST_AUTH_PREVIEW_PASSWORD` y `TEST_AUTH_PREVIEW_OTP`, solo para Jest. Los resultados visuales históricos no validan la integración actual.
 
 Flujo temporal autorizado, sin peticiones de autenticación ni decisión de cookies/tokens. El backend sigue pendiente según `AUTHENTICATION.md`. No representa seguridad de producción ni permite acceder a recursos privados del servidor.
 
@@ -13,7 +15,7 @@ Flujo temporal autorizado, sin peticiones de autenticación ni decisión de cook
 
 ## Cuenta y estado temporal
 
-Cuenta de prueba: `cliente@cemydi.test`, contraseña inicial `Cemydi2026!`. Código: `00000000` en registro y recuperación. Son fixtures locales, no credenciales reales. Los campos empiezan vacíos en una sesión nueva. Tras enviar OTP, al volver a corregir correo se conserva el nombre/correo de registro o correo de recuperación en memoria; contraseñas, confirmación, aceptación y código se restablecen al remontar el formulario. Las cuentas registradas, cambios de contraseña y correo recordado viven exclusivamente en la instancia de `AuthPreviewProvider`; reiniciar el proceso restaura los valores iniciales. Recuérdame conserva solo el correo entre pantallas durante esa ejecución, nunca la contraseña ni una sesión persistente.
+Cuenta de prueba: `cliente@cemydi.test`. Su contraseña se configura mediante `TEST_AUTH_PREVIEW_PASSWORD` y el código de ocho dígitos mediante `TEST_AUTH_PREVIEW_OTP`. Son valores exclusivos de pruebas, nunca credenciales reales. Sin contraseña configurada no se crea la cuenta predeterminada; sin código válido configurado no se verifica OTP. Cada desafío admite hasta cinco intentos; el reenvío habilitado tras el cooldown inicia otro desafío y reinicia el contador. Los campos empiezan vacíos en una sesión nueva. Tras enviar OTP, al volver a corregir correo se conserva el nombre/correo de registro o correo de recuperación en memoria; contraseñas, confirmación, aceptación y código se restablecen al remontar el formulario. Las cuentas registradas, cambios de contraseña y correo recordado viven exclusivamente en la instancia de `AuthPreviewProvider`; reiniciar el proceso restaura los valores iniciales. Recuérdame conserva solo el correo entre pantallas durante esa ejecución, nunca la contraseña ni una sesión persistente.
 
 `auth-preview-service.ts` concentra las operaciones temporales. La cuenta registrada exige verificación antes de entrar; recuperación exige verificar primero, consume el desafío al guardar y rechaza la contraseña anterior. No se inventan endpoints, DTOs ni tokens. Las operaciones locales funcionan sin red y no incorporan esperas artificiales. Los formularios exponen loading para bloquear envíos simultáneos, errores de campo y toasts de resultado.
 
@@ -25,13 +27,13 @@ Fuentes locales: web `src/app/{login,register,forgot-password,reset-password,ver
 - Correo: obligatorio, formato web, máximo 254; normalización de espacios y mayúsculas al operar.
 - Login: contraseña obligatoria, sin imponer requisitos de creación a cuentas existentes.
 - Registro y nueva contraseña: 10–72 caracteres, mayúscula ASCII, número y símbolo según política compartida; confirmación idéntica.
-- Indicador de cuatro segmentos: rojo, naranja, ámbar y verde según nivel, acompañado de texto. Es una ayuda visual de cumplimiento, no una estimación criptográfica. El componente global PasswordField muestra los requisitos al pulsar el icono de ayuda junto al label y ofrece visibilidad independiente.
+- Indicador de cuatro segmentos: rojo para Baja, ámbar para Media y verde para Alta, acompañado de texto. Es una ayuda visual de cumplimiento, no una estimación criptográfica. El componente global PasswordField muestra los requisitos al pulsar el icono de ayuda junto al label y ofrece visibilidad independiente.
 - OTP: ocho dígitos. Un único AppInput nativo, cubierto visualmente por las casillas, recibe escritura, pegado y autofill; ocho casillas flexibles reflejan el valor sin duplicar el texto nativo. Filtra separadores antes de limitar a ocho dígitos, indica el foco real y el cursor. Al verificar se bloquean cambios y reenvíos, las casillas transicionan a verde durante 180 ms y se anuncia Código verificado antes de navegar a los 550 ms (300 ms sin movimiento con reduced motion).
 - Reenvío: 60 segundos desde solicitud inicial y cada reenvío, medidos por reloj absoluto y actualizados al volver a foreground. El servicio también lo bloquea para evitar saltarse el temporizador de UI. Desafío local de 30 minutos, cancelable y de un solo uso al completar.
 
 ## Enlaces legales
 
-Configurar `EXPO_PUBLIC_WEBSITE_URL` en el entorno local con el origen público de la web y reiniciar Metro. `.env.example` deja el valor vacío. Se abren `/terminos-y-condiciones` y `/politicas-de-privacidad` con Linking; URL ausente/inválida o error de apertura muestra toast sin bloquear el arranque. No se copian valores reales de `.env`.
+Configurar `EXPO_PUBLIC_WEBSITE_URL` en el entorno local con el origen público de la web y reiniciar Metro. `.env.example` deja el valor vacío. Se abren `/terminos-y-condiciones` y `/politicas-de-privacidad` con Linking; URL ausente/inválida o error de apertura muestra toast sin bloquear el arranque. La URL se valida igual que la API: `https` obligatorio en producción y `http` permitido en desarrollo; se rechazan esquemas distintos de http/https y credenciales embebidas. No se copian valores reales de `.env`.
 
 ## Componentes y plataformas
 

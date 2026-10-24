@@ -1,19 +1,17 @@
 import { Linking, Text } from 'react-native';
+import { env, parseWebsiteUrl } from '@/config/env';
 import { useToast } from '@/hooks/useToast';
 
 export function AuthTerms({ registration = false }: { registration?: boolean }) {
   const toast = useToast();
   async function openLegal(path: string) {
-    const origin = process.env.EXPO_PUBLIC_WEBSITE_URL?.trim();
-    if (!origin) {
-      toast.error('No se pudo abrir la página. Intenta más tarde.');
-      return;
-    }
     try {
-      const url = new URL(origin);
-      if (!['https:', 'http:'].includes(url.protocol) || url.username || url.password)
-        throw new Error('URL inválida');
-      await Linking.openURL(new URL(path, url.origin).toString());
+      const origin = parseWebsiteUrl(process.env.EXPO_PUBLIC_WEBSITE_URL, env.appEnv);
+      if (!origin) {
+        toast.error('No se pudo abrir la página. Intenta más tarde.');
+        return;
+      }
+      await Linking.openURL(new URL(path, origin).toString());
     } catch {
       toast.error('No se pudo abrir la página. Intenta más tarde.');
     }

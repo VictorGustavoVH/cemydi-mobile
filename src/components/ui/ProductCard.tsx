@@ -5,10 +5,14 @@ import Star from 'lucide-react-native/icons/star';
 import { AppButton } from '@/components/ui/AppButton';
 import type { HomeProduct } from '@/data/catalog-preview';
 import { useThrottledCallback } from '@/hooks/useThrottledCallback';
+import type { ProductRatingState } from '@/hooks/useProductRatings';
+import { colors } from '@/theme';
+import { SkeletonBlock } from './Skeleton';
 import { CatalogImage } from './CatalogImage';
 
 type ProductCardProps = {
   product: HomeProduct;
+  ratingState?: ProductRatingState;
   onPress: () => void;
   className?: string;
   throttleMs?: number;
@@ -17,6 +21,7 @@ type ProductCardProps = {
 export const ProductCard = memo(function ProductCard({
   className = '',
   product,
+  ratingState,
   onPress,
   throttleMs = 750,
 }: ProductCardProps) {
@@ -42,10 +47,17 @@ export const ProductCard = memo(function ProductCard({
         ? 'Precio de renta'
         : 'Precio de venta';
 
-  // Calificaciones temporales.
-  // Posteriormente se obtendrán del backend.
-  const rating = 4.8;
-  const reviewCount = 24;
+  // Preserve the preview rating for existing callers; account screens supply real query state.
+  const rating = ratingState ? ratingState.summary?.averageRating : 4.8;
+  const reviewCount = ratingState ? ratingState.summary?.count : 24;
+  const ratingLabel =
+    rating !== undefined
+      ? `Calificación ${rating} de 5, ${reviewCount} opiniones`
+      : ratingState?.isPaused
+        ? 'Sin conexión'
+        : ratingState?.isError
+          ? 'Valoración no disponible'
+          : 'Cargando valoración';
 
   const accessibilityLabel = [
     product.name,
@@ -58,7 +70,7 @@ export const ProductCard = memo(function ProductCard({
     hasDiscount ? `Descuento del ${product.discountPercent}%` : '',
     unavailable ? 'No disponible' : '',
     product.prescription ? 'Requiere receta' : '',
-    `Calificación ${rating} de 5, ${reviewCount} opiniones`,
+    ratingLabel,
     'Ver producto',
   ]
     .filter(Boolean)
@@ -128,9 +140,21 @@ export const ProductCard = memo(function ProductCard({
 
             {/* ESTRELLA Y CALIFICACIÓN */}
             <View className="shrink-0 flex-row items-center gap-1">
-              <Star size={13} color="#E5A500" fill="#E5A500" strokeWidth={1.5} />
+              <Star
+                aria-hidden
+                size={13}
+                color={rating ? colors.rating : colors.textSecondary}
+                fill={rating ? colors.rating : 'none'}
+                strokeWidth={1.5}
+              />
 
-              <Text className="font-sans-semibold text-xs text-[#172f38]">{rating.toFixed(1)}</Text>
+              {rating !== undefined ? (
+                <Text className="font-sans-semibold text-xs text-primary">{rating.toFixed(1)}</Text>
+              ) : ratingState?.isFetching && !ratingState.isPaused ? (
+                <SkeletonBlock className="h-3 w-7" />
+              ) : (
+                <Text className="font-sans text-[10px] text-secondary">{ratingLabel}</Text>
+              )}
             </View>
           </View>
 

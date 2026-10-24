@@ -6,7 +6,7 @@ export function PasswordStrength({ password }: { password: string }) {
   const rules = getPasswordRules(password);
   const score = password ? rules.filter((rule) => rule.met).length : 0;
   const label = ['Sin evaluar', 'Baja', 'Baja', 'Media', 'Alta'][score];
-  const color = [colors.border, colors.danger, colors.strengthFair, colors.warning, colors.success][
+  const color = [colors.border, colors.danger, colors.danger, colors.warning, colors.success][
     score
   ];
   return (

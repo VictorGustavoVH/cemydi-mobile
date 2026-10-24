@@ -4,12 +4,12 @@ import type { ImageSourcePropType } from 'react-native';
 const localImageBlurhashes = new Map<ImageSourcePropType, string>([
   // SHA-256: d47c82e951f6544ed9e95e5725ac14d65cd033bb0acabf634eb5f6bf4475d595
   [require('../../assets/branding/cemydi-logo-horizontal.png'), 'L+OEbbf%Rjoz-;WUWBfj~BW;Wpoe'],
-  // SHA-256: a0cbe7edd241056c306f6d97ec72bb1be738f149db7f9a1bdaa92c0390f8c539
-  [require('../../assets/images/auth/forgortpassword.png'), 'LZPH2qkB~X?v^+$*NGR*~WkCMxV@'],
-  // SHA-256: 2e24cf963770c69a0cde4568829262f15c8d2295dfeeb8ea65e93dd73258bf26
-  [require('../../assets/images/auth/newpassword.png'), 'LUP%w;%L~X%g%2xGR*tR?bxaIUoK'],
-  // SHA-256: d91496bb153778d2c9d427413487520c0008f7316ddf102519eb678a4739ffa6
-  [require('../../assets/images/auth/otpEmail.png'), 'LgQc;pxu?b-;-poLWBkC~Wt7E0Rj'],
+  // SHA-256: 5cd80d07a902b1f8731c36a956984da81d5e98130aa75268ec0064d1711f0260
+  [require('../../assets/images/auth/forgortpassword.webp'), 'LZPH2qkB~W?v^+$*NGR*~WkCMxV@'],
+  // SHA-256: 9141685f2bb53d9245f4e56b5a33632f6ba796a7c73d46e5c63d6e6d9393924b
+  [require('../../assets/images/auth/newpassword.webp'), 'LUP%w;%L~X%g%2xGR*tR?bxaIUoK'],
+  // SHA-256: 40b47be177be79d56d3b14f77cd7114408e2acd0cb9b1b751257d5b4275f22bb
+  [require('../../assets/images/auth/otpEmail.webp'), 'LgQc;oxu^+%g-poLWBkC~Wt7E0Rj'],
   // SHA-256: eeccb4cf02fab1ab1e7dcaa21b4ec4177dcfb2c0ec7a19b8c8c2704b66b46f57
   [require('../../assets/images/catalog/crutches.jpg'), 'LESY{q?b~q_3?bj[t7ofWBayofj['],
   // SHA-256: a62df6b997afc91e011cb34f472400834d18b170d5d955eabd665fec4adae292

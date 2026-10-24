@@ -7,7 +7,7 @@ import Mail from 'lucide-react-native/icons/mail';
 import UserRound from 'lucide-react-native/icons/user-round';
 import { AppInput } from '@/components/ui/AppInput';
 import { AppButton } from '@/components/ui/AppButton';
-import { useAuthPreview } from '@/providers/auth-preview-provider';
+import { useAuth } from '@/providers/auth-provider';
 import { useToast } from '@/hooks/useToast';
 import { colors } from '@/theme';
 import { AuthLayout } from './components/AuthLayout';
@@ -27,7 +27,7 @@ import {
 export function RegisterScreen() {
   const router = useRouter();
   const toast = useToast();
-  const { service, setChallenge, registrationDraft, setRegistrationDraft } = useAuthPreview();
+  const { service, setChallenge, registrationDraft, setRegistrationDraft } = useAuth();
   const { execute, pending } = useAuthAction();
   const {
     control,
@@ -54,11 +54,11 @@ export function RegisterScreen() {
   const submit = handleSubmit(
     (values) =>
       execute(
-        () => {
-          setChallenge(service.register(values));
+        async () => {
+          setChallenge(await service.register(values));
           setRegistrationDraft({ nombre: values.nombre, correo: values.correo });
         },
-        'Revisa tu correo para verificar tu cuenta',
+        'Si la solicitud es válida, recibirás instrucciones por correo',
         () => router.replace('/otp'),
       ),
     (errors) => {
@@ -87,6 +87,7 @@ export function RegisterScreen() {
             autoCapitalize="words"
             autoComplete="name"
             textContentType="name"
+            maxLength={100}
             leadingIcon={<UserRound aria-hidden color={colors.textSecondary} size={20} />}
           />
         )}
@@ -112,6 +113,7 @@ export function RegisterScreen() {
             autoCorrect={false}
             autoComplete="email"
             textContentType="emailAddress"
+            maxLength={254}
             leadingIcon={<Mail aria-hidden color={colors.textSecondary} size={20} />}
           />
         )}
@@ -134,6 +136,7 @@ export function RegisterScreen() {
             placeholder="Crea una contraseña"
             autoComplete="new-password"
             textContentType="newPassword"
+            maxLength={72}
           />
         )}
       />
@@ -160,6 +163,7 @@ export function RegisterScreen() {
             placeholder="Repite tu contraseña"
             autoComplete="new-password"
             textContentType="newPassword"
+            maxLength={72}
           />
         )}
       />

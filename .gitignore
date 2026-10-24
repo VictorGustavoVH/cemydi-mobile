@@ -35,6 +35,10 @@ yarn-error.*
 .env.*
 !.env.example
 
+# Google credentials
+google-services.json
+GoogleService-Info.plist
+
 # typescript
 *.tsbuildinfo
 
@@ -56,3 +60,8 @@ emu.err.log
 metro.log
 metro.err.log
 metro.critical.log
+
+# Native push/signing configuration is provisioned per environment.
+google-services.json
+GoogleService-Info.plist
+*.p8

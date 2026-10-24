@@ -15,7 +15,7 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { QueryProvider } from '@/providers/query-provider';
 import { CatalogPreviewProvider } from '@/providers/catalog-preview-provider';
 import { ToastProvider } from '@/providers/toast-provider';
-import { AuthPreviewProvider } from '@/providers/auth-preview-provider';
+import { AuthProvider } from '@/providers/auth-provider';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GlobalBottomBar } from '@/components/ui/GlobalBottomBar';
 import { colors } from '@/theme';
@@ -54,7 +54,7 @@ export default function RootLayout() {
         <CatalogPreviewProvider>
           <SafeAreaProvider>
             <ToastProvider>
-              <AuthPreviewProvider>
+              <AuthProvider>
                 <View style={{ flex: 1, backgroundColor: colors.background }}>
                   <Stack
                     screenOptions={{
@@ -79,7 +79,7 @@ export default function RootLayout() {
                   </Stack>
                   <GlobalBottomBar />
                 </View>
-              </AuthPreviewProvider>
+              </AuthProvider>
             </ToastProvider>
           </SafeAreaProvider>
         </CatalogPreviewProvider>

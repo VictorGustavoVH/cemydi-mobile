@@ -5,7 +5,7 @@ export type AuthIllustrationKind = 'recovery' | 'otp' | 'password';
 // Render only the artwork's occupied bounds; source files remain intact.
 const illustrations = {
   recovery: {
-    source: require('../../../../assets/images/auth/forgortpassword.png'),
+    source: require('../../../../assets/images/auth/forgortpassword.webp'),
     width: 1199,
     height: 1312,
     x: 20,
@@ -14,7 +14,7 @@ const illustrations = {
     cropHeight: 1080,
   },
   otp: {
-    source: require('../../../../assets/images/auth/otpEmail.png'),
+    source: require('../../../../assets/images/auth/otpEmail.webp'),
     width: 1086,
     height: 1448,
     x: 50,
@@ -23,7 +23,7 @@ const illustrations = {
     cropHeight: 910,
   },
   password: {
-    source: require('../../../../assets/images/auth/newpassword.png'),
+    source: require('../../../../assets/images/auth/newpassword.webp'),
     width: 1199,
     height: 1312,
     x: 40,

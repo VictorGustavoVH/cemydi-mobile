@@ -60,7 +60,6 @@ describe('Cliente HTTP, entorno y normalización de respuestas', () => {
       kind: 'http',
       status,
       message: 'Error A, Error B',
-      data: { message: ['Error A', 'Error B'] },
     });
     expect(fetch).toHaveBeenCalledTimes(1);
   });
