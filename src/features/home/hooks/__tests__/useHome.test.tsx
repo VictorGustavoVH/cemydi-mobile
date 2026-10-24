@@ -1,11 +1,13 @@
 import { act, render, renderHook, screen, waitFor } from '@testing-library/react-native';
 import { Text } from 'react-native';
+import { QueryClient, onlineManager } from '@tanstack/react-query';
 
 import { useHome } from '../useHome';
 import { QueryTestProvider } from '../../../../../tests/support/query-wrapper';
+import { productFixture } from '../../../../../tests/support/product-fixtures';
+import { productDetailKey } from '@/services/products/product-cache';
 import { homeService } from '../../services/homeService.api';
 import { installHomePreviewApiMock } from '../../../../../tests/support/home-preview-api-mock';
-import { onlineManager } from '@tanstack/react-query';
 
 function CatalogConsumer() {
   const query = useHome();
@@ -80,5 +82,24 @@ describe('useHome', () => {
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.error).toBeNull();
     expect(result.current.data?.products.length).toBeGreaterThan(0);
+  });
+
+  it('deja el producto de Inicio listo para el detalle', async () => {
+    const raw = productFixture(1);
+    jest.spyOn(homeService, 'getHome').mockResolvedValue({
+      banners: [],
+      categories: [],
+      products: [],
+      rawProducts: [raw],
+    });
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: Infinity } },
+    });
+    const { unmount } = await renderHook(useHome, {
+      wrapper: ({ children }) => <QueryTestProvider client={client}>{children}</QueryTestProvider>,
+    });
+    // El detalle lo encuentra sin consultar: no monta su skeleton.
+    await waitFor(() => expect(client.getQueryData(productDetailKey(1))).toEqual({ product: raw }));
+    await unmount();
   });
 });

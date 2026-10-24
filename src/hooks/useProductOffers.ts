@@ -32,5 +32,14 @@ export function useProductOffers() {
     );
     return () => clearTimeout(timer);
   }, [query.data, expirationTick]);
-  return { ...query, data };
+  /**
+   * `ready` indica que ya sabemos qué ofertas aplican: llegaron, fallaron o no
+   * hay una primera consulta en vuelo (pausa offline incluida). Las tarjetas y
+   * el detalle CRECEN al mostrar la oferta (precio tachado, porcentaje y su
+   * propia línea), así que las pantallas esperan a `ready` antes de pintar
+   * precios: mostrarlos primero y completarlos después se ve como un salto de
+   * layout sobre la lista que el usuario está leyendo.
+   */
+  const ready = Boolean(query.data) || query.error != null || !query.isFetching;
+  return { ...query, data, ready };
 }

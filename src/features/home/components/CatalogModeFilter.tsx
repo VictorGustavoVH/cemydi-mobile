@@ -5,11 +5,16 @@ import { catalogModes, type CatalogMode } from '@/data/catalog-preview';
 type CatalogModeFilterProps = { value: CatalogMode; onChange: (mode: CatalogMode) => void };
 export function CatalogModeFilter({ value, onChange }: CatalogModeFilterProps) {
   return (
-    <View className="flex-row flex-wrap gap-2">
+    <View
+      accessibilityRole="radiogroup"
+      accessibilityLabel="Modalidad"
+      className="flex-row flex-wrap gap-2"
+    >
       {catalogModes.map((mode) => (
         <AppButton
           key={mode.value}
-          accessibilityState={{ selected: value === mode.value }}
+          accessibilityRole="radio"
+          accessibilityState={{ checked: value === mode.value }}
           className={`min-w-[80px] rounded-full px-5 py-2 ${value === mode.value ? '' : '!border-border/70'}`}
           label={mode.label}
           labelClassName={`text-sm ${value === mode.value ? '' : 'text-secondary'}`}
