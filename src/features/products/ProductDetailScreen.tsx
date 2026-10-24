@@ -1,9 +1,7 @@
 import { useMemo, useRef, useState, type ReactNode } from 'react';
-import { Modal, ScrollView, Share, Text, View, useWindowDimensions } from 'react-native';
+import { Modal, ScrollView, Text, View, useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
-import { BackButton } from '@/components/ui/BackButton';
-import Heart from 'lucide-react-native/icons/heart';
-import ShareIcon from 'lucide-react-native/icons/share';
+import { useQueryClient } from '@tanstack/react-query';
 import ShoppingBag from 'lucide-react-native/icons/shopping-bag';
 import ShoppingCart from 'lucide-react-native/icons/shopping-cart';
 import Star from 'lucide-react-native/icons/star';
@@ -13,6 +11,13 @@ import { AppButton } from '@/components/ui/AppButton';
 import { AppScreen } from '@/components/ui/AppScreen';
 import { CatalogImage } from '@/components/ui/CatalogImage';
 import { ProductCard } from '@/components/ui/ProductCard';
+import { ProductDetailHeader } from './components/ProductDetailHeader';
+import { recommendationCardWidth } from './components/recommendation-card-metrics';
+import {
+  PRODUCT_DETAIL_THUMBNAIL_GAP,
+  PRODUCT_DETAIL_THUMBNAIL_SIZE,
+  productDetailGalleryHeight,
+} from './components/product-detail-layout';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { SkeletonBlock } from '@/components/ui/Skeleton';
 import { getProductPreview, getRecommendationsPreview } from '@/data/product-detail-preview';
@@ -21,9 +26,11 @@ import type { HomeProduct } from '@/data/catalog-preview';
 import type { ProductReviews } from '@/services/products/product-schemas';
 import {
   PREVIEW_CART_QUANTITY_LIMIT,
-  useCatalogPreview,
   type PreviewCartItem,
 } from '@/providers/catalog-preview-provider';
+import { useCatalogPreview } from '@/providers/catalog-preview-provider';
+import { useProductRatings } from '@/hooks/useProductRatings';
+import { prefetchProductDetail } from '@/services/products/product-cache';
 import { colors } from '@/theme';
 import { useToast, useToastScroll } from '@/hooks/useToast';
 type ProductDetailScreenProps = {
@@ -67,10 +74,11 @@ function ProductDetailContent({
   recommendationsStatus,
 }: ProductDetailScreenProps) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const toast = useToast();
   const onToastScroll = useToastScroll();
   const { width, fontScale } = useWindowDimensions();
-  const galleryHeight = Math.min(width, 360);
+  const galleryHeight = productDetailGalleryHeight(width);
   const product = suppliedProduct ?? getProductPreview(productId);
   const connected = suppliedProduct !== undefined;
   const productImages = useMemo(
@@ -93,7 +101,12 @@ function ProductDetailContent({
       suppliedRecommendations ?? (product && !connected ? getRecommendationsPreview(product) : []),
     [product, connected, suppliedRecommendations],
   );
-  const { favorites, toggleFavorite, items, addItem } = useCatalogPreview();
+  const recommendationIds = useMemo(
+    () => recommendations.map((item) => item.id),
+    [recommendations],
+  );
+  const recommendationRatings = useProductRatings(recommendationIds);
+  const { items, addItem } = useCatalogPreview();
   const [mode, setMode] = useState<PreviewCartItem['mode']>(
     initialMode && product?.modes.includes(initialMode)
       ? initialMode
@@ -103,8 +116,6 @@ function ProductDetailContent({
   const [photoIndex, setPhotoIndex] = useState(0);
   const [zoomed, setZoomed] = useState(false);
   const [showAllReviews, setShowAllReviews] = useState(false);
-  const [sharing, setSharing] = useState(false);
-  const sharingLock = useRef(false);
   const scrollRef = useRef<ScrollView>(null);
   const carouselRef = useRef<ScrollView>(null);
   const thumbnailScrollRef = useRef<ScrollView>(null);
@@ -114,7 +125,7 @@ function ProductDetailContent({
   const reviewsOffset = useRef(0);
   const contentOffset = useRef(0);
   const centerThumbnail = (index: number) => {
-    const itemWidth = 64 + 10;
+    const itemWidth = PRODUCT_DETAIL_THUMBNAIL_SIZE + PRODUCT_DETAIL_THUMBNAIL_GAP;
     const targetX = Math.max(0, index * itemWidth - width / 2 + 32 + 20);
     thumbnailScrollRef.current?.scrollTo({ x: targetX, animated: true });
   };
@@ -152,7 +163,6 @@ function ProductDetailContent({
         />
       </AppScreen>
     );
-  const favorite = favorites.includes(product.id);
   const rental = mode === 'rental';
   const price = rental ? product.rental?.price : product.price;
   const reviews = connected
@@ -179,22 +189,6 @@ function ProductDetailContent({
       item.mode === mode &&
       item.quantity >= PREVIEW_CART_QUANTITY_LIMIT,
   );
-  async function shareProduct() {
-    if (sharingLock.current) return;
-    sharingLock.current = true;
-    setSharing(true);
-    try {
-      await Share.share({
-        title: product!.name,
-        message: `${product!.name} · CEMYDI\nDisponible para ${product!.caption.toLowerCase()}.`,
-      });
-    } catch {
-      toast.error('No se pudo compartir. Inténtalo de nuevo.');
-    } finally {
-      sharingLock.current = false;
-      setSharing(false);
-    }
-  }
   return (
     <AppScreen edges={['top', 'bottom', 'left', 'right']}>
       <ScrollView
@@ -202,50 +196,16 @@ function ProductDetailContent({
         onScroll={onToastScroll}
         scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 24 }}
+        contentContainerStyle={{ flexGrow: 1, paddingBottom: 24 }}
+        contentInsetAdjustmentBehavior="never"
       >
         <View className="bg-white">
-          <View className="flex-row items-center gap-2 px-4 pt-2">
-            <BackButton fallbackHref={connected ? '/catalogo' : '/inicio'} />
-            <View className="flex-1 flex-row items-center justify-end gap-1">
-              <AppButton
-                hideLabel
-                label={favorite ? 'Quitar de favoritos' : 'Guardar en favoritos'}
-                accessibilityState={{ selected: favorite }}
-                variant="ghost"
-                className="h-11 w-11 rounded-full px-0 py-0"
-                onPress={() => {
-                  toggleFavorite(product.id);
-                  toast.info(
-                    favorite
-                      ? 'Eliminado de favoritos.'
-                      : 'Guardado en favoritos durante esta sesión.',
-                  );
-                }}
-                leftIcon={
-                  <Heart
-                    aria-hidden
-                    color={favorite ? colors.favorite : colors.textPrimary}
-                    fill={favorite ? colors.favorite : 'none'}
-                    size={24}
-                  />
-                }
-              />
-              <AppButton
-                hideLabel
-                label="Compartir producto"
-                variant="ghost"
-                loading={sharing}
-                className="h-11 w-11 rounded-full px-0 py-0"
-                onPress={() => void shareProduct()}
-                leftIcon={
-                  sharing ? undefined : (
-                    <ShareIcon aria-hidden color={colors.textPrimary} size={22} />
-                  )
-                }
-              />
-            </View>
-          </View>
+          <ProductDetailHeader
+            productId={product.id}
+            productName={product.name}
+            productCaption={product.caption}
+            fallbackHref={connected ? '/catalogo' : '/inicio'}
+          />
           <ScrollView
             ref={carouselRef}
             horizontal
@@ -296,7 +256,7 @@ function ProductDetailContent({
             ref={thumbnailScrollRef}
             horizontal
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ gap: 10, paddingRight: 16 }}
+            contentContainerStyle={{ gap: PRODUCT_DETAIL_THUMBNAIL_GAP, paddingRight: 16 }}
           >
             {productImages.map((image, index) => (
               <AppButton
@@ -304,7 +264,11 @@ function ProductDetailContent({
                 variant="unstyled"
                 label={`Ver foto ${index + 1}`}
                 accessibilityState={{ selected: photoIndex === index }}
-                className={`h-16 w-16 rounded-xl border-2 bg-white p-1.5 ${
+                style={{
+                  width: PRODUCT_DETAIL_THUMBNAIL_SIZE,
+                  height: PRODUCT_DETAIL_THUMBNAIL_SIZE,
+                }}
+                className={`rounded-xl border-2 bg-white p-1.5 ${
                   photoIndex === index ? 'border-brand' : 'border-border/60'
                 }`}
                 onPress={() => handleSelectPhoto(index)}
@@ -593,13 +557,15 @@ function ProductDetailContent({
                 contentContainerStyle={{ gap: 12, paddingBottom: 4, alignItems: 'flex-start' }}
               >
                 {recommendations.map((item) => (
-                  <View key={item.id} style={{ width: compact ? 210 : 170 }}>
+                  <View key={item.id} style={{ width: recommendationCardWidth(compact) }}>
                     <ProductCard
                       className="w-full"
                       product={item}
-                      onPress={() =>
-                        router.replace({ pathname: '/producto/[id]', params: { id: item.id } })
-                      }
+                      ratingState={recommendationRatings[item.id]}
+                      onPress={() => {
+                        prefetchProductDetail(queryClient, item.id);
+                        router.replace({ pathname: '/producto/[id]', params: { id: item.id } });
+                      }}
                     />
                   </View>
                 ))}
@@ -609,12 +575,13 @@ function ProductDetailContent({
         </View>
       </ScrollView>
       <Modal
+        accessibilityViewIsModal
         visible={zoomed}
         transparent
         animationType="fade"
         onRequestClose={() => setZoomed(false)}
       >
-        <View className="flex-1 justify-between bg-black/95">
+        <View accessibilityViewIsModal className="flex-1 justify-between bg-black/95">
           <View className="z-20 flex-row items-center justify-end px-5 pt-12">
             <AppButton
               hideLabel

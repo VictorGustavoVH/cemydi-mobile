@@ -1,9 +1,8 @@
 import { useMemo } from 'react';
 import { ScrollView, Text, View, useWindowDimensions } from 'react-native';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query';
 
 import { AppScreen } from '@/components/ui/AppScreen';
-import { BackButton } from '@/components/ui/BackButton';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { OfflineState } from '@/components/ui/OfflineState';
@@ -11,12 +10,21 @@ import { Skeleton, SkeletonBlock } from '@/components/ui/Skeleton';
 
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import { useProductOffers } from '@/hooks/useProductOffers';
+import { useProductReviews } from '@/hooks/useProductReviews';
 
-import { isApiError } from '@/services/http/api-error';
+import { getFriendlyErrorMessage, isApiError } from '@/services/http/api-error';
+import { productDetailKey } from '@/services/products/product-cache';
 import { toProductCard, toProductDetail } from '@/services/products/product-adapter';
+import type { Product, ProductList } from '@/services/products/product-schemas';
 import { productService } from '@/services/products/product-service';
 
 import { ProductDetailScreen } from './ProductDetailScreen';
+import { ProductDetailHeader } from './components/ProductDetailHeader';
+import { recommendationCardWidth } from './components/recommendation-card-metrics';
+import {
+  PRODUCT_DETAIL_THUMBNAIL_SIZE,
+  productDetailGalleryHeight,
+} from './components/product-detail-layout';
 
 type ConnectedProductDetailScreenProps = {
   productId: string;
@@ -31,11 +39,12 @@ function ProductDetailSkeleton() {
   const { width, fontScale } = useWindowDimensions();
 
   const compact = width < 350 || fontScale > 1.3;
+  const galleryHeight = productDetailGalleryHeight(width);
 
   return (
     <Skeleton label="Cargando producto…">
       {/* IMAGEN PRINCIPAL */}
-      <View className="w-full bg-white" style={{ aspectRatio: 1, maxHeight: 360 }}>
+      <View className="w-full bg-white" style={{ height: galleryHeight }}>
         <View className="h-full w-full p-6">
           <SkeletonBlock className="h-full w-full rounded-xl" />
         </View>
@@ -48,7 +57,11 @@ function ProductDetailSkeleton() {
           {Array.from({ length: 3 }, (_, index) => (
             <View
               key={index}
-              className="h-16 w-16 rounded-xl border border-border/50 bg-white p-1.5"
+              style={{
+                width: PRODUCT_DETAIL_THUMBNAIL_SIZE,
+                height: PRODUCT_DETAIL_THUMBNAIL_SIZE,
+              }}
+              className="rounded-xl border border-border/50 bg-white p-1.5"
             >
               <SkeletonBlock className="h-full w-full rounded-lg" />
             </View>
@@ -145,16 +158,24 @@ function ProductDetailSkeleton() {
             {Array.from({ length: 2 }, (_, index) => (
               <View
                 key={index}
-                style={{ width: compact ? 160 : 150 }}
+                style={{ width: recommendationCardWidth(compact) }}
                 className="overflow-hidden rounded-xl border border-border/50 bg-white"
               >
                 <SkeletonBlock className="aspect-square w-full rounded-none" />
 
-                <View className="gap-2 p-3">
-                  <SkeletonBlock className="h-3 w-2/3 rounded" />
-                  <SkeletonBlock className="h-4 w-full rounded" />
-                  <SkeletonBlock className="h-4 w-4/5 rounded" />
-                  <SkeletonBlock className="h-6 w-3/4 rounded" />
+                <View className="p-3">
+                  <View className="mb-1 flex-row items-center justify-between gap-2">
+                    <SkeletonBlock className="h-3 w-2/3 rounded" />
+                    <SkeletonBlock className="h-3 w-7 rounded" />
+                  </View>
+                  <View className="gap-2" style={{ minHeight: 40 }}>
+                    <SkeletonBlock className="h-4 w-full rounded" />
+                    <SkeletonBlock className="h-4 w-4/5 rounded" />
+                  </View>
+                  <View className="mt-auto gap-2 pt-3">
+                    <SkeletonBlock className="h-3 w-2/3 rounded" />
+                    <SkeletonBlock className="h-6 w-3/4 rounded" />
+                  </View>
                 </View>
               </View>
             ))}
@@ -175,24 +196,45 @@ export function ConnectedProductDetailScreen({
 }: ConnectedProductDetailScreenProps) {
   const { isOnline } = useNetworkStatus();
 
+  const queryClient = useQueryClient();
+  const cachedProduct = useMemo(() => {
+    let newest: { product: Product; updatedAt: number } | undefined;
+    const lists = queryClient.getQueriesData<InfiniteData<ProductList>>({
+      queryKey: ['products', 'list'],
+    });
+    const recommendations = queryClient.getQueriesData<{ recommendations: Product[] }>({
+      queryKey: ['products', 'recommendations'],
+    });
+    for (const [key, data] of lists) {
+      const product = data?.pages
+        .flatMap((page) => page.products)
+        .find((item) => String(item.id) === productId);
+      const updatedAt = queryClient.getQueryState(key)?.dataUpdatedAt ?? 0;
+      if (product && (!newest || updatedAt > newest.updatedAt)) newest = { product, updatedAt };
+    }
+    for (const [key, data] of recommendations) {
+      const product = data?.recommendations.find((item) => String(item.id) === productId);
+      const updatedAt = queryClient.getQueryState(key)?.dataUpdatedAt ?? 0;
+      if (product && (!newest || updatedAt > newest.updatedAt)) newest = { product, updatedAt };
+    }
+    return newest;
+  }, [productId, queryClient]);
+
   // DETALLES DEL PRODUCTO
   const query = useQuery({
-    queryKey: ['products', 'detail', productId],
+    queryKey: productDetailKey(productId),
     queryFn: ({ signal }) => productService.detail(productId, signal),
     enabled: Boolean(productId),
     staleTime: 30_000,
+    initialData: () => cachedProduct && { product: cachedProduct.product },
+    initialDataUpdatedAt: cachedProduct?.updatedAt,
   });
 
   // PROMOCIONES
   const offers = useProductOffers();
 
   // RESEÑAS
-  const reviews = useQuery({
-    queryKey: ['reviews', 'product', productId],
-    queryFn: ({ signal }) => productService.reviews(productId, signal),
-    enabled: Boolean(productId),
-    staleTime: 30_000,
-  });
+  const reviews = useProductReviews(productId);
 
   // RECOMENDACIONES
   const recommendations = useQuery({
@@ -212,9 +254,14 @@ export function ConnectedProductDetailScreen({
   );
 
   // ADAPTAR DETALLES DEL PRODUCTO
+  // Las ofertas añaden precio tachado y porcentaje al bloque de precio: no se
+  // pinta la ficha hasta conocerlas para no desplazar el contenido después.
   const product = useMemo(
-    () => (query.data ? toProductDetail(query.data.product, offers.data?.promotions) : undefined),
-    [query.data, offers.data],
+    () =>
+      query.data && offers.ready
+        ? toProductDetail(query.data.product, offers.data?.promotions)
+        : undefined,
+    [query.data, offers.data, offers.ready],
   );
 
   // --------------------------------------------------
@@ -337,16 +384,15 @@ export function ConnectedProductDetailScreen({
     <AppScreen edges={['top', 'bottom', 'left', 'right']}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 24 }}
+        contentContainerStyle={{ flexGrow: 1, paddingBottom: 24 }}
+        contentInsetAdjustmentBehavior="never"
       >
-        {/* BOTÓN REGRESAR */}
-        <View className="bg-white px-4 py-2">
-          <BackButton fallbackHref="/catalogo" />
-        </View>
+        {/* ENCABEZADO: VOLVER, FAVORITO Y COMPARTIR */}
+        <ProductDetailHeader productId={productId} fallbackHref="/catalogo" />
 
         {isOnline === false ? (
           <OfflineState />
-        ) : query.isPending ? (
+        ) : query.isPending || !offers.ready ? (
           <ProductDetailSkeleton />
         ) : isApiError(query.error) && query.error.status === 404 ? (
           <EmptyState
@@ -355,7 +401,7 @@ export function ConnectedProductDetailScreen({
           />
         ) : (
           <ErrorState
-            description={query.error?.message ?? 'No pudimos cargar este producto.'}
+            description={getFriendlyErrorMessage(query.error)}
             onRetry={() => void query.refetch()}
           />
         )}

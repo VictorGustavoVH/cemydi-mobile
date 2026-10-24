@@ -1,7 +1,9 @@
 import { act, fireEvent, screen, waitFor } from '@testing-library/react-native';
+import { QueryClient } from '@tanstack/react-query';
 import { render } from '../../../../tests/support/render-with-toast';
 import { installNetworkMock } from '../../../../tests/support/network-mock';
-import { productFixture } from '../../../../tests/support/product-fixtures';
+import { productFixture, productOfferFixture } from '../../../../tests/support/product-fixtures';
+import { productDetailKey } from '@/services/products/product-cache';
 import { productService } from '@/services/products/product-service';
 import { CatalogPreviewProvider } from '@/providers/catalog-preview-provider';
 import { ApiError } from '@/services/http/api-error';
@@ -12,6 +14,7 @@ jest.mock('expo-router', () => ({
   useRouter: () => ({
     push: jest.fn(),
     replace: jest.fn(),
+    navigate: jest.fn(),
     back: jest.fn(),
     canGoBack: () => true,
   }),
@@ -122,5 +125,66 @@ describe('Detalle público conectado', () => {
       </CatalogPreviewProvider>,
     );
     await screen.findByText('Producto no disponible');
+  });
+
+  it('muestra los iconos del encabezado antes de cargar el detalle', async () => {
+    let resolveDetail!: (value: Awaited<ReturnType<typeof productService.detail>>) => void;
+    jest.spyOn(productService, 'detail').mockReturnValue(
+      new Promise((resolve) => {
+        resolveDetail = resolve;
+      }),
+    );
+    await render(
+      <CatalogPreviewProvider>
+        <ConnectedProductDetailScreen productId="1" />
+      </CatalogPreviewProvider>,
+    );
+    expect(screen.getByLabelText('Cargando producto…')).toBeTruthy();
+    expect(screen.getByLabelText('Volver')).toBeTruthy();
+    expect(screen.getByLabelText('Guardar en favoritos')).toBeTruthy();
+    expect(screen.getByLabelText('Compartir producto')).toBeDisabled();
+    await act(async () => {
+      resolveDetail({ product: productFixture(1) });
+    });
+  });
+
+  it('espera las ofertas antes de pintar el precio para no desplazar la ficha', async () => {
+    let resolveOffers!: (value: Awaited<ReturnType<typeof productService.offers>>) => void;
+    jest.spyOn(productService, 'offers').mockReturnValue(
+      new Promise((done) => {
+        resolveOffers = done;
+      }),
+    );
+    jest.spyOn(productService, 'detail').mockResolvedValue({ product: productFixture(1) });
+    await render(
+      <CatalogPreviewProvider>
+        <ConnectedProductDetailScreen productId="1" />
+      </CatalogPreviewProvider>,
+    );
+    expect(await screen.findByLabelText('Cargando producto…')).toBeTruthy();
+    expect(screen.queryByText('Producto 1')).toBeNull();
+    await act(() => resolveOffers({ promotions: [productOfferFixture(1)] }));
+    expect(await screen.findByText('Producto 1')).toBeTruthy();
+    expect(screen.getByText('Oferta · 25%')).toBeTruthy();
+  });
+
+  it('pinta la ficha desde el primer frame cuando Inicio ya dejó el producto listo', async () => {
+    jest.spyOn(productService, 'detail').mockResolvedValue({ product: productFixture(1) });
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: Infinity } },
+    });
+    // Escenario real: Inicio ya resolvió el producto y las promociones.
+    client.setQueryData(productDetailKey(1), { product: productFixture(1) });
+    client.setQueryData(['promotions', 'active'], { promotions: [] });
+    await render(
+      <CatalogPreviewProvider>
+        <ConnectedProductDetailScreen productId="1" />
+      </CatalogPreviewProvider>,
+      { client },
+    );
+    // Sin skeleton no hay estructura que reemplazar: nada se reacomoda después.
+    expect(screen.queryByLabelText('Cargando producto…')).toBeNull();
+    expect(screen.getByText('Producto 1')).toBeTruthy();
+    expect(screen.getByLabelText('Añadir al carrito')).toBeTruthy();
   });
 });
