@@ -16,6 +16,7 @@ export const colors = {
   focus: '#258e8b',
   favorite: '#EF4444',
   rating: '#FACC15',
+  info: '#3B82F6',
   success: '#15803D',
   successMuted: '#F0FDF4',
   warning: '#B45309',

@@ -46,7 +46,7 @@ export function AuthLayout({
             <CatalogImage
               label="Ortopedia CEMYDI"
               compact
-              source={require('../../../../assets/branding/cemydi-logo-horizontal.webp')}
+              source={require('../../../../assets/branding/cemydi-logo-horizontal.png')}
               style={{ width: 156, height: 46, marginBottom: 8, alignSelf: 'center' }}
             />
           )}
