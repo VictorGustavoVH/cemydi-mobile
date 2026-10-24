@@ -369,7 +369,7 @@ export function CartPreviewScreen() {
                   </Text>
                   {selected.map(({ item, product }) => (
                     <View
-                      key={`${item.productId}-${item.mode}`}
+                      key={String(item.serverId ?? `${item.productId}-${item.mode}`)}
                       className="gap-1 border-b border-border/40 pb-2"
                     >
                       <Text className="font-sans-semibold text-sm text-primary">
@@ -379,7 +379,7 @@ export function CartPreviewScreen() {
                       {item.mode === 'rental' ? (
                         <Text className="font-sans text-sm leading-6 text-secondary">
                           {item.rentalDraft
-                            ? `${displayDraftDate(item.rentalDraft.startDate)} al ${displayDraftDate(item.rentalDraft.endDate)} · Borrador`
+                            ? `${displayDraftDate(item.rentalDraft.startDate)} al ${displayDraftDate(item.rentalDraft.endDate)}${connected ? '' : ' · Borrador'}`
                             : 'Falta elegir fechas'}
                           {product.prescription ? ' · Receta pendiente' : ''}
                         </Text>
@@ -388,7 +388,9 @@ export function CartPreviewScreen() {
                   ))}
                   <Text className="font-sans text-sm leading-6 text-secondary">
                     {section.mode === 'rental'
-                      ? 'Las fechas son borradores. La disponibilidad, la receta y el envío de la solicitud se habilitarán con tu cuenta. Esta revisión no envía una solicitud.'
+                      ? connected
+                        ? 'Las fechas se guardan en el carrito. Esta revisión no envía una solicitud. El envío de solicitudes y la carga móvil de recetas siguen pendientes.'
+                        : 'Las fechas son borradores. La disponibilidad, la receta y el envío de la solicitud se habilitarán con tu cuenta. Esta revisión no envía una solicitud.'
                       : 'La compra y los pagos todavía no están habilitados.'}
                   </Text>
                 </View>

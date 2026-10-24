@@ -16,6 +16,7 @@ import { QueryProvider } from '@/providers/query-provider';
 import { CatalogPreviewProvider } from '@/providers/catalog-preview-provider';
 import { ToastProvider } from '@/providers/toast-provider';
 import { AuthProvider } from '@/providers/auth-provider';
+import { CartProvider } from '@/providers/cart-provider';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GlobalBottomBar } from '@/components/ui/GlobalBottomBar';
 import { colors } from '@/theme';
@@ -55,30 +56,35 @@ export default function RootLayout() {
           <SafeAreaProvider>
             <ToastProvider>
               <AuthProvider>
-                <View style={{ flex: 1, backgroundColor: colors.background }}>
-                  <Stack
-                    screenOptions={{
-                      // Avoid Android native transitions leaving screen content partially transparent.
-                      animation: Platform.OS === 'android' ? 'none' : 'default',
-                      contentStyle: { backgroundColor: colors.background },
-                    }}
-                  >
-                    <Stack.Screen name="index" options={{ headerShown: false }} />
-                    <Stack.Screen name="inicio" options={{ headerShown: false }} />
-                    <Stack.Screen name="catalogo" options={{ headerShown: false }} />
-                    <Stack.Screen name="login" options={{ headerShown: false }} />
-                    <Stack.Screen name="register" options={{ headerShown: false }} />
-                    <Stack.Screen name="forgot-password" options={{ headerShown: false }} />
-                    <Stack.Screen name="otp" options={{ headerShown: false }} />
-                    <Stack.Screen name="new-password" options={{ headerShown: false }} />
-                    <Stack.Screen
-                      name="carrito"
-                      options={{ headerShown: false, animation: 'none' }}
-                    />
-                    <Stack.Screen name="toast-demo" options={{ title: 'Demo de notificaciones' }} />
-                  </Stack>
-                  <GlobalBottomBar />
-                </View>
+                <CartProvider>
+                  <View style={{ flex: 1, backgroundColor: colors.background }}>
+                    <Stack
+                      screenOptions={{
+                        // Avoid Android native transitions leaving screen content partially transparent.
+                        animation: Platform.OS === 'android' ? 'none' : 'default',
+                        contentStyle: { backgroundColor: colors.background },
+                      }}
+                    >
+                      <Stack.Screen name="index" options={{ headerShown: false }} />
+                      <Stack.Screen name="inicio" options={{ headerShown: false }} />
+                      <Stack.Screen name="catalogo" options={{ headerShown: false }} />
+                      <Stack.Screen name="login" options={{ headerShown: false }} />
+                      <Stack.Screen name="register" options={{ headerShown: false }} />
+                      <Stack.Screen name="forgot-password" options={{ headerShown: false }} />
+                      <Stack.Screen name="otp" options={{ headerShown: false }} />
+                      <Stack.Screen name="new-password" options={{ headerShown: false }} />
+                      <Stack.Screen
+                        name="carrito"
+                        options={{ headerShown: false, animation: 'none' }}
+                      />
+                      <Stack.Screen
+                        name="toast-demo"
+                        options={{ title: 'Demo de notificaciones' }}
+                      />
+                    </Stack>
+                    <GlobalBottomBar />
+                  </View>
+                </CartProvider>
               </AuthProvider>
             </ToastProvider>
           </SafeAreaProvider>

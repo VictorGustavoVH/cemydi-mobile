@@ -7,16 +7,6 @@ const matches = (item: ServerCartItem, input: CartAdd) =>
   item.mode === input.mode &&
   (item.rentalStartDate?.slice(0, 10) ?? undefined) === input.rentalStartDate &&
   (item.rentalEndDate?.slice(0, 10) ?? undefined) === input.rentalEndDate;
-let pendingGuestSave = false;
-export function markPendingGuestSave() {
-  pendingGuestSave = true;
-}
-export function consumePendingGuestSave() {
-  const value = pendingGuestSave;
-  pendingGuestSave = false;
-  return value;
-}
-
 /** Keeps absolute targets in memory so a lost POST response is reconciled through GET before retry. */
 export function createCartTransfer() {
   const targets = new Map<string, { input: CartAdd; baseQuantity: number }>();
