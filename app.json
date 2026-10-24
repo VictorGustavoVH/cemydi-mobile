@@ -8,17 +8,14 @@
     "icon": "./assets/icons/app-icon.png",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.cemydi.app"
     },
     "experiments": {
       "typedRoutes": true
     },
-    "androidStatusBar": {
-      "barStyle": "dark-content",
-      "backgroundColor": "#FFFFFF",
-      "translucent": true
-    },
     "android": {
+      "package": "com.cemydi.app",
       "icon": "./assets/icons/android-adaptive-foreground.png",
       "adaptiveIcon": {
         "backgroundColor": "#FFFFFF",
@@ -50,7 +47,9 @@
           "microphonePermission": "Permite que CEMYDI use el micrófono para buscar productos por voz.",
           "speechRecognitionPermission": "Permite que CEMYDI convierta tu voz en texto para buscar productos."
         }
-      ]
+      ],
+      "expo-secure-store",
+      ["expo-notifications", { "defaultChannel": "cemydi" }]
     ]
   }
 }
