@@ -22,7 +22,7 @@ type CatalogPreviewState = {
     mode: PreviewCartItem['mode'],
     productSnapshot?: ProductDetailPreview,
   ) => void;
-  removeItem: (productId: string, mode: PreviewCartItem['mode']) => void;
+  removeItem: (productId: string, mode: PreviewCartItem['mode'], serverId?: number) => void;
   updateQuantity: (
     productId: string,
     mode: PreviewCartItem['mode'],
