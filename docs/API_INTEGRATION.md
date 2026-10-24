@@ -29,8 +29,8 @@ La foundation usa `EXPO_PUBLIC_API_URL` únicamente para la URL no secreta del b
 
 - Las lecturas públicas de productos, promociones y reseñas no requieren credenciales.
 - Perfil, carrito, rentas propias, documentos privados y reseñas propias requieren autenticación.
-- El backend acepta el access JWT desde la cookie `cemydi_access` o desde `Authorization: Bearer <token>`.
-- Login no devuelve ese JWT en el body y refresh obtiene `cemydi_refresh` exclusivamente de cookie; por ello Bearer no es todavía un flujo móvil completo.
+- Móvil usa login/refresh/logout explícitos de `/auth/mobile/*`; access en memoria y refresh seguro según AUTHENTICATION.md.
+- Las rutas web de autenticación conservan cookies HTTP-only; no se usan para simular una sesión nativa.
 - JSON usa `Content-Type: application/json` y `Accept: application/json` cuando corresponda.
 - Uploads de receta usan multipart con el campo `file`; el runtime debe generar el boundary.
 - Cuando CSRF está activo, las mutaciones no excluidas requieren la cookie `cemydi_csrf` y el header `x-csrf-token` coincidente.
@@ -82,16 +82,16 @@ La verificación usa `httpClient`, lee la base desde `env.apiUrl`, valida la res
 
 ### Perfil
 
-| Método | Ruta        | Contrato confirmado                                                                              |
-| ------ | ----------- | ------------------------------------------------------------------------------------------------ |
-| GET    | `/users/me` | `{ user: AuthUserProfile \| null }` sin credenciales; credenciales inválidas pueden producir 401 |
-| PATCH  | `/users/me` | Campos opcionales: `nombre`, `correo`, `telefono`, `direccion`, `password`                       |
+| Método | Ruta        | Contrato confirmado                                                                                                         |
+| ------ | ----------- | --------------------------------------------------------------------------------------------------------------------------- |
+| GET    | `/users/me` | `{ user: AuthUserProfile \| null }` sin credenciales; credenciales inválidas pueden producir 401                            |
+| PATCH  | `/users/me` | Campos opcionales: `nombre`, `telefono`, `direccion`; correo/contraseña usan los contratos específicos de AUTHENTICATION.md |
 
 Roles confirmados: `ADMIN` y `CLIENT`.
 
 ### Productos y catálogo
 
-Integración móvil vigente: [CATALOG.md](./CATALOG.md). Home, catálogo y detalle consumen lecturas públicas mediante schemas/adapters de `src/services/products`, sin credenciales. Promociones se consultan separadamente; no se integra el carrito autenticado ni se decide transporte de sesión.
+Integración móvil vigente: [CATALOG.md](./CATALOG.md). Home, catálogo y detalle consumen lecturas públicas mediante schemas/adapters de `src/services/products`, sin credenciales. Promociones se consultan separadamente; carrito y sesión se documentan en CART.md y AUTHENTICATION.md.
 
 | Método | Ruta                            | Acceso                 |
 | ------ | ------------------------------- | ---------------------- |
@@ -196,6 +196,10 @@ Formatos confirmados: PDF, JPG/JPEG y PNG. Tamaño máximo: 8 MB. El servidor va
 | GET    | `/reviews/product/:productId/mine` | Autenticado                                             |
 | POST   | `/reviews`                         | Autenticado; `productId`, `rating` 1–5, `comment` 5–500 |
 
+### Notificaciones
+
+Contratos CLIENT confirmados en NotificationsController/DTOs y detallados en [NOTIFICATIONS.md](./NOTIFICATIONS.md): bandeja, detalle, lectura, preferencias, promociones y suscripciones EXPO. El ciclo móvil usa los servicios existentes con Bearer; no consulta rutas administrativas.
+
 ## Funcionalidades ausentes
 
 > **NOT IMPLEMENTED IN CURRENT BACKEND:** checkout de venta.
@@ -219,7 +223,7 @@ Debe existir una sola infraestructura compartida que:
 5. coordine un solo refresh en vuelo, si la estrategia aprobada lo permite;
 6. no registre credenciales ni bodies sensibles.
 
-No elijas todavía el transporte de sesión. Consulta `AUTHENTICATION.md`.
+La sesión móvil usa tokens explícitos aprobados. Consulta `AUTHENTICATION.md` para login/refresh/logout móviles; las rutas web de cookies se conservan únicamente como referencia web.
 
 ## Errores
 

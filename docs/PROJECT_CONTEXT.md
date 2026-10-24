@@ -42,7 +42,11 @@ Sus implementaciones dependientes de Next.js, SSR, DOM, cookies del navegador, `
 
 ### Aplicación móvil
 
-El móvil es un cliente nuevo e independiente. Contiene el root layout de Expo Router, una bienvenida de tres pantallas que conduce al catálogo público `/inicio` y ofrece `/login` de forma opcional, una ruta demostrativa en `/inicio` y foundation compartida para entorno, HTTP, estado remoto, conectividad, theme y UI base. Los formularios de acceso, registro y recuperación consumen React Hook Form y Zod con un servicio temporal local; no integran autenticación del backend. Ver `AUTH_PREVIEW.md`.
+El móvil integra autenticación real con tokens explícitos, catálogo público,
+perfil/favoritos, carrito conectado y notificaciones de clientes. Inicio, Catálogo,
+Carrito y Perfil viven en pestañas; los detalles y formularios permanecen en el
+Stack raíz. La bienvenida permite explorar sin cuenta. Véanse AUTHENTICATION.md,
+CATALOG.md, CART.md, NOTIFICATIONS.md y MOBILE_QUALITY.md para contratos y límites.
 
 ## Alcance móvil previsto
 
@@ -88,20 +92,17 @@ No inventes endpoints, DTOs, roles, permisos, campos de respuesta ni estados.
 - NativeWind 4 sobre Tailwind CSS 3.
 - Color `brand` actual: `#258e8b`.
 - No existen `ios/` ni `android/`; se usa Continuous Native Generation.
-- Existen configuración validada, HTTP público, TanStack Query, conectividad, tokens y UI compartida. Bienvenida conduce a `/inicio`, que muestra seis productos reales, banner y cuatro categorías editoriales originales, visibles incluso mientras carga o falla la API. `/catalogo` acumula páginas de 24 con búsqueda/filtros remotos; los ids numéricos de detalle consultan API. Autenticación y carrito siguen siendo locales, sin transporte móvil aprobado. `/diagnostico` ya no existe. Jest/Testing Library están configurados. Véase [CATALOG.md](./CATALOG.md).
+- Existen configuración validada, HTTP público, TanStack Query, conectividad, tokens y UI compartida. Bienvenida conduce a `/inicio`, que muestra seis productos reales, banner y cuatro categorías editoriales originales, visibles incluso mientras carga o falla la API. `/catalogo` acumula páginas de 24 con búsqueda/filtros remotos; los ids numéricos de detalle consultan API. Autenticación y carrito consumen el backend; se conserva un carrito temporal para invitados. Las notificaciones completan campana, permisos y lifecycle nativo, con entrega real pendiente de configuración EAS/FCM/APNs. `/diagnostico` ya no existe. Jest/Testing Library están configurados. Véase [CATALOG.md](./CATALOG.md).
 - El repositorio móvil usa `develop` como rama de integración y conserva `main` para versiones estables y validadas.
 - `npm run lint`, `npm run typecheck`, `npm run format:check` y `npm test` pasan correctamente.
 
 ## Decisiones pendientes
 
-- transporte de sesión móvil: cookies o tokens explícitos;
-- adaptación necesaria del backend para login, refresh y CSRF;
 - URL de API por entorno y política HTTPS;
 - Google Sign-In móvil y redirect URIs;
 - verificación de correo por código, app link o ambos;
 - significado del carrito de venta sin checkout actual;
-- carrito invitado o exclusivamente autenticado;
 - soporte formal de tablet;
-- herramienta y estrategia de testing E2E (Maestro o Detox);
+- ejecución de los cinco flujos Maestro en una development build Android;
 - política offline y descarga/visualización de documentos;
-- identificadores nativos y configuración EAS.
+- credenciales push y configuración EAS; los identificadores nativos están en app.json.

@@ -1,5 +1,19 @@
 # Sistema de diseño móvil
 
+## Actualización vigente — 24 de octubre de 2026
+
+Inicio, Catálogo, Carrito y Perfil comparten la barra existente como `tabBar` de
+Expo Router. El navegador reserva el espacio y la safe area; AppScreen no añade
+un segundo padding para esa barra. Detalles y formularios permanecen fuera del
+grupo de pestañas. Véase [MOBILE_QUALITY.md](./MOBILE_QUALITY.md).
+
+Onboarding consume las tres variantes WebP recuperadas, con dimensiones originales
+y BlurHash propios. El mapa compartido incluye 15 recursos y se verifica mediante
+`python scripts/generate-image-placeholders.py --check`. Los PNG originales se
+conservan, sin importarlos adicionalmente desde el mapa de onboarding. El script
+de conversión no borra originales ni sobrescribe variantes existentes. La revisión
+de calidad visual y presentación nativa sigue siendo obligatoria.
+
 ## Estado actual
 
 NativeWind 4 está conectado a Tailwind CSS 3 mediante Babel y Metro. `tailwind.config.js` declara:
