@@ -1,9 +1,7 @@
-import { useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { Text } from 'react-native';
+import { useCallback, useContext, useEffect, useRef } from 'react';
 import { usePathname, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppBottomBar } from '@/components/ui/AppBottomBar';
-import { AppSheet } from '@/components/ui/AppSheet';
 import { useCatalogPreview } from '@/providers/catalog-preview-provider';
 import { useAccountAccess } from '@/hooks/useAccountAccess';
 import { ToastContext } from '@/hooks/useToast';
@@ -27,8 +25,7 @@ export function GlobalBottomBar() {
   }, [toastStore, visible]);
   const router = useRouter();
   const { items } = useCatalogPreview();
-  const { user, requestAccess } = useAccountAccess();
-  const [profileOpen, setProfileOpen] = useState(false);
+  const { requestAccess } = useAccountAccess();
   const lastNavAt = useRef(0);
 
   const locked = useCallback(() => {
@@ -54,10 +51,9 @@ export function GlobalBottomBar() {
   }, [locked, pathname, router]);
 
   const onProfile = useCallback(() => {
-    const destination = pathname === '/carrito' ? '/carrito' : '/inicio';
-    if (!requestAccess(destination)) return;
-    setProfileOpen(true);
-  }, [pathname, requestAccess]);
+    if (locked() || !requestAccess('/perfil')) return;
+    router.push('/perfil');
+  }, [locked, requestAccess, router]);
 
   if (!visible) {
     return null;
@@ -79,13 +75,6 @@ export function GlobalBottomBar() {
           pathname === '/carrito' ? 'cart' : pathname === '/catalogo' ? 'explore' : 'home'
         }
       />
-      <AppSheet onClose={() => setProfileOpen(false)} title="Tu perfil" visible={profileOpen}>
-        <Text className="font-sans text-base leading-6 text-secondary">
-          {user?.nombre}
-          {'\n'}
-          {user?.correo}
-        </Text>
-      </AppSheet>
     </SafeAreaView>
   );
 }

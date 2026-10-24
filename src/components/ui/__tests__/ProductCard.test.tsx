@@ -75,3 +75,39 @@ describe('ProductCard', () => {
     expect(onPress).toHaveBeenCalledTimes(1);
   });
 });
+
+it('usa la valoración recibida de favoritos en vez de la valoración de muestra', async () => {
+  await render(
+    <ProductCard
+      product={toProductCard(productFixture())}
+      onPress={jest.fn()}
+      ratingState={{
+        summary: { count: 7, averageRating: 3.5 },
+        isPaused: false,
+        isError: false,
+        isFetching: false,
+      }}
+    />,
+  );
+  expect(screen.getByText('3.5')).toBeTruthy();
+  expect(screen.getByRole('button', { name: /Calificación 3.5 de 5, 7 opiniones/ })).toBeTruthy();
+  expect(screen.queryByText('4.8')).toBeNull();
+});
+
+it.each([
+  [true, false, 'Sin conexión'],
+  [false, true, 'Valoración no disponible'],
+] as const)(
+  'representa la valoración pendiente offline=%s error=%s',
+  async (isPaused, isError, label) => {
+    await render(
+      <ProductCard
+        product={toProductCard(productFixture())}
+        onPress={jest.fn()}
+        ratingState={{ isPaused, isError, isFetching: false }}
+      />,
+    );
+    expect(screen.getByText(label)).toBeTruthy();
+    expect(screen.queryByText('4.8')).toBeNull();
+  },
+);
