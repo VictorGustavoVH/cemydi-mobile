@@ -26,19 +26,19 @@ const localImageBlurhashes = new Map<ImageSourcePropType, string>([
   [require('../../assets/images/catalog/walker.webp'), 'L9RfkB~q~q_3-;Rj%M-;~pfjRjay'],
   // SHA-256: 4f1cb304bd53a03ff230fffee696bcd003803d2e624b157fdb1c45c1c6dcc82a
   [require('../../assets/images/catalog/wheelchair.webp'), 'LoO43jj[~q%MxuM{t7xu_3ofIUof'],
-  // SHA-256: 05aab5660392d65f4e25191f41edd956254fc11e8d47854a32ed6fd7841682d6
+  // SHA-256: 6936278bc83054241f40ed0ccb9a01f1cd72fa6d6cece8979c5ed05bccb3568f
   [
-    require('../../assets/images/onboarding/asistencia-geriatrica-y-movilidad.png'),
+    require('../../assets/images/onboarding/asistencia-geriatrica-y-movilidad.webp'),
     'LcP@CMt7%Mx]^+t7ozj]~Wt7RixG',
   ],
-  // SHA-256: 84b9397b8170b8b0d82ff94d22829a24a4dc3f3b31c03e39813983e705f81620
+  // SHA-256: 50656852c7efd33fd7113576a61e7cb63e7511a5853ef5dbc80d27be0a26efcf
   [
-    require('../../assets/images/onboarding/rehabilitacion-con-apoyo-y-cuidado.png'),
+    require('../../assets/images/onboarding/rehabilitacion-con-apoyo-y-cuidado.webp'),
     'LuPjcAxutRWW%Ma{WAof~Wt7e.s:',
   ],
-  // SHA-256: 82f97b75128088ef4cf4c1f3888c89ce8ae829640d411fde04e5e33f4ed11dec
+  // SHA-256: e8cc93f74e254a4ab41012bd1aa534adbddfa8037685fa2114608f34ad4e18cb
   [
-    require('../../assets/images/onboarding/tienda-de-ayudas-ortopedicas.png'),
+    require('../../assets/images/onboarding/tienda-de-ayudas-ortopedicas.webp'),
     'LhOE0MxuW;%M-;t7WVof~WjsayWV',
   ],
 ]);
