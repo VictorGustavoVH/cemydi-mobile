@@ -1,4 +1,6 @@
+import { AUTH_ACCOUNT as DEFAULT_ACCOUNT, installAuthApiMock } from '../support/auth-api-mock';
 import { useEffect } from 'react';
+import { installCartApiMock } from '../support/cart-api-mock';
 import { fireEvent, screen, waitFor } from '@testing-library/react-native';
 import { render } from '../support/render-with-toast';
 import { installNetworkMock } from '../support/network-mock';
@@ -8,12 +10,22 @@ import { HomeScreen } from '@/features/home/HomeScreen';
 import { LoginScreen } from '@/features/auth/LoginScreen';
 import { installHomePreviewApiMock } from '../support/home-preview-api-mock';
 
-const mockRouter = { push: jest.fn(), replace: jest.fn(), back: jest.fn(), canGoBack: () => true };
+const mockRouter = {
+  push: jest.fn(),
+  replace: jest.fn(),
+  back: jest.fn(),
+  canGoBack: () => true,
+  navigate: jest.fn(),
+  setParams: jest.fn(),
+  canDismiss: () => false,
+  dismiss: jest.fn(),
+};
 jest.mock('expo-router', () => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { useEffect } = require('react');
   return {
     useRouter: () => mockRouter,
+    usePathname: () => '/perfil',
     useLocalSearchParams: () => ({}),
     useFocusEffect: (callback: () => void | (() => void)) => useEffect(callback, [callback]),
   };
@@ -34,6 +46,8 @@ function SeedCart() {
 describe('Acceso como invitado', () => {
   beforeEach(() => {
     installNetworkMock();
+    installAuthApiMock();
+    installCartApiMock();
     installHomePreviewApiMock();
   });
 
@@ -47,7 +61,7 @@ describe('Acceso como invitado', () => {
     expect(mockRouter.push).not.toHaveBeenCalled();
     await fireEvent.press(screen.getAllByLabelText('Perfil')[0]);
     expect(mockRouter.push).toHaveBeenCalledWith('/login');
-    expect(screen.getByText('Inicia sesión para continuar')).toBeTruthy();
+    expect(screen.queryByText('Inicia sesión para continuar')).toBeNull();
   });
 
   it('pide acceso al revisar el carrito y vuelve conservando productos y cantidades', async () => {
@@ -58,14 +72,15 @@ describe('Acceso como invitado', () => {
     );
     await fireEvent.press(screen.getByLabelText('Revisar carrito'));
     expect(mockRouter.push).toHaveBeenCalledWith('/login');
-    expect(screen.queryByText('Volver al carrito')).toBeNull();
+    expect(screen.getByText('Inicia sesión para continuar')).toBeTruthy();
+    expect(screen.queryByLabelText('Cerrar')).toBeNull();
     await view.rerender(
       <CatalogPreviewProvider>
         <LoginScreen />
       </CatalogPreviewProvider>,
     );
     await fireEvent.changeText(screen.getByLabelText('Correo electrónico'), 'cliente@cemydi.test');
-    await fireEvent.changeText(screen.getByLabelText('Contraseña'), 'Cemydi2026!');
+    await fireEvent.changeText(screen.getByLabelText('Contraseña'), DEFAULT_ACCOUNT.password);
     await fireEvent.press(screen.getByLabelText('Iniciar sesión'));
     await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/carrito'));
     await view.rerender(
@@ -75,6 +90,6 @@ describe('Acceso como invitado', () => {
     );
     expect(screen.getByLabelText('Cantidad de Silla de ruedas, compra: 2')).toBeTruthy();
     await fireEvent.press(screen.getByLabelText('Revisar carrito'));
-    expect(screen.getByLabelText('Volver al carrito')).toBeTruthy();
+    expect(screen.getByLabelText('Cerrar')).toBeTruthy();
   });
 });
