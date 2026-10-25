@@ -5,17 +5,17 @@ import { Redirect, useRouter } from 'expo-router';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { AppButton } from '@/components/ui/AppButton';
-import { useAuthPreview } from '@/providers/auth-preview-provider';
+import { useAuth } from '@/providers/auth-provider';
 import { AuthLayout } from './components/AuthLayout';
 import { OtpInput } from './components/OtpInput';
 import { OtpResendButton } from './components/OtpResendButton';
 import { useAuthAction } from './hooks/useAuthAction';
 import { otpSchema, type OtpValues } from './schemas/auth-schemas';
-import type { AuthChallenge } from './services/auth-preview-service';
+import type { AuthChallenge } from './services/auth-service';
 
 export function OtpScreen() {
   const router = useRouter();
-  const { service, challenge, setChallenge } = useAuthPreview();
+  const { service, challenge, setChallenge } = useAuth();
   const { pending, execute } = useAuthAction();
   const [verified, setVerified] = useState<{
     next: AuthChallenge | null;
@@ -44,8 +44,8 @@ export function OtpScreen() {
     if (locked) return;
     let next: AuthChallenge | null = null;
     return execute(
-      () => {
-        next = service.verify(values.codigo);
+      async () => {
+        next = await service.verify(values.codigo);
       },
       isRegistration ? 'Correo verificado. Ya puedes iniciar sesión.' : 'Código verificado',
       () => {
@@ -57,8 +57,8 @@ export function OtpScreen() {
   function resend() {
     if (!challenge || Date.now() < challenge.resendAt || locked) return;
     void execute(
-      () => {
-        setChallenge(service.resend());
+      async () => {
+        setChallenge(await service.resend());
       },
       'Si el correo está registrado, recibirás un código',
       () => {
@@ -84,7 +84,7 @@ export function OtpScreen() {
     >
       <View className="gap-1">
         <Text className="w-full text-center font-sans text-sm text-secondary">
-          Enviamos un código de 8 dígitos a
+          Si tu solicitud procede, recibirás un código de 8 dígitos en
         </Text>
         <Text className="w-full text-center font-sans-semibold text-base text-primary">
           {challenge.correo}

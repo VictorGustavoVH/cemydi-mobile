@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { getFriendlyErrorMessage } from '@/services/http/api-error';
 import { useToast } from '@/hooks/useToast';
 
 export function useAuthAction() {
@@ -12,20 +13,22 @@ export function useAuthAction() {
       mounted.current = false;
     };
   }, []);
-  async function execute(action: () => void, successMessage: string, onSuccess: () => void) {
+  async function execute(
+    action: () => void | Promise<void>,
+    successMessage: string,
+    onSuccess: () => void,
+  ) {
     if (locked.current) return;
     locked.current = true;
     setPending(true);
     try {
-      // A separate service boundary keeps the temporary flow replaceable.
       await Promise.resolve().then(action);
       if (mounted.current) {
         toast.success(successMessage);
         onSuccess();
       }
     } catch (error) {
-      if (mounted.current)
-        toast.error(error instanceof Error ? error.message : 'Intenta de nuevo.');
+      if (mounted.current) toast.error(getFriendlyErrorMessage(error));
     } finally {
       locked.current = false;
       if (mounted.current) setPending(false);

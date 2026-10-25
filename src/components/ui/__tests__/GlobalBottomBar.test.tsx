@@ -3,6 +3,7 @@ import { render } from '../../../../tests/support/render-with-toast';
 import { GlobalBottomBar } from '../GlobalBottomBar';
 
 const mockRouter = { push: jest.fn(), replace: jest.fn(), back: jest.fn() };
+const mockRequestAccess = jest.fn(() => false);
 let mockPathname = '/inicio';
 
 jest.mock('expo-router', () => ({
@@ -19,13 +20,14 @@ jest.mock('@/providers/catalog-preview-provider', () => ({
 }));
 
 jest.mock('@/hooks/useAccountAccess', () => ({
-  useAccountAccess: () => ({ user: null, requestAccess: jest.fn(() => false) }),
+  useAccountAccess: () => ({ user: null, requestAccess: mockRequestAccess }),
 }));
 
 describe('GlobalBottomBar', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockPathname = '/inicio';
+    mockRequestAccess.mockReturnValue(false);
   });
 
   it('muestra el contador del carrito en el badge', async () => {
@@ -52,4 +54,15 @@ describe('GlobalBottomBar', () => {
     await render(<GlobalBottomBar />);
     expect(screen.queryByLabelText('Carrito, 3 unidades')).toBeNull();
   });
+});
+
+it('abre el perfil conectado al autorizar el acceso', async () => {
+  jest.clearAllMocks();
+  mockPathname = '/inicio';
+  mockRequestAccess.mockReturnValue(true);
+  await render(<GlobalBottomBar />);
+  await fireEvent.press(screen.getByRole('button', { name: 'Perfil' }));
+  expect(mockRequestAccess).toHaveBeenCalledWith('/perfil');
+  expect(mockRouter.push).toHaveBeenCalledWith('/perfil');
+  expect(screen.queryByText('Tu perfil')).toBeNull();
 });

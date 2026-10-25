@@ -11,6 +11,7 @@ type RequestPayload =
     };
 
 type BaseRequestOptions = Omit<RequestInit, 'body' | 'method' | 'signal'> & {
+  authenticated?: boolean;
   method?: HttpMethod;
   signal?: AbortSignal;
   timeoutMs?: number;

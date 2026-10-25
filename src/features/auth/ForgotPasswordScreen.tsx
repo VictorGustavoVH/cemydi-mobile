@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import Mail from 'lucide-react-native/icons/mail';
 import { AppInput } from '@/components/ui/AppInput';
 import { AppButton } from '@/components/ui/AppButton';
-import { useAuthPreview } from '@/providers/auth-preview-provider';
+import { useAuth } from '@/providers/auth-provider';
 import { colors } from '@/theme';
 import { AuthLayout } from './components/AuthLayout';
 import { useAuthAction } from './hooks/useAuthAction';
@@ -12,7 +12,7 @@ import { emailSchema, recoverySchema, type RecoveryValues } from './schemas/auth
 
 export function ForgotPasswordScreen() {
   const router = useRouter();
-  const { service, setChallenge, recoveryEmail, setRecoveryEmail } = useAuthPreview();
+  const { service, setChallenge, recoveryEmail, setRecoveryEmail } = useAuth();
   const { execute, pending } = useAuthAction();
   const { control, handleSubmit } = useForm<RecoveryValues>({
     resolver: zodResolver(recoverySchema),
@@ -21,8 +21,8 @@ export function ForgotPasswordScreen() {
   });
   const submit = handleSubmit((values) =>
     execute(
-      () => {
-        setChallenge(service.requestRecovery(values.correo));
+      async () => {
+        setChallenge(await service.requestRecovery(values.correo));
         setRecoveryEmail(values.correo);
       },
       'Si el correo está registrado, recibirás un código',
@@ -55,6 +55,7 @@ export function ForgotPasswordScreen() {
             autoCorrect={false}
             autoComplete="email"
             textContentType="emailAddress"
+            maxLength={254}
             returnKeyType="send"
             onSubmitEditing={() => void submit()}
             leadingIcon={<Mail aria-hidden color={colors.textSecondary} size={20} />}

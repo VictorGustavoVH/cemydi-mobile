@@ -17,6 +17,19 @@ afterEach(async () => {
 // Mock manual de Reanimated: el mock oficial requiere módulos nativos
 // (react-native-worklets) que no existen en Jest.
 /* eslint-disable @typescript-eslint/no-require-imports */
+jest.mock('expo-secure-store', () => {
+  const values = new Map<string, string>();
+  return {
+    WHEN_UNLOCKED_THIS_DEVICE_ONLY: 'WHEN_UNLOCKED_THIS_DEVICE_ONLY',
+    getItemAsync: jest.fn(async (key: string) => values.get(key) ?? null),
+    setItemAsync: jest.fn(async (key: string, value: string) => {
+      values.set(key, value);
+    }),
+    deleteItemAsync: jest.fn(async (key: string) => {
+      values.delete(key);
+    }),
+  };
+});
 jest.mock('react-native-worklets', () => ({
   scheduleOnRN: (callback: (...args: unknown[]) => void, ...args: unknown[]) => callback(...args),
 }));
@@ -52,6 +65,7 @@ jest.mock('react-native-reanimated', () => {
     withRepeat: (value: unknown) => value,
     Easing: { linear: (value: number) => value, bezier: () => (value: number) => value },
     ReduceMotion: { Never: 'never' },
+    LinearTransition: { duration: () => undefined },
     FadeIn: { duration: () => undefined },
     FadeOut: { duration: () => undefined },
     withTiming: (value: unknown) => value,

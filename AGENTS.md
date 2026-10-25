@@ -41,7 +41,7 @@ Antes de implementar, busca una skill aplicable en `.agents/skills/` y lee su `S
 - Do not use `npm audit fix --force`.
 - Keep non-route code outside `src/app`.
 - No copies secretos ni valores reales de `.env`.
-- La autenticación móvil está bloqueada: no elijas cookies o tokens sin aprobación.
+- La autenticación móvil usa tokens explícitos aprobados: access en memoria y refresh en `expo-secure-store`; ver `docs/AUTHENTICATION.md`. No cambies el transporte sin aprobación.
 - No uses `#134e4c`; fondo principal `#FFFFFF`, marca `#258e8b`.
 - Iconografía obligatoria: usa exclusivamente `lucide-react-native` con importaciones directas por icono (ej. `import ArrowRight from 'lucide-react-native/icons/arrow-right'`), nunca desde el barrel general para evitar fallos de resolución en Metro. Prohibido usar caracteres tipográficos o flechas de texto para simular iconos. El color de los iconos nunca es fijo: debe adaptarse contextualmente según la situación y superficie (usando tokens semánticos de `src/theme/colors.ts`).
 - Verificación obligatoria de componentes: antes de crear cualquier componente nuevo o aplicar UI, verifica SIEMPRE los componentes existentes en `src/components/ui` y en features. Reutiliza componentes base (`AppButton`, `AppInput`, `AppScreen`, `LoadingState`, etc.) en vez de primitivas directas de React Native (`Pressable`, `TextInput`, etc.). Si un componente ya existe, revisa sus props e implementaciones para consumirlo o extenderlo. Si creas uno nuevo, verifica que no exista duplicado, define props tipadas explícitas, accesibilidad y estados (pressed, disabled, loading).

@@ -17,12 +17,12 @@ describe('Política de errores HTTP', () => {
     expect(isRetryableApiError(new ApiError('Error', { kind }))).toBe(false);
   });
 
-  it('distingue errores desconocidos y conserva la causa y datos', () => {
+  it('distingue errores desconocidos y conserva la causa', () => {
     const cause = new Error('Causa');
-    const data = { message: 'Entrada inválida' };
-    const error = new ApiError('Entrada inválida', { kind: 'http', status: 400, cause, data });
+    const error = new ApiError('Entrada inválida', { kind: 'http', status: 400, cause });
     expect(isApiError(error)).toBe(true);
-    expect(error).toMatchObject({ name: 'ApiError', status: 400, cause, data });
+    expect(error).toMatchObject({ name: 'ApiError', status: 400, cause });
+    expect(error).not.toHaveProperty('data');
     expect(isApiError(cause)).toBe(false);
     expect(isRetryableApiError(cause)).toBe(false);
     expect(isRetryableApiError(null)).toBe(false);
@@ -38,10 +38,16 @@ describe('Política de errores HTTP', () => {
       getFriendlyErrorMessage(new ApiError('La API falló', { kind: 'http', status: 500 })),
     ).toBe('El servicio no se encuentra disponible temporalmente. Intenta más tarde.');
     expect(getFriendlyErrorMessage(new Error('Network request failed'))).toBe(
-      'No fue posible conectar con el servidor. Comprueba tu conexión e intenta de nuevo.',
+      'Ocurrió un error. Intenta de nuevo.',
     );
     expect(getFriendlyErrorMessage(new Error('Mensaje de negocio válido'))).toBe(
-      'Mensaje de negocio válido',
+      'Ocurrió un error. Intenta de nuevo.',
     );
   });
+});
+
+it.each([400, 401, 403, 409, 429])('oculta cualquier mensaje remoto en HTTP %i', (status) => {
+  expect(
+    getFriendlyErrorMessage(new ApiError('Datos internos del servidor', { kind: 'http', status })),
+  ).toBe('Ocurrió un error. Intenta de nuevo.');
 });

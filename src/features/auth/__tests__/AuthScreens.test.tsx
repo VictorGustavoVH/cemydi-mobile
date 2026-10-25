@@ -1,16 +1,25 @@
 import { act, fireEvent, screen, waitFor } from '@testing-library/react-native';
 import { Linking } from 'react-native';
+import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { render } from '../../../../tests/support/render-with-toast';
-import { AuthPreviewProvider } from '@/providers/auth-preview-provider';
 import { LoginScreen } from '../LoginScreen';
 import { RegisterScreen } from '../RegisterScreen';
 import { ForgotPasswordScreen } from '../ForgotPasswordScreen';
 import { OtpScreen } from '../OtpScreen';
 import { NewPasswordScreen } from '../NewPasswordScreen';
-import { DEFAULT_ACCOUNT } from '../services/auth-preview-service';
+import {
+  AUTH_ACCOUNT as DEFAULT_ACCOUNT,
+  installAuthApiMock,
+} from '../../../../tests/support/auth-api-mock';
 import { colors } from '@/theme';
 
-const mockRouter = { replace: jest.fn(), push: jest.fn() };
+const mockRouter = {
+  replace: jest.fn(),
+  push: jest.fn(),
+  canDismiss: jest.fn(() => false),
+  dismiss: jest.fn(),
+  navigate: jest.fn(),
+};
 jest.mock('expo-router', () => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { Text } = require('react-native');
@@ -23,9 +32,28 @@ jest.mock('expo-router', () => {
 async function enter(label: string, value: string) {
   await fireEvent.changeText(screen.getByLabelText(label), value);
 }
-const withAuth = (element: React.ReactNode) => <AuthPreviewProvider>{element}</AuthPreviewProvider>;
+const withAuth = (element: React.ReactElement) => element;
 
 describe('Formularios y navegación de autenticación', () => {
+  beforeEach(() => installAuthApiMock());
+  it('permite solicitar verificación de correo sin ingresar contraseña', async () => {
+    await render(<LoginScreen />);
+    await enter('Correo electrónico', 'cliente@cemydi.test');
+    await fireEvent.press(screen.getByLabelText('Verificar mi correo'));
+    await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/otp'));
+    expect(fetch).toHaveBeenCalledWith(
+      'https://cemydi.test.invalid/auth/email-verification/send',
+      expect.objectContaining({ body: JSON.stringify({ correo: 'cliente@cemydi.test' }) }),
+    );
+  });
+  it('Atrás en login cierra el login y vuelve a la pestaña pendiente', async () => {
+    mockRouter.canDismiss.mockReturnValueOnce(true);
+    await render(<LoginScreen />);
+    await fireEvent.press(screen.getByLabelText('Volver'));
+    expect(mockRouter.dismiss).toHaveBeenCalledTimes(1);
+    expect(mockRouter.navigate).toHaveBeenCalledWith('/inicio');
+    expect(mockRouter.replace).not.toHaveBeenCalled();
+  });
   it('conserva el correo al corregirlo desde OTP sin conservar el código', async () => {
     const view = await render(withAuth(<ForgotPasswordScreen />));
     await enter('Correo electrónico', DEFAULT_ACCOUNT.correo);
@@ -37,8 +65,9 @@ describe('Formularios y navegación de autenticación', () => {
     await view.rerender(withAuth(<ForgotPasswordScreen />));
     expect(screen.getByLabelText('Correo electrónico')).toHaveProp('value', DEFAULT_ACCOUNT.correo);
   });
-  it('valida login vacío, muestra/oculta contraseña, informa Google y URL legal ausente', async () => {
+  it('valida login vacío, muestra/oculta contraseña, identifica Expo Go y URL legal ausente', async () => {
     delete process.env.EXPO_PUBLIC_WEBSITE_URL;
+    jest.replaceProperty(Constants, 'executionEnvironment', ExecutionEnvironment.StoreClient);
     await render(withAuth(<LoginScreen />));
     expect(screen.queryByRole('checkbox', { name: /Acepto/ })).toBeNull();
     await fireEvent.press(screen.getByRole('button', { name: 'Iniciar sesión' }));
@@ -49,7 +78,11 @@ describe('Formularios y navegación de autenticación', () => {
     await fireEvent.press(screen.getByLabelText('Ocultar contraseña'));
     expect(screen.getByLabelText('Contraseña')).toHaveProp('secureTextEntry', true);
     await fireEvent.press(screen.getByLabelText('Continuar con Google'));
-    expect(screen.getByText('Próximamente disponible')).toBeTruthy();
+    expect(
+      screen.getByText(
+        'Abre la app CEMYDI instalada para continuar con Google. Expo Go no admite esta función.',
+      ),
+    ).toBeTruthy();
     expect(mockRouter.replace).not.toHaveBeenCalled();
     await fireEvent.press(screen.getByRole('link', { name: 'Términos y condiciones' }));
     expect(screen.getByText('No se pudo abrir la página. Intenta más tarde.')).toBeTruthy();
@@ -60,10 +93,14 @@ describe('Formularios y navegación de autenticación', () => {
     await enter('Correo electrónico', DEFAULT_ACCOUNT.correo);
     await enter('Contraseña', 'incorrecta');
     await fireEvent.press(screen.getByLabelText('Iniciar sesión'));
-    expect(await screen.findByText('El correo o la contraseña son incorrectos.')).toBeTruthy();
+    expect(
+      await screen.findByText(
+        'No se pudo validar el acceso. Revisa tus datos y verifica tu correo.',
+      ),
+    ).toBeTruthy();
     expect(mockRouter.replace).not.toHaveBeenCalled();
     await enter('Contraseña', DEFAULT_ACCOUNT.password);
-    await fireEvent.press(screen.getByRole('checkbox', { name: 'Recuérdame' }));
+    await fireEvent.press(screen.getByRole('checkbox', { name: 'Mantener sesión iniciada' }));
     await fireEvent.press(screen.getByLabelText('Iniciar sesión'));
     await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/inicio'));
     await view.rerender(withAuth(<ForgotPasswordScreen />));
@@ -121,7 +158,11 @@ describe('Formularios y navegación de autenticación', () => {
     expect(screen.getByLabelText('Reenviar en 60s')).toBeDisabled();
     await enter('Código de verificación de 8 dígitos', '12345678');
     await fireEvent.press(screen.getByLabelText('Verificar código'));
-    expect(await screen.findByText('El código es incorrecto. Revisa los 8 dígitos.')).toBeTruthy();
+    expect(
+      await screen.findByText(
+        'Los datos o el código son inválidos o expiraron. Revisa e intenta de nuevo.',
+      ),
+    ).toBeTruthy();
     await enter('Código de verificación de 8 dígitos', '0000 0000');
     expect(screen.getByLabelText('Código de verificación de 8 dígitos')).toHaveProp(
       'value',
@@ -141,7 +182,11 @@ describe('Formularios y navegación de autenticación', () => {
     await enter('Correo electrónico', DEFAULT_ACCOUNT.correo);
     await enter('Contraseña', DEFAULT_ACCOUNT.password);
     await fireEvent.press(screen.getByLabelText('Iniciar sesión'));
-    expect(await screen.findByText('El correo o la contraseña son incorrectos.')).toBeTruthy();
+    expect(
+      await screen.findByText(
+        'No se pudo validar el acceso. Revisa tus datos y verifica tu correo.',
+      ),
+    ).toBeTruthy();
     await enter('Contraseña', 'NuevaClave1!');
     await fireEvent.press(screen.getByLabelText('Iniciar sesión'));
     await waitFor(() => expect(mockRouter.replace).toHaveBeenLastCalledWith('/inicio'));

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Text, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, type Href } from 'expo-router';
 import { BackButton } from '@/components/ui/BackButton';
 import { AppScreen } from '@/components/ui/AppScreen';
 import { CatalogImage } from '@/components/ui/CatalogImage';
@@ -11,7 +11,8 @@ type AuthLayoutProps = {
   description: string;
   children: ReactNode;
   illustration?: AuthIllustrationKind;
-  backTo?: '/login' | '/forgot-password' | '/register' | '/otp' | '/inicio' | '/carrito';
+  backTo?: Href;
+  onBack?: () => void;
 };
 
 export function AuthLayout({
@@ -20,13 +21,23 @@ export function AuthLayout({
   children,
   illustration,
   backTo,
+  onBack,
 }: AuthLayoutProps) {
   const router = useRouter();
   return (
     <AppScreen scroll edges={['top', 'bottom', 'left', 'right']} contentClassName="px-5 pb-6">
       <View className="w-full flex-1">
         <View className="min-h-12 flex-row items-center pt-1">
-          {backTo ? <BackButton onPress={() => router.replace(backTo)} /> : null}
+          {onBack || backTo ? (
+            <BackButton
+              onPress={
+                onBack ??
+                (() => {
+                  if (backTo) router.replace(backTo);
+                })
+              }
+            />
+          ) : null}
         </View>
         <View className="gap-3 pb-5 pt-2">
           {illustration ? (
