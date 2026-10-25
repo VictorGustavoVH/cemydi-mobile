@@ -2,7 +2,7 @@ import { useCallback, useContext, useEffect, useRef } from 'react';
 import { usePathname, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppBottomBar } from '@/components/ui/AppBottomBar';
-import { useCatalogPreview } from '@/providers/catalog-preview-provider';
+import { useCartCount } from '@/providers/cart-provider';
 import { useAccountAccess } from '@/hooks/useAccountAccess';
 import { ToastContext } from '@/hooks/useToast';
 
@@ -24,7 +24,7 @@ export function GlobalBottomBar() {
     return () => toastStore?.setBottomBarHeight(0);
   }, [toastStore, visible]);
   const router = useRouter();
-  const { items } = useCatalogPreview();
+  const cartCount = useCartCount();
   const { requestAccess } = useAccountAccess();
   const lastNavAt = useRef(0);
 
@@ -66,7 +66,7 @@ export function GlobalBottomBar() {
       onLayout={(event) => toastStore?.setBottomBarHeight(event.nativeEvent.layout.height)}
     >
       <AppBottomBar
-        cartCount={items.reduce((sum, item) => sum + item.quantity, 0)}
+        cartCount={cartCount}
         onCart={onCart}
         onExplore={onExplore}
         onHome={onHome}

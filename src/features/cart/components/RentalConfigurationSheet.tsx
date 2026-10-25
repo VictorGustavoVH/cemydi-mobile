@@ -4,7 +4,8 @@ import FileText from 'lucide-react-native/icons/file-text';
 import { AppButton } from '@/components/ui/AppButton';
 import { AppInput } from '@/components/ui/AppInput';
 import { AppSheet } from '@/components/ui/AppSheet';
-import { useCatalogPreview } from '@/providers/catalog-preview-provider';
+import { useCart } from '@/providers/cart-provider';
+import { getFriendlyErrorMessage } from '@/services/http/api-error';
 import { colors } from '@/theme';
 import {
   displayDraftDate,
@@ -19,7 +20,8 @@ export function RentalConfigurationSheet({
   product,
   onClose,
 }: RentalConfigurationSheetProps) {
-  const { saveRentalDraft } = useCatalogPreview();
+  const { saveRentalDraft, connected, busy, online, uncertain } = useCart();
+  const [serverError, setServerError] = useState<string>();
   const [start, setStart] = useState(
     item.rentalDraft ? displayDraftDate(item.rentalDraft.startDate) : '',
   );
@@ -28,7 +30,7 @@ export function RentalConfigurationSheet({
   );
   const [notes, setNotes] = useState(item.rentalDraft?.notes ?? '');
   const [errors, setErrors] = useState<{ start?: string; end?: string }>({});
-  function save() {
+  async function save() {
     const startDate = parseDraftDate(start);
     const endDate = parseDraftDate(end);
     const nextErrors = {
@@ -41,8 +43,16 @@ export function RentalConfigurationSheet({
     };
     setErrors(nextErrors);
     if (!startDate || !endDate || nextErrors.start || nextErrors.end) return;
-    saveRentalDraft(item.productId, { startDate, endDate, notes: notes.trim() });
-    onClose();
+    try {
+      await saveRentalDraft(
+        item.productId,
+        { startDate, endDate, notes: notes.trim() },
+        item.serverId,
+      );
+      onClose();
+    } catch (error) {
+      setServerError(getFriendlyErrorMessage(error));
+    }
   }
   return (
     <AppSheet visible title="Configurar renta" onClose={onClose}>
@@ -96,10 +106,25 @@ export function RentalConfigurationSheet({
         </View>
       ) : null}
       <Text className="font-sans text-sm leading-6 text-secondary">
-        Estas fechas se guardan como borrador en esta sesión. La disponibilidad, el periodo mínimo y
-        el importe se confirmarán antes de enviar la solicitud.
+        {connected
+          ? 'El servidor valida el periodo mínimo, la disponibilidad y el importe al guardar. Guardar fechas no envía una solicitud.'
+          : 'Estas fechas se guardan como borrador en esta sesión. La disponibilidad, el periodo mínimo y el importe se confirmarán antes de enviar la solicitud.'}
       </Text>
-      <AppButton label="Guardar borrador" onPress={save} className="rounded-full" />
+      {product.rental?.terms ? (
+        <Text className="font-sans text-sm text-secondary">{product.rental.terms}</Text>
+      ) : null}
+      {serverError ? (
+        <Text accessibilityLiveRegion="assertive" className="font-sans text-sm text-danger">
+          {serverError}
+        </Text>
+      ) : null}
+      <AppButton
+        label={connected ? 'Guardar fechas' : 'Guardar borrador'}
+        loading={busy}
+        disabled={connected && (!online || uncertain)}
+        onPress={() => void save()}
+        className="rounded-full"
+      />
     </AppSheet>
   );
 }

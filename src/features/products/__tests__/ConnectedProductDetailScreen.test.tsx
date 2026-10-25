@@ -9,7 +9,7 @@ import {
 } from '../../../../tests/support/product-fixtures';
 import { emptyProductFilters, productService } from '@/services/products/product-service';
 import { productDetailKey } from '@/services/products/product-cache';
-import { CatalogPreviewProvider } from '@/providers/catalog-preview-provider';
+import { CatalogPreviewProvider } from '../../../../tests/support/catalog-cart-provider';
 import { ApiError } from '@/services/http/api-error';
 import { ConnectedProductDetailScreen } from '../ConnectedProductDetailScreen';
 import { CartPreviewScreen } from '@/features/cart/CartPreviewScreen';

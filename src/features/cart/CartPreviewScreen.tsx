@@ -5,11 +5,16 @@ import { BackButton } from '@/components/ui/BackButton';
 import ArrowRight from 'lucide-react-native/icons/arrow-right';
 import Check from 'lucide-react-native/icons/check';
 import Minus from 'lucide-react-native/icons/minus';
-import ChevronRight from 'lucide-react-native/icons/chevron-right';
-import TicketPercent from 'lucide-react-native/icons/ticket-percent';
 import ShoppingBag from 'lucide-react-native/icons/shopping-bag';
 import CalendarDays from 'lucide-react-native/icons/calendar-days';
-import { useCatalogPreview, type PreviewCartItem } from '@/providers/catalog-preview-provider';
+import { type PreviewCartItem } from '@/providers/catalog-preview-provider';
+import { useCart } from '@/providers/cart-provider';
+import { getFriendlyErrorMessage } from '@/services/http/api-error';
+import { LoadingState } from '@/components/ui/LoadingState';
+import { ErrorState } from '@/components/ui/ErrorState';
+import { OfflineState } from '@/components/ui/OfflineState';
+import { AppRefreshControl } from '@/components/ui/AppRefreshControl';
+import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { AppButton } from '@/components/ui/AppButton';
 import { AppScreen } from '@/components/ui/AppScreen';
 import { AppSheet } from '@/components/ui/AppSheet';
@@ -21,16 +26,19 @@ import { useAccountAccess } from '@/hooks/useAccountAccess';
 import { useThrottledCallback } from '@/hooks/useThrottledCallback';
 import { CartItemCard } from './components/CartItemCard';
 import { RentalConfigurationSheet } from './components/RentalConfigurationSheet';
+import { ServerCartSummary } from './components/ServerCartSummary';
+import { CartCouponForm } from './components/CartCouponForm';
+import { CartCouponButton } from './components/CartCouponButton';
 import {
   displayDraftDate,
   formatPreviewMoney,
-  getCartEntries,
   getPreviewSummary,
   type CartPreviewEntry,
 } from './cart-preview';
 
 type CartSection = { mode: PreviewCartItem['mode']; title: string; data: CartPreviewEntry[] };
-const cartKey = ({ item }: CartPreviewEntry) => `${item.productId}-${item.mode}`;
+const cartKey = ({ item }: CartPreviewEntry) =>
+  String(item.serverId ?? `${item.productId}-${item.mode}`);
 type Panel = 'review' | 'coupon' | null;
 type CartSummaryProps = { sections: CartSection[]; onCoupon: () => void };
 function CartSummary({ sections, onCoupon }: CartSummaryProps) {
@@ -40,20 +48,7 @@ function CartSummary({ sections, onCoupon }: CartSummaryProps) {
   const rentalSummary = useMemo(() => getPreviewSummary(rentals?.data ?? []), [rentals]);
   return (
     <View className="mx-5 gap-4 pb-4 pt-3">
-      <AppButton
-        label="Cupones · próximamente"
-        variant="unstyled"
-        className="flex-row items-center justify-between rounded-2xl bg-brand/5 px-3 py-2"
-        onPress={onCoupon}
-      >
-        <View className="flex-1 flex-row items-center gap-3">
-          <View className="rounded-full bg-brand/10 p-2">
-            <TicketPercent aria-hidden color={colors.brandStrong} size={20} />
-          </View>
-          <Text className="flex-1 font-sans-semibold text-sm text-primary">¿Tienes un cupón?</Text>
-        </View>
-        <ChevronRight aria-hidden color={colors.brandStrong} size={18} />
-      </AppButton>
+      <CartCouponButton label="Aplicar cupón" onPress={onCoupon} />
       <View className="gap-2 border-t border-border/40 pt-3">
         <Text accessibilityRole="header" className="font-sans-semibold text-base text-primary">
           Resumen
@@ -99,11 +94,34 @@ export function CartPreviewScreen() {
   const toast = useToast();
   const onToastScroll = useToastScroll();
   const { requestAccess } = useAccountAccess();
-  const { items, removeItem, restoreItem, selectMode } = useCatalogPreview();
+  const {
+    items,
+    entries,
+    removeItem,
+    restoreItem,
+    selectMode,
+    connected,
+    cart,
+    query,
+    status,
+    busy,
+    online,
+    uncertain,
+    refreshCart,
+    guestItems,
+    saveGuestItems,
+    discardGuestItems,
+    userId,
+    authVersion,
+    isCurrent,
+  } = useCart();
+  const disabled = connected && (busy || !online || uncertain);
+  const { refreshing, onRefresh } = usePullToRefresh(refreshCart, {
+    enabled: connected && online && !busy,
+  });
   const [configuring, setConfiguring] = useState<string | null>(null);
   const [selectionMode, setSelectionMode] = useState(false);
   const [panel, setPanel] = useState<Panel>(null);
-  const entries = useMemo(() => getCartEntries(items), [items]);
   const count = items.reduce((sum, item) => sum + item.quantity, 0);
   const sections = useMemo(
     () =>
@@ -122,7 +140,7 @@ export function CartPreviewScreen() {
     [entries],
   );
   const configured = entries.find(
-    ({ item }) => item.mode === 'rental' && item.productId === configuring,
+    ({ item }) => item.mode === 'rental' && String(item.serverId ?? item.productId) === configuring,
   );
   const summary = useMemo(() => getPreviewSummary(entries), [entries]);
   const goToCatalog = useCallback(() => router.replace('/inicio'), [router]);
@@ -136,19 +154,25 @@ export function CartPreviewScreen() {
     750,
   );
   const remove = useCallback(
-    (item: PreviewCartItem, index: number) => {
-      removeItem(item.productId, item.mode);
-      toast.undoable({
-        message: 'Producto eliminado',
-        placement: 'bottom',
-        duration: 6000,
-        onUndo: async () => {
-          restoreItem(item, index);
-        },
-        errorMessage: 'No se pudo restaurar el producto',
-      });
+    async (item: PreviewCartItem, index: number) => {
+      const version = authVersion();
+      try {
+        await removeItem(item.productId, item.mode, item.serverId);
+        toast.undoable({
+          message: 'Producto eliminado',
+          placement: 'bottom',
+          duration: 6000,
+          onUndo: async () => {
+            if (connected && !isCurrent(userId, version)) throw new Error('La sesión cambió.');
+            await restoreItem(item, index);
+          },
+          errorMessage: 'No se pudo restaurar el producto',
+        });
+      } catch (error) {
+        toast.error(getFriendlyErrorMessage(error));
+      }
     },
-    [removeItem, restoreItem, toast],
+    [removeItem, restoreItem, toast, connected, userId, authVersion, isCurrent],
   );
   const renderItem = useCallback(
     ({ item: entry }: { item: CartPreviewEntry }) => (
@@ -156,13 +180,14 @@ export function CartPreviewScreen() {
         {...entry}
         index={items.indexOf(entry.item)}
         selectionMode={selectionMode}
+        disabled={disabled}
         onStartSelection={startSelection}
         onConfigure={setConfiguring}
         onProduct={openProduct}
         onRemove={remove}
       />
     ),
-    [items, selectionMode, startSelection, openProduct, remove],
+    [items, selectionMode, startSelection, openProduct, remove, disabled],
   );
   const renderSectionHeader = useCallback(
     ({ section }: { section: CartSection }) => (
@@ -182,10 +207,56 @@ export function CartPreviewScreen() {
         </View>
         <View className="w-11" />
       </View>
-      {items.some((item) => item.productSnapshot) ? (
+      {!connected && items.some((item) => item.productSnapshot) ? (
         <Text className="px-5 pb-2 font-sans text-xs leading-5 text-secondary">
           Carrito temporal de esta sesión. Importes estimados; disponibilidad y precios finales
           pendientes de confirmación.
+        </Text>
+      ) : null}
+      {connected && guestItems.length > 0 ? (
+        <View className="gap-2 px-5 pb-3">
+          <Text className="font-sans text-sm text-secondary">
+            Tienes productos de invitado pendientes de guardar en esta cuenta.
+          </Text>
+          <AppButton
+            label="Guardar productos de invitado"
+            disabled={disabled || !cart}
+            loading={busy}
+            onPress={() => {
+              void saveGuestItems().catch((error: unknown) =>
+                toast.error(getFriendlyErrorMessage(error)),
+              );
+            }}
+          />
+          <AppButton
+            label="Descartar productos de invitado"
+            variant="ghost"
+            disabled={busy}
+            onPress={discardGuestItems}
+          />
+        </View>
+      ) : null}
+      {connected && !online && cart ? (
+        <Text accessibilityLiveRegion="polite" className="px-5 font-sans text-sm text-secondary">
+          Mostrando el último carrito consultado. Sin conexión; no puedes modificarlo.
+        </Text>
+      ) : null}
+      {connected && uncertain ? (
+        <Text accessibilityLiveRegion="assertive" className="px-5 font-sans text-sm text-danger">
+          No pudimos confirmar la actualización. Consulta el carrito antes de repetirla.
+        </Text>
+      ) : null}
+      {connected && cart ? (
+        <AppButton
+          label="Actualizar carrito"
+          variant="ghost"
+          disabled={busy || !online || query.isFetching}
+          onPress={onRefresh}
+        />
+      ) : null}
+      {connected && cart && query.isError ? (
+        <Text accessibilityLiveRegion="polite" className="px-5 font-sans text-sm text-danger">
+          No pudimos actualizar el carrito. {getFriendlyErrorMessage(query.error)}
         </Text>
       ) : null}
       {selectionMode && entries.length > 0 ? (
@@ -201,9 +272,24 @@ export function CartPreviewScreen() {
           />
         </View>
       ) : null}
-      {entries.length > 0 ? (
+      {status === 'loading' ? (
+        <LoadingState label="Comprobando sesión" />
+      ) : connected && !cart ? (
+        !online ? (
+          <OfflineState />
+        ) : query.isError ? (
+          <ErrorState onRetry={onRefresh} />
+        ) : (
+          <LoadingState label="Cargando carrito" />
+        )
+      ) : entries.length > 0 ? (
         <>
           <SectionList<CartPreviewEntry, CartSection>
+            refreshControl={
+              connected ? (
+                <AppRefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+              ) : undefined
+            }
             onScroll={onToastScroll}
             scrollEventThrottle={16}
             sections={sections}
@@ -215,7 +301,16 @@ export function CartPreviewScreen() {
             renderSectionHeader={renderSectionHeader}
             renderItem={renderItem}
             ListFooterComponent={
-              <CartSummary sections={sections} onCoupon={() => setPanel('coupon')} />
+              connected && cart ? (
+                <ServerCartSummary
+                  cart={cart}
+                  partialSelection={summary.units !== count}
+                  disabled={disabled}
+                  onCoupon={() => setPanel('coupon')}
+                />
+              ) : (
+                <CartSummary sections={sections} onCoupon={() => setPanel('coupon')} />
+              )
             }
           />
           <View className="gap-2 border-t border-border/40 px-5 pb-2 pt-2">
@@ -251,17 +346,14 @@ export function CartPreviewScreen() {
       )}
       {configured ? (
         <RentalConfigurationSheet
-          key={configured.item.productId}
+          key={cartKey(configured)}
           {...configured}
           onClose={() => setConfiguring(null)}
         />
       ) : null}
       <AppSheet title={panelTitle} visible={panel !== null} onClose={() => setPanel(null)}>
         {panel === 'coupon' ? (
-          <Text className="font-sans text-base leading-7 text-secondary">
-            Próximamente podrás aplicar un cupón desde tu cuenta. Por ahora no se aplica ningún
-            descuento.
-          </Text>
+          <CartCouponForm onRequireLogin={() => setPanel(null)} />
         ) : (
           <>
             {sections.map((section) => {
@@ -277,7 +369,7 @@ export function CartPreviewScreen() {
                   </Text>
                   {selected.map(({ item, product }) => (
                     <View
-                      key={`${item.productId}-${item.mode}`}
+                      key={String(item.serverId ?? `${item.productId}-${item.mode}`)}
                       className="gap-1 border-b border-border/40 pb-2"
                     >
                       <Text className="font-sans-semibold text-sm text-primary">
@@ -287,7 +379,7 @@ export function CartPreviewScreen() {
                       {item.mode === 'rental' ? (
                         <Text className="font-sans text-sm leading-6 text-secondary">
                           {item.rentalDraft
-                            ? `${displayDraftDate(item.rentalDraft.startDate)} al ${displayDraftDate(item.rentalDraft.endDate)} · Borrador`
+                            ? `${displayDraftDate(item.rentalDraft.startDate)} al ${displayDraftDate(item.rentalDraft.endDate)}${connected ? '' : ' · Borrador'}`
                             : 'Falta elegir fechas'}
                           {product.prescription ? ' · Receta pendiente' : ''}
                         </Text>
@@ -296,7 +388,9 @@ export function CartPreviewScreen() {
                   ))}
                   <Text className="font-sans text-sm leading-6 text-secondary">
                     {section.mode === 'rental'
-                      ? 'Las fechas son borradores. La disponibilidad, la receta y el envío de la solicitud se habilitarán con tu cuenta. Esta revisión no envía una solicitud.'
+                      ? connected
+                        ? 'Las fechas se guardan en el carrito. Esta revisión no envía una solicitud. El envío de solicitudes y la carga móvil de recetas siguen pendientes.'
+                        : 'Las fechas son borradores. La disponibilidad, la receta y el envío de la solicitud se habilitarán con tu cuenta. Esta revisión no envía una solicitud.'
                       : 'La compra y los pagos todavía no están habilitados.'}
                   </Text>
                 </View>

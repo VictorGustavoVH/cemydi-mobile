@@ -28,7 +28,8 @@ import {
   PREVIEW_CART_QUANTITY_LIMIT,
   type PreviewCartItem,
 } from '@/providers/catalog-preview-provider';
-import { useCatalogPreview } from '@/providers/catalog-preview-provider';
+import { useCart } from '@/providers/cart-provider';
+import { getFriendlyErrorMessage } from '@/services/http/api-error';
 import { useProductRatings } from '@/hooks/useProductRatings';
 import { prefetchProductDetail } from '@/services/products/product-cache';
 import { colors } from '@/theme';
@@ -106,7 +107,15 @@ function ProductDetailContent({
     [recommendations],
   );
   const recommendationRatings = useProductRatings(recommendationIds);
-  const { items, addItem } = useCatalogPreview();
+  const {
+    items,
+    addItem,
+    connected: cartConnected,
+    busy,
+    online,
+    uncertain,
+    status: sessionStatus,
+  } = useCart();
   const [mode, setMode] = useState<PreviewCartItem['mode']>(
     initialMode && product?.modes.includes(initialMode)
       ? initialMode
@@ -658,12 +667,25 @@ function ProductDetailContent({
             }
             className={`${compact ? '' : 'flex-1'} rounded-full`}
             disabled={
-              !price || atQuantityLimit || product.unavailable || (rental && !product.rental)
+              !price ||
+              atQuantityLimit ||
+              product.unavailable ||
+              (rental && !product.rental) ||
+              sessionStatus === 'loading' ||
+              sessionStatus === 'error' ||
+              (cartConnected && (busy || !online || uncertain))
             }
             leftIcon={<ShoppingBag aria-hidden color={colors.onBrand} size={20} />}
+            loading={busy}
             onPress={() => {
-              addItem(product.id, mode, connected ? product : undefined);
-              toast.success('Producto agregado');
+              void (async () => {
+                try {
+                  await addItem(product.id, mode, connected ? product : undefined);
+                  toast.success('Producto agregado');
+                } catch (error) {
+                  toast.error(getFriendlyErrorMessage(error));
+                }
+              })();
             }}
           />
         </View>

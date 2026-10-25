@@ -1,11 +1,18 @@
 import { useEffect } from 'react';
 import { fireEvent, screen } from '@testing-library/react-native';
 import { render } from '../../../../tests/support/render-with-toast';
-import { CatalogPreviewProvider, useCatalogPreview } from '@/providers/catalog-preview-provider';
+import { useCatalogPreview } from '@/providers/catalog-preview-provider';
+import { CatalogPreviewProvider } from '../../../../tests/support/catalog-cart-provider';
 import { CartPreviewScreen } from '../CartPreviewScreen';
 import { useAuth } from '@/providers/auth-provider';
 import { AUTH_ACCOUNT, installAuthApiMock } from '../../../../tests/support/auth-api-mock';
 import * as CatalogImageModule from '@/components/ui/CatalogImage';
+import {
+  CART_RESPONSE,
+  CART_LINE,
+  RENTAL_LINE,
+  installCartApiMock,
+} from '../../../../tests/support/cart-api-mock';
 
 const mockRouter = { canGoBack: () => true, back: jest.fn(), push: jest.fn(), replace: jest.fn() };
 jest.mock('expo-router', () => ({
@@ -70,7 +77,7 @@ describe('Carrito de muestra', () => {
     expect(screen.queryAllByRole('checkbox')).toHaveLength(0);
     expect(screen.queryByText(/Carrito de muestra/)).toBeNull();
     expect(screen.getAllByRole('button', { name: 'Revisar carrito' })).toHaveLength(1);
-    expect(screen.getAllByLabelText('Cupones · próximamente')).toHaveLength(1);
+    expect(screen.getAllByLabelText('Aplicar cupón')).toHaveLength(1);
     await fireEvent.press(screen.getByLabelText('Aumentar cantidad de Silla de ruedas, compra'));
     expect(screen.getByLabelText('Cantidad de Silla de ruedas, compra: 2')).toBeTruthy();
     expect(screen.getByLabelText('Cantidad de Silla de ruedas, renta: 1')).toBeTruthy();
@@ -146,12 +153,27 @@ describe('Carrito de muestra', () => {
   });
 
   it('permite revisar solo lo seleccionado y comunica el límite de cupones', async () => {
+    installCartApiMock({
+      ...CART_RESPONSE,
+      items: [
+        { ...CART_LINE, quantity: 1 },
+        RENTAL_LINE,
+        {
+          ...RENTAL_LINE,
+          id: 9,
+          product: { ...RENTAL_LINE.product, id: 102, nombre: 'Concentrador de oxígeno' },
+        },
+      ],
+    });
     await render(
       <CatalogPreviewProvider>
         <Seed oxygen signedIn />
       </CatalogPreviewProvider>,
     );
-    await fireEvent(screen.getByLabelText('Ver Concentrador de oxígeno, renta'), 'longPress');
+    await fireEvent(
+      await screen.findByLabelText('Ver Concentrador de oxígeno, renta'),
+      'longPress',
+    );
     await fireEvent.press(screen.getByLabelText('Seleccionar Concentrador de oxígeno, renta'));
     await fireEvent.press(screen.getByLabelText('Listo'));
     await fireEvent.press(screen.getByLabelText('Revisar carrito'));
@@ -159,8 +181,10 @@ describe('Carrito de muestra', () => {
     expect(screen.queryByText('Concentrador de oxígeno · 1 unidad')).toBeNull();
     expect(screen.getByText(/Esta revisión no envía una solicitud/)).toBeTruthy();
     await fireEvent.press(screen.getByLabelText('Volver al carrito'));
-    await fireEvent.press(screen.getByLabelText('Cupones · próximamente'));
-    expect(screen.getByText(/no se aplica ningún descuento/)).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText('Aplicar cupón'));
+    await fireEvent.changeText(screen.getByLabelText('Código de cupón'), 'x');
+    await fireEvent.press(screen.getAllByLabelText('Aplicar cupón').at(-1)!);
+    expect(screen.getByText(/Usa entre 4 y 24/)).toBeTruthy();
   });
 
   it('muestra carrito vacío sin badge y permite deshacer la última eliminación', async () => {

@@ -3,11 +3,14 @@ import { useEffect } from 'react';
 import { fireEvent, screen, waitFor } from '@testing-library/react-native';
 import { render } from '../support/render-with-toast';
 import { installNetworkMock } from '../support/network-mock';
-import { CatalogPreviewProvider, useCatalogPreview } from '@/providers/catalog-preview-provider';
+import { useCatalogPreview } from '@/providers/catalog-preview-provider';
+import { CatalogPreviewProvider } from '../support/catalog-cart-provider';
 import { CartPreviewScreen } from '@/features/cart/CartPreviewScreen';
 import { HomeScreen } from '@/features/home/HomeScreen';
 import { LoginScreen } from '@/features/auth/LoginScreen';
 import { installHomePreviewApiMock } from '../support/home-preview-api-mock';
+import { CART_LINE, installCartApiMock } from '../support/cart-api-mock';
+import { toCartEntry } from '@/features/cart/services/cart-adapter';
 
 const mockRouter = {
   push: jest.fn(),
@@ -34,8 +37,8 @@ jest.mock('expo-haptics', () => ({ selectionAsync: jest.fn().mockResolvedValue(u
 function SeedCart() {
   const { addItem, updateQuantity } = useCatalogPreview();
   useEffect(() => {
-    addItem('wheelchair', 'purchase');
-    updateQuantity('wheelchair', 'purchase', 2);
+    addItem('101', 'purchase', toCartEntry(CART_LINE).product);
+    updateQuantity('101', 'purchase', 2);
     // Seed only once; session state survives navigation.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -47,6 +50,7 @@ describe('Acceso como invitado', () => {
     installNetworkMock();
     installAuthApiMock();
     installHomePreviewApiMock();
+    installCartApiMock();
   });
 
   it('permite explorar el catálogo y solicita sesión al abrir Perfil', async () => {
@@ -86,7 +90,12 @@ describe('Acceso como invitado', () => {
         <CartPreviewScreen />
       </CatalogPreviewProvider>,
     );
-    expect(screen.getByLabelText('Cantidad de Silla de ruedas, compra: 2')).toBeTruthy();
+    expect(await screen.findByLabelText('Cantidad de Silla de ruedas, compra: 2')).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText('Guardar productos de invitado'));
+    expect(await screen.findByLabelText('Cantidad de Silla de ruedas, compra: 4')).toBeTruthy();
+    await waitFor(() =>
+      expect(screen.queryByLabelText('Guardar productos de invitado')).toBeNull(),
+    );
     await fireEvent.press(screen.getByLabelText('Revisar carrito'));
     expect(screen.getByLabelText('Cerrar')).toBeTruthy();
   });

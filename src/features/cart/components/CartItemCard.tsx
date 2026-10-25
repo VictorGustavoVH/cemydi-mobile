@@ -10,9 +10,11 @@ import { AppButton } from '@/components/ui/AppButton';
 import { CatalogImage } from '@/components/ui/CatalogImage';
 import {
   PREVIEW_CART_QUANTITY_LIMIT,
-  useCatalogPreviewActions,
   type PreviewCartItem,
 } from '@/providers/catalog-preview-provider';
+import { useCartActions } from '@/providers/cart-provider';
+import { useToast } from '@/hooks/useToast';
+import { getFriendlyErrorMessage } from '@/services/http/api-error';
 import { colors } from '@/theme';
 import {
   displayDraftDate,
@@ -28,6 +30,7 @@ type CartItemCardProps = CartPreviewEntry & {
   onRemove: (item: PreviewCartItem, index: number) => void;
   onConfigure: (productId: string) => void;
   onProduct: (item: PreviewCartItem) => void;
+  disabled?: boolean;
 };
 export const CartItemCard = memo(function CartItemCard({
   item,
@@ -38,8 +41,19 @@ export const CartItemCard = memo(function CartItemCard({
   onRemove,
   onConfigure,
   onProduct,
+  remote,
+  disabled = false,
 }: CartItemCardProps) {
-  const { toggleSelection, updateQuantity } = useCatalogPreviewActions();
+  const { toggleSelection, updateQuantity } = useCartActions();
+  const toast = useToast();
+  const maxQuantity = remote?.availability.maxQuantity ?? PREVIEW_CART_QUANTITY_LIMIT;
+  async function changeQuantity(quantity: number) {
+    try {
+      await updateQuantity(item.productId, item.mode, quantity, item.serverId);
+    } catch (error) {
+      toast.error(getFriendlyErrorMessage(error));
+    }
+  }
   const { width, fontScale } = useWindowDimensions();
   const compact = width < 390 || fontScale > 1.2 || selectionMode;
   const rental = item.mode === 'rental';
@@ -57,9 +71,9 @@ export const CartItemCard = memo(function CartItemCard({
         hideLabel
         variant="ghost"
         className="h-11 w-11 rounded-full px-0 py-0"
-        disabled={item.quantity <= 1}
+        disabled={disabled || item.quantity <= 1}
         label={`Reducir cantidad de ${product.name}, ${modeLabel}`}
-        onPress={() => updateQuantity(item.productId, item.mode, item.quantity - 1)}
+        onPress={() => void changeQuantity(item.quantity - 1)}
         leftIcon={
           <Minus
             aria-hidden
@@ -78,9 +92,9 @@ export const CartItemCard = memo(function CartItemCard({
         hideLabel
         variant="ghost"
         className="h-11 w-11 rounded-full px-0 py-0"
-        disabled={item.quantity >= PREVIEW_CART_QUANTITY_LIMIT}
+        disabled={disabled || item.quantity >= maxQuantity}
         label={`Aumentar cantidad de ${product.name}, ${modeLabel}`}
-        onPress={() => updateQuantity(item.productId, item.mode, item.quantity + 1)}
+        onPress={() => void changeQuantity(item.quantity + 1)}
         leftIcon={
           <Plus
             aria-hidden
@@ -94,7 +108,7 @@ export const CartItemCard = memo(function CartItemCard({
     </View>
   );
   function openProduct() {
-    if (selectionMode) toggleSelection(item.productId, item.mode);
+    if (selectionMode) toggleSelection(item.productId, item.mode, item.serverId);
     else onProduct(item);
   }
   const selectionActions = [{ name: 'longpress', label: 'Seleccionar productos' }];
@@ -114,7 +128,7 @@ export const CartItemCard = memo(function CartItemCard({
             accessibilityRole="checkbox"
             accessibilityState={{ checked: item.selected }}
             label={`Seleccionar ${product.name}, ${modeLabel}`}
-            onPress={() => toggleSelection(item.productId, item.mode)}
+            onPress={() => toggleSelection(item.productId, item.mode, item.serverId)}
           >
             <View
               className={`h-[22px] w-[22px] items-center justify-center rounded-md border ${item.selected ? 'border-brand-strong bg-brand-strong' : 'border-border bg-surface'}`}
@@ -168,6 +182,7 @@ export const CartItemCard = memo(function CartItemCard({
               variant="ghost"
               className="h-11 w-11 px-0 py-0"
               label={`Eliminar ${product.name}, ${modeLabel}`}
+              disabled={disabled}
               onPress={() => onRemove(item, index)}
               leftIcon={<Trash aria-hidden color={colors.textSecondary} size={17} />}
             />
@@ -186,11 +201,28 @@ export const CartItemCard = memo(function CartItemCard({
           {quantityControl}
         </View>
       ) : null}
+      {remote?.availability.reason ? (
+        <Text accessibilityLiveRegion="polite" className="font-sans text-sm text-danger">
+          {remote.availability.reason}
+        </Text>
+      ) : null}
+      {remote?.document ? (
+        <Text className="font-sans text-sm text-secondary">
+          Receta: {remote.document.originalFilename}. Si eliminas el producto, deshacer no recupera
+          la receta.
+        </Text>
+      ) : null}
+      {remote?.lineTotal != null ? (
+        <Text className="font-sans text-sm text-primary">
+          Subtotal de línea: {formatPreviewMoney(remote.lineTotal)}
+        </Text>
+      ) : null}
       {rental ? (
         <AppButton
           label={`${item.rentalDraft ? 'Editar' : 'Configurar'} renta de ${product.name}`}
           variant="unstyled"
-          onPress={() => onConfigure(item.productId)}
+          disabled={disabled}
+          onPress={() => onConfigure(String(item.serverId ?? item.productId))}
           className="flex-row items-center justify-between gap-2 border-t border-border/30 pt-2"
         >
           <View className="flex-1 flex-row items-center gap-2">
@@ -198,7 +230,7 @@ export const CartItemCard = memo(function CartItemCard({
             <View className="flex-1">
               <Text className="font-sans-medium text-xs text-brand-strong">
                 {item.rentalDraft
-                  ? `${displayDraftDate(item.rentalDraft.startDate)} al ${displayDraftDate(item.rentalDraft.endDate)} · Borrador`
+                  ? `${displayDraftDate(item.rentalDraft.startDate)} al ${displayDraftDate(item.rentalDraft.endDate)}${remote ? '' : ' · Borrador'}`
                   : 'Configurar renta'}
                 {product.prescription ? ' · Requiere receta' : ''}
               </Text>
