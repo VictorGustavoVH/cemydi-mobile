@@ -1,8 +1,10 @@
 # Detalle de producto
 
-## Estado vigente
+> **Documento archivado.** Las secciones siguientes describen el detalle histórico de fixtures. El estado actual está en [CATALOG.md](../CATALOG.md).
 
-Los ids numéricos consultan el backend y reutilizan la galería/composición de detalle. Presentan precio, stock, ofertas y condiciones reales, sin carrito, reseñas o recomendaciones de muestra. Véase [CATALOG.md](./CATALOG.md). Las secciones siguientes describen el detalle histórico de fixtures conservado para pruebas del carrito local.
+## Estado en el momento del archivo
+
+Los ids numéricos consultan el backend y reutilizan la galería/composición de detalle. Presentan precio, stock, ofertas y condiciones reales, sin carrito, reseñas o recomendaciones de muestra.
 
 ## Diseño y navegación históricos
 

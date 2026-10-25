@@ -1,8 +1,10 @@
 # Inicio y catálogo visual
 
-## Estado vigente
+> **Documento archivado.** Las secciones siguientes describen la vista local histórica y sus verificaciones anteriores. El estado actual está en [CATALOG.md](../CATALOG.md).
 
-Home consulta seis productos reales y sus acciones abren `/catalogo`, que acumula páginas de 24 con búsqueda/filtros remotos. Las tarjetas, ofertas, stock, estados y conexiones pendientes se documentan en [CATALOG.md](./CATALOG.md). Las secciones siguientes describen la vista local histórica y sus verificaciones anteriores.
+## Estado en el momento del archivo
+
+Home consulta seis productos reales y sus acciones abren `/catalogo`, que acumula páginas de 24 con búsqueda/filtros remotos. Las tarjetas, ofertas, stock, estados y conexiones pendientes se documentan en [CATALOG.md](../CATALOG.md).
 
 ## Alcance histórico
 

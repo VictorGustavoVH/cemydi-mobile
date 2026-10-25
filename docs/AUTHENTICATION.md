@@ -4,7 +4,7 @@
 
 El usuario aprobó tokens explícitos para móvil y la adaptación del backend. La aplicación usa access token en memoria y refresh rotatorio en `expo-secure-store` al seleccionar «Mantener sesión iniciada». Sin esa opción, ambos tokens viven solo en memoria durante el proceso. No se guardan contraseñas, códigos OTP ni credenciales en TanStack Query, AsyncStorage, rutas o logs.
 
-Se verificó Expo instalado 57.0.28; SecureStore se instaló con `npx expo install` y su config plugin queda en `app.json`, conservando CNG. Se contrastaron los tipos instalados del SDK 57 y la [documentación oficial de SecureStore](https://docs.expo.dev/versions/latest/sdk/securestore/). iOS usa `WHEN_UNLOCKED_THIS_DEVICE_ONLY`; el plugin configura la exclusión del backup Android. Se requiere validación nativa en ambas plataformas.
+Se verificó Expo instalado 57.0.31; SecureStore se instaló con `npx expo install` y su config plugin queda en `app.json`, conservando CNG. Se contrastaron los tipos instalados del SDK 57 y la [documentación oficial de SecureStore](https://docs.expo.dev/versions/latest/sdk/securestore/). iOS usa `WHEN_UNLOCKED_THIS_DEVICE_ONLY`; el plugin configura la exclusión del backup Android. Se requiere validación nativa en ambas plataformas.
 
 ## Contratos móviles
 
@@ -13,15 +13,32 @@ Se verificó Expo instalado 57.0.28; SecureStore se instaló con `npx expo insta
 | Método | Ruta                   | Body                 | Respuesta                                    |
 | ------ | ---------------------- | -------------------- | -------------------------------------------- |
 | POST   | `/auth/mobile/login`   | `correo`, `password` | Sesión móvil                                 |
+| POST   | `/auth/mobile/google`  | `idToken`            | Sesión móvil desde Google Sign-In nativo     |
 | POST   | `/auth/mobile/refresh` | `refreshToken`       | Sesión móvil con refresh rotado              |
 | POST   | `/auth/mobile/logout`  | `refreshToken`       | `{ message }`; revoca la sesión              |
 | GET    | `/users/me`            | —                    | `{ user }` o `{ user: null }`, usando Bearer |
 
 Sesión móvil: `{ user, accessToken, refreshToken, accessExpiresInMs, refreshExpiresInMs }`. El usuario contiene `id`, `nombre`, `correo`, `activo`, `rol` (`ADMIN` o `CLIENT`), `emailVerified`, `emailVerifiedAt`. Los intervalos provienen del servidor. El refresh es un valor aleatorio de 32 bytes codificado como 64 caracteres hexadecimales; solo su hash se guarda en el backend.
 
-Los tres endpoints móviles no emiten cookies y llevan `Cache-Control: no-store`. Login y refresh conservan los límites de frecuencia del backend; logout reutiliza el límite de refresh. DTO de refresh obligatorio, validado y sin campos extra. La rotación actualiza de forma condicional el hash vigente: dos solicitudes con el mismo refresh no pueden completarse ambas.
+Los endpoints móviles no emiten cookies y llevan `Cache-Control: no-store`. Login y refresh conservan los límites de frecuencia del backend; logout reutiliza el límite de refresh. Google canjea el `idToken` por el mismo tipo de sesión. DTO de refresh obligatorio, validado y sin campos extra. La rotación actualiza de forma condicional el hash vigente: dos solicitudes con el mismo refresh no pueden completarse ambas.
 
 `httpClient` admite `authenticated: true`: envía Bearer con `credentials: omit`, coordina una única renovación concurrente y repite la operación como máximo una vez. Si vuelve a recibir 401, expira la sesión. Una petición de una sesión anterior no se repite con otra cuenta. Requests públicos siguen sin requerir sesión. HTTPS es obligatorio en producción según `src/config/env.ts`.
+
+## Google Sign-In nativo
+
+Login y registro ofrecen «Continuar con Google». El móvil usa `react-native-nitro-google-signin` para obtener un `idToken` en Android o iOS y lo canjea en `POST /auth/mobile/google` por la misma sesión móvil que el login con contraseña.
+
+Requisitos de configuración:
+
+- `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`: cliente Web de Google Cloud Console. Es obligatorio también para Android Credential Manager.
+- `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID`: cliente iOS, requerido en iOS. `app.config.js` deriva el `iosUrlScheme` del plugin.
+- Package Android `com.cemydi.app` y bundle identifier iOS `com.cemydi.app` deben coincidir con los registrados en Google Cloud Console.
+- En Android, el SHA-1 del keystore de la build debe estar registrado; de lo contrario no aparece el selector de cuentas.
+- `app.config.js` expone `extra.googleNativeConfigured` solo cuando la configuración mínima existe.
+
+Google Sign-In no funciona en Expo Go: requiere una build nativa con los identificadores y credenciales correctos. Si falta configuración, el botón informa que Google no está disponible en esa versión; no simula una sesión.
+
+Los endpoints web `/auth/google` y `/auth/google/callback` siguen siendo exclusivos del navegador y no se usan en móvil.
 
 ## Formularios y códigos
 
@@ -52,7 +69,9 @@ El backend actual exige usuario activo y correo verificado. Roles y permisos per
 
 ## Pendientes explícitos
 
-Google móvil quedó pendiente por decisión del usuario. `/auth/google` y su callback son exclusivamente web; no se abren para fingir una sesión nativa. También siguen pendientes app/universal links para tokens de correo; el recorrido móvil implementado usa códigos reales de ocho dígitos.
+Google Sign-In está implementado, pero requiere validación nativa con credenciales reales en Android e iOS. La configuración de Google Cloud Console, el SHA-1 del keystore y los client IDs no se validan solo con Jest.
+
+Siguen pendientes app/universal links para tokens de correo; el recorrido móvil implementado usa códigos reales de ocho dígitos.
 
 El scheme personalizado `cemydi://` no transporta tokens ni secretos: solo abre rutas internas cuya lectura sigue protegida por el servidor. Por eso un hipotético registro ajeno del scheme no expone sesión ni datos. Antes de mover cualquier token a un enlace serán obligatorios app/universal links con verificación de dominio (App Links/Associated Domains); no se añaden esquemas alternativos para sortear esa verificación.
 

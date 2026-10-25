@@ -1,6 +1,6 @@
 # Historial de formularios móviles de acceso
 
-> Este documento conserva el historial de la etapa local anterior. La app usa la API y tokens móviles; ver [AUTHENTICATION.md](./AUTHENTICATION.md). El fixture vive en `src/features/auth/__tests__/auth-preview-service.ts`, sin importaciones desde runtime. Sus variables son `TEST_AUTH_PREVIEW_PASSWORD` y `TEST_AUTH_PREVIEW_OTP`, solo para Jest. Los resultados visuales históricos no validan la integración actual.
+> **Documento archivado.** Conserva el historial de la etapa local anterior y no describe la app actual. La app usa la API y tokens móviles; ver [AUTHENTICATION.md](../AUTHENTICATION.md). El fixture `auth-preview-service.ts` y sus variables `TEST_AUTH_PREVIEW_*` se eliminaron del repositorio. Los resultados visuales históricos no validan la integración actual.
 
 Flujo temporal autorizado, sin peticiones de autenticación ni decisión de cookies/tokens. El backend sigue pendiente según `AUTHENTICATION.md`. No representa seguridad de producción ni permite acceder a recursos privados del servidor.
 

@@ -14,6 +14,7 @@ Expo 57, Expo Router, React Native 0.86, React 19, TypeScript estricto, NativeWi
 - Estructura o capas: `docs/ARCHITECTURE.md`.
 - Endpoints o datos: `docs/API_INTEGRATION.md`.
 - Sesión o rutas protegidas: `docs/AUTHENTICATION.md`.
+- Notificaciones y push: `docs/NOTIFICATIONS.md`.
 - UI: `docs/DESIGN_SYSTEM.md`.
 - Código nuevo: `docs/CONVENTIONS.md`.
 - Ramas, PRs o releases: `docs/GIT_WORKFLOW.md`.
@@ -58,7 +59,7 @@ npm run typecheck
 npm run format:check
 ```
 
-`npm run format:check` pasa correctamente. Ejecuta tests cuando el proyecto tenga framework configurado.
+`npm run format:check` pasa correctamente. Ejecuta `npm test` para las suites unitarias y de integración.
 
 ## Done
 
