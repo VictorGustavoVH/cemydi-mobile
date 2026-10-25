@@ -1,0 +1,13 @@
+appId: ${APP_ID}
+name: Introducción y acceso público
+---
+- runFlow: support/open-app.yaml
+- assertVisible: Tu bienestar empieza aquí.
+- tapOn: Ir a la siguiente pantalla
+- assertVisible: Muévete con confianza.
+- tapOn: Ir a la siguiente pantalla
+- assertVisible: Cuidado a tu medida.
+- tapOn: Explorar catálogo sin iniciar sesión
+- extendedWaitUntil:
+    visible: Buscar equipo ortopédico
+    timeout: 30000

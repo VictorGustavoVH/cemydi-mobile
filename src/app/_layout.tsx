@@ -17,8 +17,8 @@ import { CatalogPreviewProvider } from '@/providers/catalog-preview-provider';
 import { ToastProvider } from '@/providers/toast-provider';
 import { AuthProvider } from '@/providers/auth-provider';
 import { CartProvider } from '@/providers/cart-provider';
+import { NotificationLifecycle } from '@/features/notifications/NotificationLifecycle';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { GlobalBottomBar } from '@/components/ui/GlobalBottomBar';
 import { colors } from '@/theme';
 
 SplashScreen.preventAutoHideAsync().catch(() => {
@@ -57,6 +57,7 @@ export default function RootLayout() {
             <ToastProvider>
               <AuthProvider>
                 <CartProvider>
+                  <NotificationLifecycle />
                   <View style={{ flex: 1, backgroundColor: colors.background }}>
                     <Stack
                       screenOptions={{
@@ -66,23 +67,20 @@ export default function RootLayout() {
                       }}
                     >
                       <Stack.Screen name="index" options={{ headerShown: false }} />
-                      <Stack.Screen name="inicio" options={{ headerShown: false }} />
-                      <Stack.Screen name="catalogo" options={{ headerShown: false }} />
+                      <Stack.Screen
+                        name="(tabs)"
+                        options={{ headerShown: false, animation: 'none' }}
+                      />
                       <Stack.Screen name="login" options={{ headerShown: false }} />
                       <Stack.Screen name="register" options={{ headerShown: false }} />
                       <Stack.Screen name="forgot-password" options={{ headerShown: false }} />
                       <Stack.Screen name="otp" options={{ headerShown: false }} />
                       <Stack.Screen name="new-password" options={{ headerShown: false }} />
                       <Stack.Screen
-                        name="carrito"
-                        options={{ headerShown: false, animation: 'none' }}
-                      />
-                      <Stack.Screen
                         name="toast-demo"
                         options={{ title: 'Demo de notificaciones' }}
                       />
                     </Stack>
-                    <GlobalBottomBar />
                   </View>
                 </CartProvider>
               </AuthProvider>

@@ -7,7 +7,7 @@ import { useAccountAccess } from '@/hooks/useAccountAccess';
 import { ToastContext } from '@/hooks/useToast';
 
 const NAV_LOCK_MS = 600;
-const MAIN_TABS = ['/inicio', '/catalogo', '/carrito'] as const;
+const MAIN_TABS = ['/inicio', '/catalogo', '/carrito', '/perfil'] as const;
 
 /**
  * Barra de pestañas única para toda la app. Se monta una sola vez en el
@@ -18,7 +18,7 @@ const MAIN_TABS = ['/inicio', '/catalogo', '/carrito'] as const;
 export function GlobalBottomBar() {
   const pathname = usePathname();
   const toastStore = useContext(ToastContext);
-  const visible = MAIN_TABS.some((tab) => pathname === tab || pathname?.startsWith(`${tab}/`));
+  const visible = MAIN_TABS.some((tab) => pathname === tab);
   useEffect(() => {
     if (!visible) toastStore?.setBottomBarHeight(0);
     return () => toastStore?.setBottomBarHeight(0);
@@ -37,22 +37,22 @@ export function GlobalBottomBar() {
 
   const onHome = useCallback(() => {
     if (locked()) return;
-    router.replace({ pathname: '/inicio', params: { action: 'top', t: String(Date.now()) } });
+    router.navigate({ pathname: '/inicio', params: { action: 'top', t: String(Date.now()) } });
   }, [locked, router]);
 
   const onExplore = useCallback(() => {
     if (locked()) return;
-    if (pathname !== '/catalogo') router.push('/catalogo');
+    if (pathname !== '/catalogo') router.navigate('/catalogo');
   }, [locked, pathname, router]);
 
   const onCart = useCallback(() => {
     if (locked() || pathname === '/carrito') return;
-    router.push('/carrito');
+    router.navigate('/carrito');
   }, [locked, pathname, router]);
 
   const onProfile = useCallback(() => {
     if (locked() || !requestAccess('/perfil')) return;
-    router.push('/perfil');
+    router.navigate('/perfil');
   }, [locked, requestAccess, router]);
 
   if (!visible) {
@@ -72,7 +72,13 @@ export function GlobalBottomBar() {
         onHome={onHome}
         onProfile={onProfile}
         selectedTab={
-          pathname === '/carrito' ? 'cart' : pathname === '/catalogo' ? 'explore' : 'home'
+          pathname === '/perfil'
+            ? 'profile'
+            : pathname === '/carrito'
+              ? 'cart'
+              : pathname === '/catalogo'
+                ? 'explore'
+                : 'home'
         }
       />
     </SafeAreaView>

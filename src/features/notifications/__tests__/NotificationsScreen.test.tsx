@@ -3,7 +3,13 @@ import { fireEvent, render, screen } from '@testing-library/react-native';
 import { NotificationsScreen } from '../NotificationsScreen';
 import { useInfiniteNotifications, useNotificationReadActions } from '../useNotifications';
 
-jest.mock('expo-router', () => ({ useRouter: () => ({ push: jest.fn() }) }));
+jest.mock('expo-router', () => ({
+  useFocusEffect: (callback: () => void | (() => void)) => {
+    const { useEffect } = jest.requireActual<typeof import('react')>('react');
+    useEffect(callback, [callback]);
+  },
+  useRouter: () => ({ push: jest.fn() }),
+}));
 jest.mock('@/hooks/useToast', () => ({ useToast: () => ({ error: jest.fn() }) }));
 jest.mock('../useNotificationPermissionAccess', () => ({
   useNotificationPermissionAccess: () => jest.fn(),

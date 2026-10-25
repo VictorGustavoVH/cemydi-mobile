@@ -7,20 +7,54 @@ import { productService } from '@/services/products/product-service';
 import { CatalogScreen } from '../CatalogScreen';
 
 const mockPush = jest.fn();
+let mockParams: Record<string, string> = {};
 jest.mock('expo-router', () => ({
+  useFocusEffect: (callback: () => void | (() => void)) => {
+    const { useEffect } = jest.requireActual<typeof import('react')>('react');
+    useEffect(callback, [callback]);
+  },
   useRouter: () => ({
     push: mockPush,
     back: jest.fn(),
     canGoBack: () => true,
     navigate: jest.fn(),
   }),
-  useLocalSearchParams: () => ({}),
+  useLocalSearchParams: () => mockParams,
 }));
 
 describe('Catálogo móvil público', () => {
   beforeEach(() => {
+    mockParams = {};
     installNetworkMock();
     jest.spyOn(productService, 'offers').mockResolvedValue({ promotions: [] });
+  });
+
+  it('aplica parámetros nuevos sin remontar la pestaña y conserva la búsqueda al regresar', async () => {
+    jest.spyOn(productService, 'list').mockResolvedValue(productPage(1));
+    const view = await render(<CatalogScreen />);
+    await screen.findByRole('button', { name: /^Producto 1\./ });
+    mockParams = { search: 'andadera', mode: 'rental', t: 'segunda-visita' };
+    await view.rerender(<CatalogScreen />);
+    expect(screen.getByLabelText('Buscar equipo ortopédico')).toHaveProp('value', 'andadera');
+    await waitFor(() =>
+      expect(productService.list).toHaveBeenCalledWith(
+        expect.objectContaining({ search: 'andadera', tipos: ['MIXTO', 'RENTA'] }),
+        1,
+        undefined,
+        expect.any(AbortSignal),
+      ),
+    );
+    await fireEvent.changeText(screen.getByLabelText('Buscar equipo ortopédico'), 'otra búsqueda');
+    await view.rerender(<CatalogScreen />);
+    expect(screen.getByLabelText('Buscar equipo ortopédico')).toHaveProp('value', 'otra búsqueda');
+    await waitFor(() =>
+      expect(productService.list).toHaveBeenCalledWith(
+        expect.objectContaining({ search: 'otra búsqueda' }),
+        1,
+        undefined,
+        expect.any(AbortSignal),
+      ),
+    );
   });
 
   it('carga 24, acumula la siguiente página y abre el detalle real', async () => {

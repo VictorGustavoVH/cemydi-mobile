@@ -1,0 +1,17 @@
+appId: ${APP_ID}
+---
+- launchApp:
+    clearState: true
+- openLink: ${DEV_CLIENT_URL}
+- extendedWaitUntil:
+    visible: 'Continue|Omitir introducción y explorar catálogo'
+    timeout: 120000
+- runFlow:
+    when:
+      visible: Continue
+    commands:
+      - tapOn: Continue
+      - back
+- extendedWaitUntil:
+    visible: Omitir introducción y explorar catálogo
+    timeout: 120000

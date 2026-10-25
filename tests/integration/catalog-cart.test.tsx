@@ -16,6 +16,7 @@ jest.mock('expo-router', () => ({
   useLocalSearchParams: () => ({}),
   useRouter: () => ({
     push: mockPush,
+    navigate: mockPush,
     replace: mockReplace,
     back: jest.fn(),
     canGoBack: () => true,
@@ -79,17 +80,17 @@ describe('Catálogo, detalle y carrito con estado de sesión compartido', () => 
     await fireEvent(screen.getByLabelText('Buscar equipo ortopédico'), 'submitEditing');
     expect(mockPush).toHaveBeenLastCalledWith({
       pathname: '/catalogo',
-      params: { search: 'oxigeno' },
+      params: { search: 'oxigeno', t: expect.any(String) },
     });
     await fireEvent.press(screen.getByRole('radio', { name: 'Compra' }));
     expect(mockPush).toHaveBeenLastCalledWith({
       pathname: '/catalogo',
-      params: { mode: 'purchase' },
+      params: { mode: 'purchase', t: expect.any(String) },
     });
     await fireEvent.press(screen.getByRole('button', { name: 'Movilidad' }));
     expect(mockPush).toHaveBeenLastCalledWith({
       pathname: '/catalogo',
-      params: { search: 'Movilidad' },
+      params: { search: 'Movilidad', t: expect.any(String) },
     });
     await waitFor(() =>
       expect(screen.getAllByRole('button', { name: /Ver producto$/ })).toHaveLength(6),

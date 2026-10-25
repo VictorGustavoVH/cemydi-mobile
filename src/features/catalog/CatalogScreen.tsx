@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FlatList, Keyboard, Text, View, useWindowDimensions } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { AppButton } from '@/components/ui/AppButton';
 import { AppRefreshControl } from '@/components/ui/AppRefreshControl';
@@ -56,6 +56,7 @@ export function CatalogScreen() {
     clasificacion?: string;
     mode?: string;
     filters?: string;
+    t?: string;
   }>();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -79,6 +80,33 @@ export function CatalogScreen() {
   const [sheetOpen, setSheetOpen] = useState(params.filters === '1');
   const [suggestionsInteracting, setSuggestionsInteracting] = useState(false);
   const [searchDismissSignal, setSearchDismissSignal] = useState(0);
+  const incoming = JSON.stringify([
+    params.search,
+    params.clasificacion,
+    params.mode,
+    params.filters,
+    params.t,
+  ]);
+  const lastIncoming = useRef(incoming);
+  useFocusEffect(
+    useCallback(() => {
+      if (lastIncoming.current === incoming) return;
+      lastIncoming.current = incoming;
+      setSearch(params.search?.slice(0, 120) ?? '');
+      setFilters({
+        ...emptyProductFilters,
+        search: params.search?.slice(0, 120) ?? '',
+        clasificaciones: params.clasificacion ? [params.clasificacion] : [],
+        tipos:
+          params.mode === 'purchase'
+            ? ['VENTA', 'MIXTO']
+            : params.mode === 'rental'
+              ? ['RENTA', 'MIXTO']
+              : [],
+      });
+      setSheetOpen(params.filters === '1');
+    }, [incoming, params.search, params.clasificacion, params.mode, params.filters]),
+  );
   const query = useCatalog(filters);
   const offers = useProductOffers();
 
@@ -206,7 +234,7 @@ export function CatalogScreen() {
         ListHeaderComponent={
           <>
             <View className="flex-row items-center gap-3 px-5 py-2">
-              <BackButton fallbackHref="/inicio" />
+              <BackButton fallbackHref="/inicio" onPress={() => router.navigate('/inicio')} />
               <View className="flex-1 items-center gap-0.5">
                 <Text
                   accessibilityRole="header"

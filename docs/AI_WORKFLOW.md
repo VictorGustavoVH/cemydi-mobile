@@ -41,7 +41,7 @@ Explicita comportamiento, archivos, estados de UI, caché, accesibilidad, plataf
 - para paquetes Expo nativos usa `npx expo install`;
 - no expone secretos.
 
-La estrategia de autenticación móvil está bloqueada hasta aprobación. No elijas cookies o tokens implícitamente.
+La autenticación móvil usa tokens explícitos aprobados según AUTHENTICATION.md. No cambies el transporte sin aprobación.
 
 ### 7. Validar
 

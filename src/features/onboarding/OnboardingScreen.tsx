@@ -36,19 +36,19 @@ type OnboardingPage = {
 
 const pages: OnboardingPage[] = [
   {
-    image: require('../../../assets/images/onboarding/rehabilitacion-con-apoyo-y-cuidado.png'),
+    image: require('../../../assets/images/onboarding/rehabilitacion-con-apoyo-y-cuidado.webp'),
     imageDescription: 'Profesional de salud acompaña a una persona durante su rehabilitación',
     title: 'Tu bienestar empieza aquí.',
     description: 'Equipo ortopédico y suministros para acompañarte cada día.',
   },
   {
-    image: require('../../../assets/images/onboarding/asistencia-geriatrica-y-movilidad.png'),
+    image: require('../../../assets/images/onboarding/asistencia-geriatrica-y-movilidad.webp'),
     imageDescription: 'Profesional de salud acompaña a una persona durante su movilidad',
     title: 'Muévete con confianza.',
     description: 'Encuentra apoyo para rehabilitación y movilidad en un solo lugar.',
   },
   {
-    image: require('../../../assets/images/onboarding/tienda-de-ayudas-ortopedicas.png'),
+    image: require('../../../assets/images/onboarding/tienda-de-ayudas-ortopedicas.webp'),
     imageDescription: 'Persona en rehabilitación usando apoyo para caminar',
     title: 'Cuidado a tu medida.',
     description: 'Conoce opciones de venta y renta de equipo médico.',
@@ -219,7 +219,7 @@ export function OnboardingScreen() {
         <CatalogImage
           label="Ortopedia CEMYDI"
           compact
-          source={require('../../../assets/branding/cemydi-logo-horizontal.png')}
+          source={require('../../../assets/branding/cemydi-logo-horizontal.webp')}
           style={{ height: 36, width: 124 }}
         />
         {currentPage < pages.length - 1 ? (
@@ -272,7 +272,7 @@ export function OnboardingScreen() {
       />
 
       {/* Navegación y botón de acción anclados abajo */}
-      <View className="gap-6 px-6 pb-6 pt-2">
+      <View className="gap-1 px-6 pb-6 pt-2">
         <View
           accessibilityLabel="Indicador de pantallas"
           accessibilityRole="tablist"

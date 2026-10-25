@@ -97,6 +97,7 @@ async function main() {
   let metro;
   const reversed = [];
   mkdirSync('.tools', { recursive: true });
+  mkdirSync('test-results/maestro', { recursive: true });
   const log = createWriteStream('.tools/maestro-metro.log');
   try {
     const portProbe = createServer();
@@ -165,6 +166,10 @@ async function main() {
         '--device',
         serial,
         'test',
+        '--format',
+        'junit',
+        '--output',
+        path.resolve('test-results/maestro/results.xml'),
         '-e',
         `APP_ID=${appId}`,
         '-e',

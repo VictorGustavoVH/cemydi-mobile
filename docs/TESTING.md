@@ -1,5 +1,9 @@
 # Pruebas de CEMYDI Mobile
 
+## Estado vigente de calidad móvil
+
+La integración actual de pestañas, push y onboarding se documenta en [MOBILE_QUALITY.md](./MOBILE_QUALITY.md). Las secciones fechadas posteriores conservan evidencia histórica y no reemplazan los contratos actuales de AUTHENTICATION.md, CART.md y NOTIFICATIONS.md.
+
 ## Mitigación de pantalla desvanecida en Android — 10 de octubre de 2026
 
 El Stack raíz usa `animation: 'none'` en Android y fondo semántico explícito en escenas/contenedor; iOS conserva `default`. Hipótesis: transición nativa que deja el contenido parcialmente transparente, consistente con el síntoma reportado y [reportes de react-native-screens](https://github.com/software-mansion/react-native-screens/discussions/2746). No se confirmó la causa exacta ni se modificó el desenfoque de notificaciones.
@@ -278,61 +282,61 @@ El usuario informó que los tres checks del PR #136 y los reportes existentes ya
 
 ## Maestro local Android
 
-Tres flows solo sobre funciones existentes: catálogo/búsqueda/limpieza; detalle/modalidades/favorito; carrito de compra/cantidad/eliminar/deshacer. Sin login ni envío de renta. Usan textos/accessibilityLabels existentes, sin testIDs nuevos ni cambios visuales.
+Los cinco flujos de `.maestro/config.yaml` cubren catálogo/búsqueda/filtros,
+detalle de muestra/modalidades/favoritos, carrito invitado/cantidad/deshacer,
+onboarding y conservación de búsqueda al alternar pestañas. No envían rentas,
+no procesan pagos y no usan credenciales reales.
 
-El entorno actual es **Expo Go Android**, appId `host.exp.exponent`. No se inventa un identificador nativo CEMYDI. app.json no define android.package, ios.bundleIdentifier, EAS ni build APK. Cada flow reinicia Expo Go y abre `/inicio` con una sesión nueva; config.yaml lista solo los tres flows principales y excluye el subflow compartido.
-
-Requisitos: Java 17+, Maestro CLI, ADB, emulador/dispositivo autorizado, Expo Go compatible con SDK 57 y Metro accesible. Abrir previamente el proyecto una vez para resolver avisos/permisos iniciales y errores Metro. Maestro 2.11.0 está instalado localmente en `.tools/maestro/maestro`, ignorado por Git; otros clones deben instalarlo. El launcher npm llama el entry point oficial mediante Java, pasa argumentos sin shell y propaga exit codes. No cambia el PATH global.
-
-Instalación desde raíz en PowerShell (la descarga latest puede cambiar de versión; comprobarla):
-
-```powershell
-New-Item -ItemType Directory -Force -Path .tools | Out-Null
-Invoke-WebRequest -Uri 'https://github.com/mobile-dev-inc/maestro/releases/latest/download/maestro.zip' -OutFile .tools/maestro.zip
-Expand-Archive -LiteralPath .tools/maestro.zip -DestinationPath .tools/maestro -Force
-java -version
-npm run maestro -- --version
-```
-
-En macOS/Linux descomprimir la distribución en esa carpeta o definir `CEMYDI_MAESTRO_HOME` con la instalación que contenga lib/. Consultar [instalación oficial](https://docs.maestro.dev/maestro-cli/how-to-install-maestro-cli). El launcher desactiva analítica y avisos de CLI.
-
-Preparar Android/Metro:
+El destino es el development build cuyo identificador y scheme provienen de
+app.json. No se ejecutan estos flujos sobre Expo Go. Se necesitan Java 17+,
+Maestro CLI y un emulador Android autorizado con la build instalada. La CLI no
+se versiona: instalar su distribución oficial en `.tools/maestro/maestro` o
+configurar `CEMYDI_MAESTRO_HOME` apuntando al directorio que contenga `lib/`.
+Consultar [instalación de Maestro](https://docs.maestro.dev/maestro-cli/how-to-install-maestro-cli).
 
 ```bash
 adb devices
-adb reverse tcp:8081 tcp:8081
-npm run start:local
-```
-
-Desde otra terminal:
-
-```bash
+npm run maestro -- --version
 npm run test:e2e
-npm run test:e2e -- --format JUNIT --output test-results/maestro.xml
-npm run maestro -- test .maestro/cart.yaml
 ```
 
-start:local mantiene Metro limitado a localhost y prioriza IPv4, para que ADB reverse pueda acceder a 127.0.0.1 también en Windows con localhost resuelto primero a IPv6. Mantener un solo Metro por puerto y recargar completamente Expo Go después de cambios en el grafo de módulos.
+El runner selecciona un emulador conectado o el dispositivo indicado por
+`CEMYDI_E2E_DEVICE`. Comprueba la app instalada y que el puerto Metro 8091 esté
+libre; inicia su propio Metro y una API pública ficticia de solo lectura en 4198.
+Configura ADB reverse sin reemplazar redirecciones ajenas y limpia sus procesos,
+servidor y redirecciones al terminar. `EXPO_NO_DOTENV=1` evita usar una API privada
+por accidente. No hay que arrancar manualmente otro Metro para estos flujos.
 
-EXPO_URL tiene default exp://127.0.0.1:8081 en openLink, sin una constante del subflujo que sobrescriba el parámetro CLI. Para otro puerto local, iniciar Metro y configurar reverse para ese mismo puerto; por ejemplo:
+Los subflujos reciben `APP_ID`, `APP_SCHEME` y `DEV_CLIENT_URL` del runner.
+`open-app.yaml` limpia el estado de esa app de pruebas para empezar como invitado:
+usar un emulador dedicado, sin datos personales. La introducción del development
+client se cierra únicamente si aparece. Los selectores usan labels existentes.
+El flujo de detalle/carrito abre el fixture explícito `/producto/wheelchair`.
+
+Al llegar a Maestro se solicita un reporte JUnit en
+`test-results/maestro/results.xml`. Los argumentos adicionales se pasan al CLI,
+por ejemplo para cambiar el destino del reporte:
 
 ```bash
-npm run start:local -- --port 8082
-adb reverse tcp:8082 tcp:8082
-npm run test:e2e -- -e EXPO_URL=exp://127.0.0.1:8082
+npm run test:e2e -- --output test-results/maestro/otra-ejecucion.xml
 ```
 
-Sustituir la dirección de ejemplo por la URL mostrada por Expo. Con varios dispositivos añadir `--device <id>`. La sintaxis [openLink](https://docs.maestro.dev/reference/commands-available/openlink) abre el proyecto servido por Metro. Selectores regex de producto usan el label real, sin coordenadas.
+Sin dispositivo o build instalada el runner devuelve un error explícito antes
+de arrancar servidores. No genera un reporte aprobado ni desactiva pruebas.
+El 24 de octubre ADB no enumeró dispositivos: la ejecución móvil queda pendiente.
+La validación de YAML y Jest no certifica scroll, temporización, diálogos del
+sistema ni navegación nativa. iOS requiere macOS y una preparación propia.
+E2E en CI queda pendiente de una build instalable y un emulador estable; no se
+agrega un pipeline que aparente haber ejecutado pruebas sin esos requisitos.
 
-**Validación disponible:** CLI instalada y comando npm comprobado. adb devices no mostró dispositivos; test:e2e devuelve error por ausencia de dispositivo. No se declara ningún flow aprobado: scroll, tiempos y aserciones requieren ejecución móvil.
-
-**E2E CI pendiente:** no se añade un workflow Android sin build definido. Después aprobar identificadores/build, producir artefacto instalable, preparar emulador estable, sustituir Expo Go por appId confirmado y ejecutar Maestro con reportes. Primero validar localmente. iOS requiere entorno real macOS/simulador y preparación propia.
+Referencia: [reportes de Maestro](https://docs.maestro.dev/maestro-flows/workspace-management/test-reports-and-artifacts).
+Estado de esta entrega: [MOBILE_QUALITY.md](./MOBILE_QUALITY.md).
 
 ## Conectividad manual
 
 1. Registrar dispositivo/OS, commit/build y red. Abrir catálogo, detalle y carrito.
 2. Apagar Wi-Fi/datos o activar modo avión desde el dispositivo/emulador; repetir inicio offline y pérdida durante navegación.
-3. Verificar ausencia de cierres/bloqueos y conservación del carrito en el mismo proceso. Home usa fixtures e imágenes locales: funcionar offline no demuestra conexión al backend.
+3. Verificar ausencia de cierres/bloqueos y conservación del carrito en el mismo proceso. Home usa API pública con contenido editorial local: verificar la caché y el aviso offline, sin confundir imágenes locales con conectividad al backend.
 4. Recuperar red y repetir navegación; registrar tiempos/mensajes.
 5. Cuando exista una pantalla con queries reales, verificar pérdida durante consulta, error/retry y refetch al reconectar contra backend de pruebas autorizado. Uploads/mutaciones reales aún están pendientes.
 

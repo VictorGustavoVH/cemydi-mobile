@@ -1,8 +1,8 @@
-# Isolated local fixture for preview-cart tests. Real catalog products are read-only.
-appId: host.exp.exponent
+# Isolated guest fixture; never writes to a real backend.
+appId: ${APP_ID}
 ---
-- launchApp
-- openLink: "${typeof EXPO_URL === 'undefined' ? 'exp://127.0.0.1:8081' : EXPO_URL}/--/producto/wheelchair?mode=purchase"
+- runFlow: open-catalog.yaml
+- openLink: ${APP_SCHEME}://producto/wheelchair?mode=purchase
 - extendedWaitUntil:
     visible: Añadir al carrito
     timeout: 60000

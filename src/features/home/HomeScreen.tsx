@@ -16,7 +16,6 @@ import { CatalogModeFilter } from './components/CatalogModeFilter';
 import { CatalogSearch } from '@/components/ui/CatalogSearch';
 import { CategoryCarousel } from './components/CategoryCarousel';
 import { HomeHeader } from './components/HomeHeader';
-import { AppSheet } from '@/components/ui/AppSheet';
 import { ProductCard } from '@/components/ui/ProductCard';
 import type { CatalogMode, HomeProduct } from '@/data/catalog-preview';
 import {
@@ -80,7 +79,6 @@ export function HomeScreen() {
   const [search, setSearch] = useState('');
   const [suggestionsInteracting, setSuggestionsInteracting] = useState(false);
   const [searchDismissSignal, setSearchDismissSignal] = useState(0);
-  const [preview, setPreview] = useState(false);
   const queryClient = useQueryClient();
   const { data, loading, isPending, error } = useHome();
   const offers = useProductOffers();
@@ -130,14 +128,14 @@ export function HomeScreen() {
   const exploreSearch = useRouteCallback(
     (term: string) => {
       Keyboard.dismiss();
-      router.push({ pathname: '/catalogo', params: { search: term } });
+      router.navigate({ pathname: '/catalogo', params: { search: term, t: String(Date.now()) } });
     },
     (term) => `/catalogo?search=${term}`,
   );
   const explore = useCallback(() => exploreSearch(search.trim()), [exploreSearch, search]);
   const showProfile = useRouteCallback(
     () => {
-      if (requestAccess('/perfil')) router.push('/perfil');
+      if (requestAccess('/perfil')) router.navigate('/perfil');
     },
     () => '/perfil',
   );
@@ -207,16 +205,21 @@ export function HomeScreen() {
         refreshControl={<AppRefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         ListHeaderComponent={
           <>
-            <HomeHeader onNotifications={() => setPreview(true)} onProfile={showProfile} />
+            <HomeHeader
+              onNotifications={() => {
+                if (requestAccess('/perfil/notificaciones')) router.push('/perfil/notificaciones');
+              }}
+              onProfile={showProfile}
+            />
             <CatalogSearch
               dismissSignal={searchDismissSignal}
               onSuggestionsInteractionChange={setSuggestionsInteracting}
               onChange={setSearch}
               onFilters={() => {
                 Keyboard.dismiss();
-                router.push({
+                router.navigate({
                   pathname: '/catalogo',
-                  params: { search: search.trim(), filters: '1' },
+                  params: { search: search.trim(), filters: '1', t: String(Date.now()) },
                 });
               }}
               onSelectProduct={(id) => openProduct(id, undefined)}
@@ -235,7 +238,7 @@ export function HomeScreen() {
                 <BannerCarousel
                   banners={homeBanners}
                   onExplore={explore}
-                  suspended={preview || search.length > 0}
+                  suspended={search.length > 0}
                 />
               </Animated.View>
               <Animated.View style={reducedMotion ? undefined : categoryReveal}>
@@ -244,9 +247,9 @@ export function HomeScreen() {
                   onSelect={(id) => {
                     const category = homeCategories.find((item) => item.id === id);
                     if (category)
-                      router.push({
+                      router.navigate({
                         pathname: '/catalogo',
-                        params: { search: category.label },
+                        params: { search: category.label, t: String(Date.now()) },
                       });
                   }}
                   selectedId={null}
@@ -264,7 +267,12 @@ export function HomeScreen() {
                     Filtros
                   </Text>
                   <CatalogModeFilter
-                    onChange={(mode) => router.push({ pathname: '/catalogo', params: { mode } })}
+                    onChange={(mode) =>
+                      router.navigate({
+                        pathname: '/catalogo',
+                        params: { mode, t: String(Date.now()) },
+                      })
+                    }
                     value="all"
                   />
                 </View>
@@ -324,11 +332,6 @@ export function HomeScreen() {
           ) : null
         }
       />
-      <AppSheet onClose={() => setPreview(false)} title="Notificaciones" visible={preview}>
-        <Text className="font-sans text-base leading-6 text-secondary">
-          No tienes notificaciones en esta vista de muestra.
-        </Text>
-      </AppSheet>
     </AppScreen>
   );
 }
