@@ -25,6 +25,9 @@ const reportSuite =
 
 module.exports = {
   maxWorkers: 2,
+  // La suite de integración renderiza pantallas completas y compite por CPU con la unitaria.
+  // El timeout por defecto de 5 s se agotaba por contención, no por bloqueos del flujo.
+  testTimeout: 15_000,
   reporters: [
     'default',
     [
