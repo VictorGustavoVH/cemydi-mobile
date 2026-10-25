@@ -81,7 +81,7 @@ describe('Catálogo, detalle y carrito con estado de sesión compartido', () => 
       pathname: '/catalogo',
       params: { search: 'oxigeno' },
     });
-    await fireEvent.press(screen.getByRole('button', { name: 'Compra' }));
+    await fireEvent.press(screen.getByRole('radio', { name: 'Compra' }));
     expect(mockPush).toHaveBeenLastCalledWith({
       pathname: '/catalogo',
       params: { mode: 'purchase' },
@@ -115,11 +115,11 @@ describe('Catálogo, detalle y carrito con estado de sesión compartido', () => 
     expect(screen.getByText('Para tu bienestar')).toBeTruthy();
     expect(screen.getByText('Categorías')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Descanso' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Ver banner 1 de 3' })).toBeTruthy();
+    expect(screen.getByRole('radio', { name: 'Ver banner 1 de 3' })).toBeTruthy();
     await act(() => reject(new UserFacingError('Catálogo no disponible')));
     await waitFor(() => expect(screen.getByText('Catálogo no disponible')).toBeTruthy());
     expect(screen.getByText('Categorías')).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Ver banner 1 de 3' })).toBeTruthy();
+    expect(screen.getByRole('radio', { name: 'Ver banner 1 de 3' })).toBeTruthy();
     await fireEvent.press(screen.getByRole('button', { name: 'Reintentar' }));
     await screen.findByText('Ver catálogo completo');
     expect(service).toHaveBeenCalledTimes(2);

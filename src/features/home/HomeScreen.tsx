@@ -1,13 +1,16 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { FlatList, Keyboard, RefreshControl, Text, View, useWindowDimensions } from 'react-native';
+import { FlatList, Keyboard, Text, View, useWindowDimensions } from 'react-native';
 import Animated, { cubicBezier, useReducedMotion } from 'react-native-reanimated';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useQueryClient } from '@tanstack/react-query';
 import { AppButton } from '@/components/ui/AppButton';
+import { AppRefreshControl } from '@/components/ui/AppRefreshControl';
 import { AppScreen } from '@/components/ui/AppScreen';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { ProductGridSkeleton } from '@/components/ui/ProductGridSkeleton';
 import { OfflineState } from '@/components/ui/OfflineState';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
+import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { BannerCarousel } from './components/BannerCarousel';
 import { CatalogModeFilter } from './components/CatalogModeFilter';
 import { CatalogSearch } from '@/components/ui/CatalogSearch';
@@ -22,15 +25,15 @@ import {
 } from '@/data/catalog-preview';
 import { useHome } from './hooks/useHome';
 import { useAccountAccess } from '@/hooks/useAccountAccess';
-import { useThrottledCallback } from '@/hooks/useThrottledCallback';
+import { useRouteCallback } from '@/hooks/useRouteCallback';
 import { getFriendlyErrorMessage } from '@/services/http/api-error';
 import { useToastScroll } from '@/hooks/useToast';
-import { colors } from '@/theme';
 import { useProductOffers } from '@/hooks/useProductOffers';
+import { useProductRatings, type ProductRatingState } from '@/hooks/useProductRatings';
 import { withProductOffer } from '@/services/products/product-adapter';
+import { prefetchProductDetail } from '@/services/products/product-cache';
 import { HOME_PRODUCT_LIMIT } from '@/services/products/product-service';
 
-type Preview = { kind: 'info'; title: string; description: string };
 const productKey = (item: HomeProduct) => item.id;
 // Reveal sections once their real content mounts; never animate recycled product rows.
 const sectionReveal = {
@@ -48,14 +51,20 @@ function ProductSeparator() {
 type ProductItemProps = {
   product: HomeProduct;
   mode: CatalogMode;
+  ratingState?: ProductRatingState;
   onOpen: (productId: string, mode: CatalogMode | undefined) => void;
 };
 
-const ProductItem = memo(function ProductItem({ product, mode, onOpen }: ProductItemProps) {
+const ProductItem = memo(function ProductItem({
+  product,
+  mode,
+  ratingState,
+  onOpen,
+}: ProductItemProps) {
   const handlePress = useCallback(() => {
     onOpen(product.id, mode === 'all' ? product.modes[0] : mode);
   }, [onOpen, product.id, product.modes, mode]);
-  return <ProductCard product={product} onPress={handlePress} />;
+  return <ProductCard product={product} ratingState={ratingState} onPress={handlePress} />;
 });
 
 export function HomeScreen() {
@@ -71,8 +80,9 @@ export function HomeScreen() {
   const [search, setSearch] = useState('');
   const [suggestionsInteracting, setSuggestionsInteracting] = useState(false);
   const [searchDismissSignal, setSearchDismissSignal] = useState(0);
-  const [preview, setPreview] = useState<Preview | null>(null);
-  const { data, loading, error, refetch } = useHome();
+  const [preview, setPreview] = useState(false);
+  const queryClient = useQueryClient();
+  const { data, loading, isPending, error } = useHome();
   const offers = useProductOffers();
   const { isOnline } = useNetworkStatus();
   const homeProducts = useMemo(() => data?.products ?? [], [data]);
@@ -80,11 +90,25 @@ export function HomeScreen() {
   const homeCategories = editorialCategories;
   const products = useMemo(
     () =>
-      homeProducts
-        .slice(0, HOME_PRODUCT_LIMIT)
-        .map((product) => withProductOffer(product, offers.data?.promotions)),
-    [homeProducts, offers.data],
+      offers.ready
+        ? homeProducts
+            .slice(0, HOME_PRODUCT_LIMIT)
+            .map((product) => withProductOffer(product, offers.data?.promotions))
+        : [],
+    [homeProducts, offers.data, offers.ready],
   );
+  const productIds = useMemo(() => products.map((product) => product.id), [products]);
+  const ratings = useProductRatings(productIds);
+
+  const refresh = useCallback(
+    () =>
+      Promise.allSettled([
+        queryClient.invalidateQueries({ queryKey: ['home', 'products'] }),
+        queryClient.invalidateQueries({ queryKey: ['promotions', 'active'] }),
+      ]),
+    [queryClient],
+  );
+  const { refreshing, onRefresh } = usePullToRefresh(refresh);
   const oneColumn = width < 350 || fontScale > 1.3;
   const columns = oneColumn ? 1 : 2;
   useLayoutEffect(() => {
@@ -92,25 +116,31 @@ export function HomeScreen() {
     previousColumns.current = columns;
   }, [columns]);
 
-  const openProduct = useThrottledCallback(
+  const openProduct = useRouteCallback(
     (productId: string, productMode: CatalogMode | undefined) => {
+      prefetchProductDetail(queryClient, productId);
       router.push({
         pathname: '/producto/[id]',
         params: { id: productId, mode: productMode },
       });
     },
-    750,
+    (id, mode) => `/producto/${id}?mode=${mode ?? ''}`,
   );
 
-  const exploreSearch = useThrottledCallback((term: string) => {
-    Keyboard.dismiss();
-    router.push({ pathname: '/catalogo', params: { search: term } });
-  }, 750);
+  const exploreSearch = useRouteCallback(
+    (term: string) => {
+      Keyboard.dismiss();
+      router.push({ pathname: '/catalogo', params: { search: term } });
+    },
+    (term) => `/catalogo?search=${term}`,
+  );
   const explore = useCallback(() => exploreSearch(search.trim()), [exploreSearch, search]);
-  const showProfile = useCallback(() => {
-    if (!requestAccess('/perfil')) return;
-    router.push('/perfil');
-  }, [requestAccess, router]);
+  const showProfile = useRouteCallback(
+    () => {
+      if (requestAccess('/perfil')) router.push('/perfil');
+    },
+    () => '/perfil',
+  );
   // Acciones pedidas por la barra global (Inicio/Explorar) via params.
   const params = useLocalSearchParams<{ action?: 'top' | 'explore'; t?: string }>();
   const lastActionRef = useRef<string | null>(null);
@@ -132,12 +162,16 @@ export function HomeScreen() {
           marginHorizontal: columns === 1 ? 20 : 0,
         }}
       >
-        <ProductItem product={item} mode="all" onOpen={openProduct} />
+        <ProductItem
+          product={item}
+          mode="all"
+          ratingState={ratings[item.id]}
+          onOpen={openProduct}
+        />
       </View>
     ),
-    [columns, openProduct, width],
+    [columns, openProduct, ratings, width],
   );
-  const sheetTitle = preview?.title ?? '';
 
   return (
     <AppScreen edges={['top', 'left', 'right']}>
@@ -147,7 +181,8 @@ export function HomeScreen() {
         scrollEnabled={!suggestionsInteracting}
         onScrollBeginDrag={() => setSearchDismissSignal((signal) => signal + 1)}
         onScroll={(event) => {
-          if (!restoreScroll.current) scrollOffset.current = event.nativeEvent.contentOffset.y;
+          const offset = event.nativeEvent.contentOffset.y;
+          if (!restoreScroll.current) scrollOffset.current = offset;
           onToastScroll(event);
         }}
         onContentSizeChange={() => {
@@ -164,32 +199,15 @@ export function HomeScreen() {
         numColumns={columns}
         columnWrapperStyle={columns > 1 ? { gap: 12, paddingHorizontal: 20 } : undefined}
         ItemSeparatorComponent={ProductSeparator}
-        contentContainerStyle={{ paddingBottom: 24 }}
+        contentContainerStyle={{ flexGrow: 1, paddingBottom: 24 }}
         keyboardShouldPersistTaps="handled"
         nestedScrollEnabled
         keyboardDismissMode="on-drag"
         showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={loading && data !== null}
-            onRefresh={refetch}
-            tintColor={colors.brandStrong}
-            colors={[colors.brandStrong]}
-            progressBackgroundColor={colors.surface}
-          />
-        }
+        refreshControl={<AppRefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         ListHeaderComponent={
           <>
-            <HomeHeader
-              onNotifications={() =>
-                setPreview({
-                  kind: 'info',
-                  title: 'Notificaciones',
-                  description: 'No tienes notificaciones en esta vista de muestra.',
-                })
-              }
-              onProfile={showProfile}
-            />
+            <HomeHeader onNotifications={() => setPreview(true)} onProfile={showProfile} />
             <CatalogSearch
               dismissSignal={searchDismissSignal}
               onSuggestionsInteractionChange={setSuggestionsInteracting}
@@ -201,12 +219,7 @@ export function HomeScreen() {
                   params: { search: search.trim(), filters: '1' },
                 });
               }}
-              onSelectProduct={(productId) => {
-                router.push({
-                  pathname: '/producto/[id]',
-                  params: { id: productId },
-                });
-              }}
+              onSelectProduct={(id) => openProduct(id, undefined)}
               onSubmit={exploreSearch}
               value={search}
             />
@@ -214,13 +227,15 @@ export function HomeScreen() {
             {data && isOnline === false ? (
               <OfflineState description="Mostramos los productos cargados. Actualizaremos la información al recuperar la conexión." />
             ) : null}
-            {error && data ? <ErrorState description={error.message} onRetry={refetch} /> : null}
+            {error && data ? (
+              <ErrorState description={getFriendlyErrorMessage(error)} onRetry={onRefresh} />
+            ) : null}
             <>
               <Animated.View style={reducedMotion ? undefined : sectionReveal}>
                 <BannerCarousel
                   banners={homeBanners}
                   onExplore={explore}
-                  suspended={preview !== null || search.length > 0}
+                  suspended={preview || search.length > 0}
                 />
               </Animated.View>
               <Animated.View style={reducedMotion ? undefined : categoryReveal}>
@@ -229,7 +244,10 @@ export function HomeScreen() {
                   onSelect={(id) => {
                     const category = homeCategories.find((item) => item.id === id);
                     if (category)
-                      router.push({ pathname: '/catalogo', params: { search: category.label } });
+                      router.push({
+                        pathname: '/catalogo',
+                        params: { search: category.label },
+                      });
                   }}
                   selectedId={null}
                 />
@@ -273,10 +291,10 @@ export function HomeScreen() {
         ListEmptyComponent={
           !data && isOnline === false ? (
             <OfflineState />
-          ) : !data && loading ? (
-            <ProductGridSkeleton columns={columns} />
+          ) : isPending || (!data && loading) || (Boolean(data) && !offers.ready) ? (
+            <ProductGridSkeleton columns={columns} count={HOME_PRODUCT_LIMIT} />
           ) : !data && error ? (
-            <ErrorState description={getFriendlyErrorMessage(error)} onRetry={refetch} />
+            <ErrorState description={getFriendlyErrorMessage(error)} onRetry={onRefresh} />
           ) : (
             <View className="px-5">
               <View className="items-center gap-3 rounded-2xl bg-surface-muted px-5 py-8">
@@ -306,12 +324,10 @@ export function HomeScreen() {
           ) : null
         }
       />
-      <AppSheet onClose={() => setPreview(null)} title={sheetTitle} visible={preview !== null}>
-        {preview?.kind === 'info' ? (
-          <Text className="font-sans text-base leading-6 text-secondary">
-            {preview.description}
-          </Text>
-        ) : null}
+      <AppSheet onClose={() => setPreview(false)} title="Notificaciones" visible={preview}>
+        <Text className="font-sans text-base leading-6 text-secondary">
+          No tienes notificaciones en esta vista de muestra.
+        </Text>
       </AppSheet>
     </AppScreen>
   );

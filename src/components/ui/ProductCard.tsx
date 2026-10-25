@@ -47,9 +47,9 @@ export const ProductCard = memo(function ProductCard({
         ? 'Precio de renta'
         : 'Precio de venta';
 
-  // Preserve the preview rating for existing callers; account screens supply real query state.
-  const rating = ratingState ? ratingState.summary?.averageRating : 4.8;
-  const reviewCount = ratingState ? ratingState.summary?.count : 24;
+  // Valoraciones explícitas: una tarjeta sin resumen nunca inventa opiniones.
+  const rating = ratingState ? ratingState.summary?.averageRating : product.rating;
+  const reviewCount = ratingState ? ratingState.summary?.count : (product.reviewCount ?? 0);
   const ratingLabel =
     rating !== undefined
       ? `Calificación ${rating} de 5, ${reviewCount} opiniones`
@@ -57,7 +57,9 @@ export const ProductCard = memo(function ProductCard({
         ? 'Sin conexión'
         : ratingState?.isError
           ? 'Valoración no disponible'
-          : 'Cargando valoración';
+          : ratingState?.isFetching
+            ? 'Cargando valoración'
+            : 'Sin valoraciones';
 
   const accessibilityLabel = [
     product.name,

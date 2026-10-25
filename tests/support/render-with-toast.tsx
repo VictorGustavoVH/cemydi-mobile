@@ -4,9 +4,10 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ToastProvider } from '@/providers/toast-provider';
 import { AuthProvider } from '@/providers/auth-provider';
 import { createAuthSession } from '@/features/auth/services/auth-session';
+import type { QueryClient } from '@tanstack/react-query';
 import { QueryTestProvider } from './query-wrapper';
 
-function ToastTestProvider({ children }: { children: ReactNode }) {
+function ToastTestProvider({ children, client }: { children: ReactNode; client?: QueryClient }) {
   const [session] = useState(() =>
     createAuthSession({
       get: async () => null,
@@ -22,7 +23,7 @@ function ToastTestProvider({ children }: { children: ReactNode }) {
       }}
     >
       <ToastProvider>
-        <QueryTestProvider>
+        <QueryTestProvider client={client}>
           <AuthProvider session={session}>{children}</AuthProvider>
         </QueryTestProvider>
       </ToastProvider>
@@ -30,6 +31,8 @@ function ToastTestProvider({ children }: { children: ReactNode }) {
   );
 }
 
-export function render(ui: ReactElement) {
-  return renderNative(ui, { wrapper: ToastTestProvider });
+export function render(ui: ReactElement, { client }: { client?: QueryClient } = {}) {
+  return renderNative(ui, {
+    wrapper: ({ children }) => <ToastTestProvider client={client}>{children}</ToastTestProvider>,
+  });
 }

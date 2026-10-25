@@ -39,6 +39,11 @@ describe('useVoiceSearch', () => {
         recordingOptions: { persist: false },
       }),
     );
+    expect(result.current.requesting).toBe(true);
+    expect(result.current.listening).toBe(false);
+    const onStart = mockSpeech.addListener.mock.calls.find(([event]) => event === 'start')?.[1];
+    await act(() => onStart?.({ isFinal: false, results: [] }));
+    expect(result.current.requesting).toBe(false);
     expect(result.current.listening).toBe(true);
     const callback = mockSpeech.addListener.mock.calls.find(([event]) => event === 'result')?.[1];
     const transcript: ExpoSpeechRecognitionResultEvent = {

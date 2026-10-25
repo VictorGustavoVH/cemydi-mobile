@@ -14,10 +14,11 @@ from PIL import Image
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / "src/data/local-image-placeholders.ts"
 ASSETS = sorted(
-    [*ROOT.glob("assets/images/catalog/*"),
+    [*ROOT.glob("assets/images/catalog/*.webp"),
      *ROOT.glob("assets/images/onboarding/*.png"),
      *ROOT.glob("assets/images/auth/*.webp"),
-     ROOT / "assets/branding/cemydi-logo-horizontal.png"]
+     ROOT / "assets/branding/cemydi-logo-horizontal.png",
+     ROOT / "assets/branding/cemydi-logo-horizontal.webp"]
 )
 BASE83 = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz#$%*+,-.:;=?@[]^_{|}~"
 

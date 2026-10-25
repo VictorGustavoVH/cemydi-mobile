@@ -3,7 +3,12 @@ import { AccessibilityInfo, AppState } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 
 export function useBannerPlayback(onAdvance: () => void, enabled: boolean) {
-  const [paused, setPaused] = useState(false);
+  const [paused, setPausedState] = useState(false);
+  const [pauseRevision, setPauseRevision] = useState(0);
+  const setPaused = useCallback((value: boolean) => {
+    setPausedState(value);
+    if (value) setPauseRevision((revision) => revision + 1);
+  }, []);
   const [focused, setFocused] = useState(false);
   const [foreground, setForeground] = useState(AppState.currentState === 'active');
   const [reduceMotion, setReduceMotion] = useState(true);
@@ -40,6 +45,12 @@ export function useBannerPlayback(onAdvance: () => void, enabled: boolean) {
       appState.remove();
     };
   }, []);
+
+  useEffect(() => {
+    if (!paused) return;
+    const resume = setTimeout(() => setPaused(false), 6000);
+    return () => clearTimeout(resume);
+  }, [paused, pauseRevision, setPaused]);
 
   const canAutoPlay = !reduceMotion && !screenReader;
   useEffect(() => {

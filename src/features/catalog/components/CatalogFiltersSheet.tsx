@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { Text, View } from 'react-native';
 import Check from 'lucide-react-native/icons/check';
 import { AppButton } from '@/components/ui/AppButton';
@@ -22,16 +21,18 @@ function FilterChoice({
   selected,
   onPress,
   disabled = false,
+  single = false,
 }: {
   label: string;
   selected: boolean;
   onPress: () => void;
   disabled?: boolean;
+  single?: boolean;
 }) {
   return (
     <AppButton
       label={label}
-      accessibilityRole="checkbox"
+      accessibilityRole={single ? 'radio' : 'checkbox'}
       accessibilityState={{ checked: selected }}
       variant={selected ? 'primary' : 'secondary'}
       className="justify-start"
@@ -48,8 +49,7 @@ export function CatalogFiltersSheet({
   onChange,
   onClose,
 }: CatalogFiltersSheetProps) {
-  const [availableOptions, setAvailableOptions] = useState(options);
-  if (options && options !== availableOptions) setAvailableOptions(options);
+  const availableOptions = options;
   const filters = applied;
 
   const toggle = (key: 'clasificaciones' | 'marcas', value: string) =>
@@ -78,14 +78,17 @@ export function CatalogFiltersSheet({
       <Text accessibilityRole="header" className="font-sans-semibold text-base text-primary">
         Ordenar por
       </Text>
-      {catalogSortOptions.map((option) => (
-        <FilterChoice
-          key={option.value}
-          label={option.label}
-          selected={filters.sort === option.value}
-          onPress={() => onChange({ ...filters, sort: option.value })}
-        />
-      ))}
+      <View accessibilityRole="radiogroup" accessibilityLabel="Ordenar por" className="gap-2">
+        {catalogSortOptions.map((option) => (
+          <FilterChoice
+            single
+            key={option.value}
+            label={option.label}
+            selected={filters.sort === option.value}
+            onPress={() => onChange({ ...filters, sort: option.value })}
+          />
+        ))}
+      </View>
       <Text accessibilityRole="header" className="font-sans-semibold text-base text-primary">
         Modalidad
       </Text>
@@ -134,20 +137,23 @@ export function CatalogFiltersSheet({
       <Text accessibilityRole="header" className="font-sans-semibold text-base text-primary">
         Receta
       </Text>
-      {(
-        [
-          ['Todas', null],
-          ['Con receta', true],
-          ['Sin receta', false],
-        ] as const
-      ).map(([label, value]) => (
-        <FilterChoice
-          key={label}
-          label={label}
-          selected={filters.requiereReceta === value}
-          onPress={() => onChange({ ...filters, requiereReceta: value })}
-        />
-      ))}
+      <View accessibilityRole="radiogroup" accessibilityLabel="Receta" className="gap-2">
+        {(
+          [
+            ['Todas', null],
+            ['Con receta', true],
+            ['Sin receta', false],
+          ] as const
+        ).map(([label, value]) => (
+          <FilterChoice
+            single
+            key={label}
+            label={label}
+            selected={filters.requiereReceta === value}
+            onPress={() => onChange({ ...filters, requiereReceta: value })}
+          />
+        ))}
+      </View>
       <FilterChoice
         label="Solo disponibles"
         selected={filters.soloDisponibles}

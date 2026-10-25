@@ -33,18 +33,18 @@ export function CatalogQuickFilters({
   const choices = [
     {
       label: 'Todos',
-      selected: count === 0,
+      selected: filters.tipos.length === 0,
       next: { ...emptyProductFilters, search: filters.search },
     },
     {
       label: 'Compra',
       selected: purchase,
-      next: { ...filters, tipos: purchase ? [] : ['VENTA', 'MIXTO'] },
+      next: { ...filters, tipos: ['VENTA', 'MIXTO'] },
     },
     {
       label: 'Renta',
       selected: rental,
-      next: { ...filters, tipos: rental ? [] : ['RENTA', 'MIXTO'] },
+      next: { ...filters, tipos: ['RENTA', 'MIXTO'] },
     },
     {
       label: 'Disponibles',
@@ -83,11 +83,30 @@ export function CatalogQuickFilters({
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={{ gap: 8, paddingRight: 20 }}
       >
-        {choices.map((choice) => (
+        <View
+          accessibilityRole="radiogroup"
+          accessibilityLabel="Modalidad"
+          className="flex-row gap-2"
+        >
+          {choices.slice(0, 3).map((choice) => (
+            <AppButton
+              key={choice.label}
+              label={choice.label}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: choice.selected }}
+              variant={choice.selected ? 'primary' : 'outline'}
+              className="min-h-11 rounded-full px-4 py-2"
+              labelClassName="text-sm"
+              onPress={() => onChange(choice.next)}
+            />
+          ))}
+        </View>
+        {choices.slice(3).map((choice) => (
           <AppButton
             key={choice.label}
             label={choice.label}
-            accessibilityState={{ selected: choice.selected }}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: choice.selected }}
             variant={choice.selected ? 'primary' : 'outline'}
             className="min-h-11 rounded-full px-4 py-2"
             labelClassName="text-sm"

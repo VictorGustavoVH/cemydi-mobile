@@ -1,10 +1,11 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-import { fireEvent, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react-native';
 import { addRecentSearch, clearRecentSearches } from '@/hooks/useRecentSearches';
 import { render } from '../../../../tests/support/render-with-toast';
 
 import { HomeScreen } from '../HomeScreen';
 import { CatalogPreviewProvider } from '@/providers/catalog-preview-provider';
+import { productService } from '@/services/products/product-service';
 import { installHomePreviewApiMock } from '../../../../tests/support/home-preview-api-mock';
 
 jest.mock('expo-router', () => {
@@ -12,7 +13,13 @@ jest.mock('expo-router', () => {
 
   return {
     useFocusEffect: (callback: () => void | (() => void)) => useEffect(callback, [callback]),
-    useRouter: () => ({ back: jest.fn(), push: jest.fn(), replace: jest.fn() }),
+    useRouter: () => ({
+      back: jest.fn(),
+      push: jest.fn(),
+      replace: jest.fn(),
+      navigate: jest.fn(),
+      setParams: jest.fn(),
+    }),
     useLocalSearchParams: () => ({}),
   };
 });
@@ -135,5 +142,45 @@ describe('HomeScreen', () => {
     expect(await screen.findByLabelText('Sugerencias de búsqueda')).toBeTruthy();
     await fireEvent(screen.getByLabelText('Contenido de inicio'), 'scrollBeginDrag');
     expect(screen.queryByLabelText('Sugerencias de búsqueda')).toBeNull();
+  });
+
+  it('espera las ofertas antes de pintar las tarjetas', async () => {
+    let resolveOffers!: (value: Awaited<ReturnType<typeof productService.offers>>) => void;
+    jest.spyOn(productService, 'offers').mockReturnValue(
+      new Promise((done) => {
+        resolveOffers = done;
+      }),
+    );
+    await render(
+      <CatalogPreviewProvider>
+        <HomeScreen />
+      </CatalogPreviewProvider>,
+    );
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(screen.getByLabelText('Cargando catálogo…')).toBeTruthy();
+    expect(screen.queryAllByRole('button', { name: /Ver producto$/ })).toHaveLength(0);
+    await act(() => resolveOffers({ promotions: [] }));
+    await waitFor(() =>
+      expect(screen.getAllByRole('button', { name: /Ver producto$/ })).toHaveLength(6),
+    );
+  });
+
+  it('no ancla la lista al hacer scroll', async () => {
+    await render(
+      <CatalogPreviewProvider>
+        <HomeScreen />
+      </CatalogPreviewProvider>,
+    );
+    await waitFor(() =>
+      expect(screen.getAllByRole('button', { name: /Ver producto$/ })).toHaveLength(6),
+    );
+    const list = screen.getByLabelText('Contenido de inicio');
+    // La lista no compensa cambios de alto: las pestañas conservan la instancia
+    // y las alturas de cabecera/tarjetas se estabilizan en su origen.
+    expect(list.props.maintainVisibleContentPosition).toBeUndefined();
+    await fireEvent.scroll(list, { nativeEvent: { contentOffset: { y: 320 } } });
+    expect(list.props.maintainVisibleContentPosition).toBeUndefined();
   });
 });

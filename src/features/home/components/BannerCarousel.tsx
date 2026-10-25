@@ -6,12 +6,21 @@ import { useBannerPlayback } from '../hooks/useBannerPlayback';
 import { CatalogImage } from '@/components/ui/CatalogImage';
 
 type BannerCarouselProps = { banners: HomeBanner[]; onExplore: () => void; suspended?: boolean };
+/**
+ * El carrusel ocupa el ancho completo de la lista con márgenes `mx-5` (20pt).
+ * Estimar ese ancho permite dibujar las diapositivas en el primer frame: con
+ * ancho 0 quedaban fuera y la cabecera crecía después del layout inicial, lo
+ * que desplazaba el scroll de Home fuera del tope a través de
+ * `maintainVisibleContentPosition`.
+ */
+const HORIZONTAL_MARGIN = 20;
+
 export function BannerCarousel({ banners, onExplore, suspended = false }: BannerCarouselProps) {
   const scrollRef = useRef<ScrollView>(null);
-  const [width, setWidth] = useState(0);
+  const { fontScale, width: windowWidth } = useWindowDimensions();
+  const [width, setWidth] = useState(() => Math.max(0, windowWidth - HORIZONTAL_MARGIN * 2));
   const [index, setIndex] = useState(0);
   const currentIndex = useRef(0);
-  const { fontScale } = useWindowDimensions();
   const advance = useCallback(() => {
     const next = (currentIndex.current + 1) % banners.length;
     currentIndex.current = next;
@@ -37,7 +46,22 @@ export function BannerCarousel({ banners, onExplore, suspended = false }: Banner
   if (banners.length === 0) return null;
 
   return (
-    <View className="mx-5" onLayout={(event) => setWidth(event.nativeEvent.layout.width)}>
+    <View
+      accessibilityRole="adjustable"
+      accessibilityLabel="Carrusel de banners"
+      accessibilityValue={{ min: 1, max: banners.length, now: index + 1 }}
+      accessibilityActions={[
+        { name: 'increment', label: 'Banner siguiente' },
+        { name: 'decrement', label: 'Banner anterior' },
+      ]}
+      onAccessibilityAction={(event) => {
+        if (event.nativeEvent.actionName === 'increment') selectSlide((index + 1) % banners.length);
+        if (event.nativeEvent.actionName === 'decrement')
+          selectSlide((index - 1 + banners.length) % banners.length);
+      }}
+      className="mx-5"
+      onLayout={(event) => setWidth(event.nativeEvent.layout.width)}
+    >
       <View className="relative overflow-hidden rounded-2xl bg-brand/10">
         <ScrollView
           ref={scrollRef}
@@ -46,6 +70,7 @@ export function BannerCarousel({ banners, onExplore, suspended = false }: Banner
           bounces={false}
           showsHorizontalScrollIndicator={false}
           onScrollBeginDrag={() => setPaused(true)}
+          onScrollEndDrag={() => setPaused(true)}
           onScroll={(event) => {
             if (!width) return;
             const next = Math.max(
@@ -97,11 +122,16 @@ export function BannerCarousel({ banners, onExplore, suspended = false }: Banner
           pointerEvents="box-none"
           className="absolute bottom-2.5 left-0 right-0 flex-row items-center justify-center px-3"
         >
-          <View className="flex-row items-center gap-2 px-2 py-1">
+          <View
+            accessibilityRole="radiogroup"
+            accessibilityLabel="Seleccionar banner"
+            className="flex-row items-center gap-2 px-2 py-1"
+          >
             {banners.map((banner, dotIndex) => (
               <AppButton
                 key={banner.id}
-                accessibilityState={{ selected: index === dotIndex }}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: index === dotIndex }}
                 className="h-4 items-center justify-center"
                 hideLabel
                 hitSlop={{ bottom: 8, left: 4, right: 4, top: 8 }}

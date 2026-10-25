@@ -38,8 +38,8 @@ describe('CatalogImage', () => {
   });
 
   it('usa un BlurHash precalculado diferente para cada recurso local', async () => {
-    const wheelchair = require('../../../../assets/images/catalog/wheelchair.png');
-    const walker = require('../../../../assets/images/catalog/walker.png');
+    const wheelchair = require('../../../../assets/images/catalog/wheelchair.webp');
+    const walker = require('../../../../assets/images/catalog/walker.webp');
     const firstHash = getLocalImageBlurhash(wheelchair);
     const secondHash = getLocalImageBlurhash(walker);
     expect(firstHash).toHaveLength(28);
@@ -58,7 +58,7 @@ describe('CatalogImage', () => {
     await render(
       <CatalogImage
         label="Local"
-        source={require('../../../../assets/images/catalog/walker.png')}
+        source={require('../../../../assets/images/catalog/walker.webp')}
       />,
     );
     expect(screen.getByLabelText('Local')).toHaveProp('transition', 0);

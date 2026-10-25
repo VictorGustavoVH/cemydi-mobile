@@ -33,7 +33,10 @@ export function useVoiceSearch(onChange: (value: string) => void) {
     if (!speech) return;
     const listeners = [
       speech.addListener('start', () => {
-        if (owned.current) setListening(true);
+        if (owned.current) {
+          setRequesting(false);
+          setListening(true);
+        }
       }),
       speech.addListener('result', (event) => {
         const text = event.results[0]?.transcript.trim();
@@ -42,11 +45,13 @@ export function useVoiceSearch(onChange: (value: string) => void) {
       speech.addListener('end', () => {
         if (!owned.current) return;
         owned.current = false;
+        setRequesting(false);
         setListening(false);
       }),
       speech.addListener('error', (event) => {
         if (!owned.current) return;
         owned.current = false;
+        setRequesting(false);
         setListening(false);
         if (event.error !== 'aborted') {
           setError(
@@ -105,17 +110,17 @@ export function useVoiceSearch(onChange: (value: string) => void) {
         iosTaskHint: 'search',
         recordingOptions: { persist: false },
       });
-      setListening(true);
     } catch {
       if (generation.current === session) {
         owned.current = false;
+        setRequesting(false);
         setListening(false);
         setError('No pudimos iniciar el micrófono. Vuelve a intentarlo o escribe tu búsqueda.');
       }
     } finally {
       if (generation.current === session) {
         pending.current = false;
-        setRequesting(false);
+        if (!owned.current) setRequesting(false);
       }
     }
   }, [speech]);
