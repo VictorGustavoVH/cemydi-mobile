@@ -189,6 +189,130 @@ Una segunda ejecución completa sobre develop ayuda a comprobar la estabilidad
 del arranque intermitente; no equivale a un reintento que oculte un fallo.
 No declarar resuelto por tests Node, Jest o un único arranque local.
 
+## PR 149: pérdida de ADB después del backport — 26 de octubre de 2026
+
+Se inspeccionó el [run 40400406577](https://github.com/VictorGustavoVH/cemydi-mobile/actions/runs/40400406577)
+del [PR 149](https://github.com/VictorGustavoVH/cemydi-mobile/pull/149), head
+`8c4a219038d6efaccd452f1424fa560e71920bea`, merge probado
+`564833fac5b1e6f179242a95206ca997cc5d3659`. Quality, Jest, infraestructura y build
+aprobaron; Maestro terminó 0/5 y e2e propagó el fallo.
+
+### Backport realmente compilado
+
+El log original del job build_android registra:
+
+```text
+21:01:17.529 Screens 4.26.2: lifetime corregido (4 fuentes aplicadas).
+21:05:32.536 > Task :react-native-screens:configureCMakeDebug[x86_64]
+21:05:47.136 > Task :react-native-screens:buildCMakeDebug[x86_64]
+21:07:50.935 BUILD SUCCESSFUL in 6m 31s
+```
+
+Se descargó el artefacto APK 12687969054 de ese mismo run, se verificó el checksum
+del APK contra `app-debug.apk.sha256` y se extrajo únicamente `lib/x86_64/librnscreens.so`
+para inspección ELF con `llvm-readelf --dyn-syms --demangle`. Contiene
+`RNSScreenRemovalListener::setListener` y `RNSScreenRemovalListener::clearListener`,
+funciones añadidas por el backport y ausentes en la fuente anterior. Esto verifica
+su llegada al binario, además de la ejecución del plugin.
+
+| Archivo                            | SHA-256 comprobado                                                 |
+| ---------------------------------- | ------------------------------------------------------------------ |
+| ZIP Maestro, artefacto 12689429086 | `92022eda2d9fc5913c01e4152aefcfeb4f8aabbbd77983876f61b1184c94d723` |
+| ZIP APK, artefacto 12687969054     | `1a7526771ca6a4400d61dfa8a8e955473e2526cb11253d2daff942e4c32fefed` |
+| APK contenido                      | `f3cdfcb9faa48da315d5a417172ad2d931a82ba29f41cd27b08463eee01f040b` |
+| librnscreens.so contenido          | `54cb4a77e4374a548a24f0d8842921bd301121ae6dbb83663fea183f1571210f` |
+
+Los cuatro destinos CNG, relativos al paquete `node_modules/react-native-screens`,
+son `android/src/main/cpp/NativeProxy.cpp`, `android/src/main/cpp/NativeProxy.h`,
+`cpp/RNSScreenRemovalListener.cpp` y `cpp/RNSScreenRemovalListener.h`.
+El manifiesto versionado contiene sus hashes previos y corregidos; el plugin
+rechaza fuentes distintas antes de escribir. Este run solo imprime el conteo de
+fuentes: no conserva una lectura posterior con sus hashes individuales. La
+inspección ELF acredita el backport compilado, pero no sustituye ese comprobante
+de fuentes. La revisión de diagnóstico añade dicha lectura posterior y la guarda
+en `test-results/android/screens-backport.json`, junto con rutas, versión y commit
+original. También imprime cada hash; cualquier diferencia falla CNG.
+
+### Secuencia observada, horas UTC
+
+```text
+21:10:21.812 I/ReactNativeJS: Running "main" ... "fabric":true
+21:10:23.316 I/adbd: host-17: connection terminated: write failed
+21:10:23.316 I/adbd: host-17: offline
+21:10:23.317 I/adbd: destroying transport host-17
+21:10:23.378 E/AndroidRuntime: FATAL EXCEPTION: OkHttp TaskRunner
+21:10:23.378 E/AndroidRuntime: java.lang.IllegalStateException: closed
+```
+
+La excepción Java pasa por `okio.RealBufferedSink`, `DeflaterSink`,
+`okhttp3.internal.ws.MessageDeflater`, `WebSocketWriter` y `RealWebSocket`.
+Dev Launcher la intercepta y abre `DevLauncherErrorActivity`. No es una excepción
+JavaScript ni el backtrace Fabric observado antes del backport.
+
+El primer escenario termina en `DeviceServerDiedException` durante `viewHierarchy`,
+con `UNAVAILABLE` y `device offline`. El segundo falla al iniciar. ADB vuelve a
+aceptar comandos en los siguientes, pero la jerarquía de los tres fallos restantes
+contiene el error de Dev Client:
+
+```text
+There was a problem loading the project.
+java.net.ConnectException: Failed to connect to /127.0.0.1:8091
+connect failed: ECONNREFUSED (Connection refused)
+```
+
+`run.json` conserva salida 1, `unexpected: []` y errores de limpieza por ausencia
+de ambos listeners, `tcp:4198` y `tcp:8091`. La pérdida de transporte precede a la
+excepción Java y explica la desconexión de Maestro; la falta de túneles explica
+el rechazo de conexión a Metro en los siguientes flujos. La evidencia disponible
+no determina qué provocó el corte inicial de ADB ni prueba que la excepción de
+OkHttp sea exclusivamente consecuencia de este.
+
+Metro compiló el primer bundle en 21.693 s. Se confirma entrada a `main`, pero no
+que la introducción haya quedado renderizada y accesible antes del corte: el
+primer flujo no completó la espera del botón. Las capturas de fallo están negras;
+la jerarquía sí conserva el error de conexión de Dev Client. No confundir una
+captura negra con un nuevo crash Fabric. No hay ANR antes o después.
+
+Se buscaron `SIGSEGV`, `Fatal signal` y `MountingCoordinator::pullTransaction` en
+todos los logs de texto disponibles del artefacto, sin coincidencias. Tampoco se
+encontraron errores `ReactNativeJS`. Esto describe la evidencia capturada y no
+demuestra ausencia universal de crashes fuera de su cobertura.
+
+Comparación: 40387567541 aprobó 5/5 sin esas firmas; 40390831973 y 40390841004
+sí contienen SIGSEGV de Fabric. Este último ya presentaba una pérdida posterior
+de ADB. El run nuevo conserva un problema de transporte, con otra excepción, sin
+evidencia de regresión del backport. La imagen ATD/API 35, emulador 37.2.12.0,
+Maestro 2.11.0, selectores y esperas siguen iguales.
+
+### Advertencias de overlay e hipótesis pendientes
+
+Las advertencias `cmd overlay enable-exclusive` aparecen a las 21:09:46, antes de
+iniciar los flujos. El comando incluye salida multilínea con separadores `---` y
+nombres de paquetes; el shell informa `---: inaccessible or not found`. Se trata
+de una selección de overlay mal formada en la preparación del emulador. Después
+se instala la app, aparece `Connect`, se abre el deep link y se ejecuta JavaScript.
+No hay evidencia causal que conecte esos avisos con el corte de transporte ocurrido
+unos 36 s después. Son secundarios para el fallo acreditado; tampoco se certifica
+que todos los ajustes visuales del emulador se hayan aplicado correctamente.
+Las mismas dos advertencias también aparecen en 40387567541 (5/5), 40390831973
+y 40390841004: su presencia no distingue el run nuevo del caso aprobado.
+
+No se modifican el backport, los timeouts, los selectores ni el transporte de la
+app para ocultar el resultado. La mejora aplicada es de trazabilidad CNG, no una
+corrección del corte ADB. Las dos pruebas nuevas comprueban hashes posteriores y
+rechazo de alteraciones. El resto de la infraestructura conserva sus criterios.
+
+Para investigar el corte inicial en otra ejecución, conservar desde el arranque
+el log del servidor ADB del host, estado del transporte, PID del servidor,
+`adb reverse --list` y salud de Metro/API, correlacionados en el tiempo. No añadir
+reconexiones/reintentos que conviertan esta ejecución fallida en aprobación.
+Verificar el comprobante CNG, un APK nuevo y 5/5 escenarios sin errores nativos,
+Java, transporte o limpieza antes de declarar resuelto el problema.
+
+Las evidencias originales se conservan sin sobrescritura bajo
+`test-results/ci/run-40400406577/maestro-analysis/` y `apk-analysis/`.
+No se ejecutaron ADB, Maestro, CNG ni Gradle locales ni se usó el teléfono.
+
 ## Diagnóstico de GitHub Actions — 26 de octubre de 2026
 
 Evidencia consultada: [run 40371511049](https://github.com/VictorGustavoVH/cemydi-mobile/actions/runs/40371511049)

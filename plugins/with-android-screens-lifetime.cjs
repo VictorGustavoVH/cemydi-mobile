@@ -1,6 +1,6 @@
 const { withDangerousMod } = require('expo/config-plugins');
 const { createHash } = require('node:crypto');
-const { readFile, writeFile } = require('node:fs/promises');
+const { mkdir, readFile, writeFile } = require('node:fs/promises');
 const path = require('node:path');
 const manifest = require('./react-native-screens-4.26.2/manifest.json');
 
@@ -32,6 +32,17 @@ async function patchScreens(moduleRoot, replacementsRoot = sourceRoot) {
   return pending.length;
 }
 
+async function verifyPatchedScreens(moduleRoot) {
+  const files = [];
+  for (const file of manifest.files) {
+    const actual = hash(await readFile(path.join(moduleRoot, file.path), 'utf8'));
+    if (actual !== file.after)
+      throw new Error(`La verificación posterior de Screens falló: ${file.path}.`);
+    files.push({ path: file.path, sha256: actual });
+  }
+  return files;
+}
+
 module.exports = (config) =>
   withDangerousMod(config, [
     'android',
@@ -40,9 +51,24 @@ module.exports = (config) =>
         paths: [mod.modRequest.projectRoot],
       });
       const count = await patchScreens(path.dirname(packageFile));
+      const files = await verifyPatchedScreens(path.dirname(packageFile));
+      const output = path.join(mod.modRequest.projectRoot, 'test-results/android');
+      await mkdir(output, { recursive: true });
+      // Conserva pruebas de las fuentes reales posteriores a CNG, antes de Gradle.
+      await writeFile(
+        path.join(output, 'screens-backport.json'),
+        JSON.stringify(
+          { version: manifest.version, upstreamCommit: manifest.commit, applied: count, files },
+          null,
+          2,
+        ),
+      );
       console.log(`Screens ${manifest.version}: lifetime corregido (${count} fuentes aplicadas).`);
+      for (const file of files)
+        console.log(`Screens verificado: ${file.path} SHA-256=${file.sha256}`);
       return mod;
     },
   ]);
 
 module.exports.patchScreens = patchScreens;
+module.exports.verifyPatchedScreens = verifyPatchedScreens;

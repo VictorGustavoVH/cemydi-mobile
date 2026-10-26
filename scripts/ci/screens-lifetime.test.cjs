@@ -4,7 +4,10 @@ const { createHash } = require('node:crypto');
 const { mkdtemp, mkdir, readFile, writeFile, rm } = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
-const { patchScreens } = require('../../plugins/with-android-screens-lifetime.cjs');
+const {
+  patchScreens,
+  verifyPatchedScreens,
+} = require('../../plugins/with-android-screens-lifetime.cjs');
 const manifest = require('../../plugins/react-native-screens-4.26.2/manifest.json');
 
 const installedRoot = path.dirname(require.resolve('react-native-screens/package.json'));
@@ -72,4 +75,20 @@ test('Screens: los hashes del backport son independientes de CRLF', async (t) =>
     );
   }
   assert.equal(await patchScreens(root), 0);
+});
+
+test('Screens: el comprobante verifica las cuatro fuentes reales después de aplicar el parche', async (t) => {
+  const root = await copyFixture(t);
+  await patchScreens(root);
+  assert.deepEqual(
+    await verifyPatchedScreens(root),
+    manifest.files.map((file) => ({ path: file.path, sha256: file.after })),
+  );
+});
+
+test('Screens: rechaza una fuente alterada después de aplicar el parche', async (t) => {
+  const root = await copyFixture(t);
+  await patchScreens(root);
+  await writeFile(path.join(root, manifest.files[0].path), 'fuente alterada después de CNG');
+  await assert.rejects(verifyPatchedScreens(root), /verificación posterior de Screens falló/);
 });
