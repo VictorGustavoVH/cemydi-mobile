@@ -49,7 +49,20 @@
         }
       ],
       "expo-secure-store",
-      ["expo-notifications", { "defaultChannel": "cemydi" }]
-    ]
+      [
+        "expo-notifications",
+        {
+          "defaultChannel": "cemydi"
+        }
+      ]
+    ],
+    "extra": {
+      "googleNativeConfigured": false,
+      "router": {},
+      "eas": {
+        "projectId": "390e351f-5e63-4af9-a925-49e54545f25e"
+      }
+    },
+    "owner": "victor_valdivia"
   }
 }
