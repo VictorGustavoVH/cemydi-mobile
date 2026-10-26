@@ -87,6 +87,108 @@ Referencias: [CNG de Expo](https://docs.expo.dev/workflow/continuous-native-gene
 [release Maestro 2.11.0](https://github.com/mobile-dev-inc/Maestro/releases/tag/cli-2.11.0)
 y [`needs` de GitHub Actions](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idneeds).
 
+## SIGSEGV tras integrar el PR 148 — 26 de octubre de 2026
+
+Se compararon exclusivamente estas ejecuciones y sus artefactos Maestro originales:
+
+| Run                                                                                      | Evento y revisión probada                                                   | Resultado |
+| ---------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- | --------- |
+| [40387567541](https://github.com/VictorGustavoVH/cemydi-mobile/actions/runs/40387567541) | PR, merge temporal `7503697435d0aab2083dbf118bb987ecb50856ca`               | 5/5       |
+| [40390831973](https://github.com/VictorGustavoVH/cemydi-mobile/actions/runs/40390831973) | push a develop, `3cccf45bc9304dd02a63f15ae4febcb408431ac5`                  | 3/5       |
+| [40390841004](https://github.com/VictorGustavoVH/cemydi-mobile/actions/runs/40390841004) | PR desde develop, merge temporal `dc93d5f7fce751f11e8f4eedfbc7db7eb4690cb0` | 0/5       |
+
+El merge temporal aprobado y el merge final de develop comparten el árbol
+`e3a9518f6ce2ea525a72a8bb7b0f70d15928258a`. El otro merge temporal solo cambia
+`.prettierrc` (`endOfLine: auto`). No hay cambios funcionales de app, lockfile,
+selectores ni scripts entre estos estados.
+
+Los tres jobs usan Ubuntu 24.04 (imagen 20261012.334.1), Node 22.23.3, Temurin 21.0.12, Maestro 2.11.0,
+emulador 37.2.12.0/build 16428233, Android 35 `aosp_atd` x86_64, Pixel 6,
+2 cores/3072 MB y resolución 720×1600/densidad 320. KVM y checksum del APK
+aprobaron; `lastanr-before.txt` y `lastanr-after.txt` no registran ANR.
+
+En los tres casos `Connect` aparece y `openLink` termina. La URL de Dev Client y
+la espera de 120000 ms para `Omitir introducción y explorar catálogo` son iguales.
+El selector coincide con el accessibility label del botón existente y funciona en
+los cinco flujos de referencia y en tres del push posterior. No se cambia el
+selector ni se aumenta su timeout.
+
+### Evidencia causal
+
+Los `logs/device-logcat.txt` por flujo conservan los crashes que el buffer final
+de logcat puede perder. Las horas siguientes son UTC, tal como aparecen en ellos:
+
+- PR fallido: 20:09:00.889, SIGSEGV en `mqt_v_js`, PID 2192. Backtrace en
+  `MountingCoordinator::pullTransaction(bool) const+706`.
+- Push, carrito: 20:10:41.489, SIGSEGV en `mqt_v_js`, PID 2208. PC en heap Scudo,
+  llamado desde `MountingCoordinator::pullTransaction(bool) const+713`.
+- Push, pestañas: 20:14:10.830, SIGSEGV en `mqt_v_js`, PID 3199. Mismo punto
+  `pullTransaction+713`, PC en heap Scudo.
+
+Los backtraces identifican el mismo `libreactnative.so`, BuildId
+`0ee9df273e73129b6847c18499325cfe1dd7dfd3`, y Fabric finalizando una transacción de
+montaje. Metro ya compiló el bundle (19.486 s y 20.920 s en los runs fallidos) y
+Android registra `Running "main"` antes de terminar el proceso. La referencia
+aprobada tarda más en compilar el primer bundle (37.388 s), sin crash. Las capturas de
+fallo quedan negras, sin el botón en la jerarquía. La espera agotada es una
+consecuencia del crash, no prueba de un servidor lento ni de un selector incorrecto.
+
+En el run 0/5, el siguiente flujo registra además `DeviceServerDiedException` y
+`device offline`; los demás fallan inmediatamente y faltan los listeners ADB al
+limpiar. Esa pérdida posterior es otro fallo de infraestructura; no se atribuye
+su causa exacta al SIGSEGV sin evidencia adicional. En el run 3/5 ADB se mantiene
+operativo y la limpieza no registra errores. `unexpected: []` en ambos descarta
+peticiones rechazadas por el fixture, pero no prueba por sí solo toda la conectividad.
+Las rutas ficticias sí se ejercitan en los tres escenarios aprobados del push.
+
+### Corrección nativa acotada
+
+El lockfile instala `react-native-screens` 4.26.2. Su `ScreensModule.initialize()`
+registra el listener de lifecycle y llama `setupFabric()`; `onHostResume()` también
+lo llama. En `NativeProxy::nativeAddMutationsListener` la inicialización de
+`screenRemovalListener_` no está sincronizada. El mutex existente solo protege
+la lista de coordinadores, no esa inicialización.
+
+El [PR upstream 4413](https://github.com/software-mansion/react-native-screens/pull/4413)
+describe y corrige esa carrera y las mismas firmas de crash. Esta coincidencia y
+el código vulnerable instalado respaldan el backport; los logs de CEMYDI no
+instrumentan ambas asignaciones concurrentes, por lo que la validación nativa de
+la corrección continúa pendiente.
+
+`plugins/with-android-screens-lifetime.cjs` aplica durante prebuild Android los
+cuatro archivos revisados de ese fix, conservados en
+`plugins/react-native-screens-4.26.2/` con licencia, referencia y hashes.
+El listener pasa a singleton con inicialización segura; el callback captura la
+referencia JNI por valor y se instala/retira con mutex y token de propietario.
+No cambia dependencias, UI, escenarios, esperas ni configuración del emulador.
+No se editan proyectos Android generados. iOS no aplica este mod.
+
+Se exige versión 4.26.2 y hashes de entrada/salida conocidos. Una fuente o versión
+distinta falla antes de escribir: al actualizar Screens, revisar y retirar el
+backport cuando la distribución instalada contenga el fix. No omitir esa guarda.
+El plugin admite repetir prebuild y normaliza CRLF para calcular hashes.
+`scripts/ci/screens-lifetime.test.cjs` prueba aplicación completa, idempotencia,
+rechazo de fuentes/versiones desconocidas y reemplazos alterados. Estos tests
+operan sobre copias temporales; no ejecutan CNG, Gradle, ADB ni Maestro.
+
+Las copias nuevas de evidencias están bajo
+`test-results/ci/run-40390831973/maestro-analysis/` y
+`test-results/ci/run-40390841004/maestro-analysis/`. Sus ZIP tienen SHA-256
+`97af2d2014c94df6f02bf8e772839ddb8653f161dd49764ca289a67c14262bf8` y
+`cfa785053b2d8ffbb0b5be75a8b42d835ca7ef96710178406899eccba4b9d868`,
+respectivamente, coincidentes con GitHub. No se sobrescribieron resultados anteriores.
+
+### Validación pendiente en GitHub
+
+Tras publicar el cambio con autorización, ejecutar Tests con Android requerido
+(cambio en plugin/workflow o `workflow_dispatch`). Debe generar un APK nuevo con
+las cuatro fuentes corregidas, verificar checksum y completar 5/5 flujos sin
+fallos/omitidos, SIGSEGV de CEMYDI, pérdida del servidor Maestro, peticiones
+inesperadas ni errores de limpieza. Conservar JUnit, logs por flujo y logcat.
+Una segunda ejecución completa sobre develop ayuda a comprobar la estabilidad
+del arranque intermitente; no equivale a un reintento que oculte un fallo.
+No declarar resuelto por tests Node, Jest o un único arranque local.
+
 ## Diagnóstico de GitHub Actions — 26 de octubre de 2026
 
 Evidencia consultada: [run 40371511049](https://github.com/VictorGustavoVH/cemydi-mobile/actions/runs/40371511049)

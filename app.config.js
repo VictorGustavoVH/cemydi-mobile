@@ -29,6 +29,7 @@ module.exports = ({ config: base }) => {
       ...base.plugins,
       './plugins/with-android-java.cjs',
       './plugins/with-android-cmake.cjs',
+      './plugins/with-android-screens-lifetime.cjs',
       ...(hasValidIosClient
         ? [
             [

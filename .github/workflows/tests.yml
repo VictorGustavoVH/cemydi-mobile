@@ -105,7 +105,7 @@ jobs:
       - name: Validate Maestro flows and infrastructure
         run: |
           npm run test:e2e -- --check
-          node --test scripts/maestro-infra.test.cjs scripts/maestro-ci.test.cjs scripts/ci/android-policy.test.cjs scripts/ci/prepare-kvm.test.cjs
+          node --test scripts/maestro-infra.test.cjs scripts/maestro-ci.test.cjs scripts/ci/android-policy.test.cjs scripts/ci/prepare-kvm.test.cjs scripts/ci/screens-lifetime.test.cjs
 
   build_android:
     needs: [changes, tests, maestro_checks]
