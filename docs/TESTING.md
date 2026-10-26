@@ -41,7 +41,7 @@ Maestro es una CLI externa, no una dependencia npm. Android Studio, emuladores, 
   tabs.yaml
   support/open-app.yaml
   support/open-catalog.yaml
-  support/open-preview-product.yaml
+  support/open-test-product.yaml
 scripts/
   android.cjs
   maestro.cjs
@@ -159,54 +159,36 @@ Para la protección de ramas se recomienda exigir los checks `validate`, `unit` 
 
 ## Maestro local Android
 
-Los cinco flujos de `.maestro/config.yaml` cubren catálogo/búsqueda/filtros,
-detalle de muestra/modalidades/favoritos, carrito invitado/cantidad/deshacer,
-onboarding y conservación de búsqueda al alternar pestañas. No envían rentas,
-no procesan pagos y no usan credenciales reales.
+La guía reproducible de Windows 11, diagnóstico, preparación del Development Build,
+autorización de limpieza por dispositivo, flujos y evidencias está en
+[MAESTRO_E2E.md](./MAESTRO_E2E.md).
 
-El destino es el development build cuyo identificador y scheme provienen de
-`app.json`. No se ejecutan estos flujos sobre Expo Go. Se necesitan Java 17+,
-Maestro CLI y un emulador Android autorizado con la build instalada. La CLI no
-se versiona: instalar su distribución oficial en `.tools/maestro/maestro` o
-configurar `CEMYDI_MAESTRO_HOME` apuntando al directorio que contenga `lib/`.
-Consultar [instalación de Maestro](https://docs.maestro.dev/maestro-cli/how-to-install-maestro-cli).
-
-```bash
-adb devices
+```powershell
+npm run test:e2e -- --check
+node --test scripts/maestro-infra.test.cjs
+adb devices -l
 npm run maestro -- --version
-npm run test:e2e
 ```
 
-El runner selecciona un emulador conectado o el dispositivo indicado por
-`CEMYDI_E2E_DEVICE`. Comprueba la app instalada y que el puerto Metro 8091 esté
-libre; inicia su propio Metro y una API pública ficticia de solo lectura en 4198.
-Configura ADB reverse sin reemplazar redirecciones ajenas y limpia sus procesos,
-servidor y redirecciones al terminar. `EXPO_NO_DOTENV=1` evita usar una API privada
-por accidente. No hay que arrancar manualmente otro Metro para estos flujos.
+`--check` valida sintaxis YAML, cabeceras y referencias; no ejecuta comandos Maestro
+ni certifica el comportamiento nativo. El runner exige `CEMYDI_E2E_DEVICE` explícito,
+Development Build verificable y `CEMYDI_E2E_ALLOW_CLEAR` igual al serial autorizado.
+Los flujos borran los datos de `com.cemydi.app`: no ejecutarlos directamente con la
+CLI sobre una app con datos personales.
 
-Los subflujos reciben `APP_ID`, `APP_SCHEME` y `DEV_CLIENT_URL` del runner.
-`open-app.yaml` limpia el estado de esa app de pruebas para empezar como invitado:
-usar un emulador dedicado, sin datos personales. La introducción del development
-client se cierra únicamente si aparece. Los selectores usan labels existentes.
-El flujo de detalle/carrito abre el fixture explícito `/producto/wheelchair`.
+Los cinco escenarios usan API ficticia local de lectura; los tres principales
+cubren catálogo/búsqueda/disponibilidad, detalle/modalidades y carrito de invitado.
+No son pruebas de integración con NestJS ni validan pedidos, rentas o pagos reales.
+Cada ejecución que supera preflight guarda JUnit, logs, capturas y resumen en un
+subdirectorio de `test-results/maestro/` ignorado por Git. El resultado del runner
+falla también por peticiones imprevistas o errores de limpieza, aunque JUnit esté verde.
 
-Al llegar a Maestro se solicita un reporte JUnit en
-`test-results/maestro/results.xml`. Los argumentos adicionales se pasan al CLI,
-por ejemplo para cambiar el destino del reporte:
+Sin dispositivo o build compatible se devuelve error antes de abrir la app o iniciar
+servidores; no se produce un reporte aprobado. iOS y E2E en CI siguen pendientes.
 
-```bash
-npm run test:e2e -- --output test-results/maestro/otra-ejecucion.xml
-```
-
-Sin dispositivo o build instalada el runner devuelve un error explícito antes
-de arrancar servidores. No genera un reporte aprobado ni desactiva pruebas.
-La validación de YAML y Jest no certifica scroll, temporización, diálogos del
-sistema ni navegación nativa. iOS requiere macOS y una preparación propia.
-E2E en CI queda pendiente de una build instalable y un emulador estable; no se
-agrega un pipeline que aparente haber ejecutado pruebas sin esos requisitos.
-
-Referencia: [reportes de Maestro](https://docs.maestro.dev/maestro-flows/workspace-management/test-reports-and-artifacts).
-Estado de esta entrega: [MOBILE_QUALITY.md](./MOBILE_QUALITY.md).
+La ejecución física del 25 de octubre de 2026 en HUAWEI STK-LX3 / Android 10
+aprobó los cinco flujos. El reporte, duraciones y limitaciones están al final de
+[MAESTRO_E2E.md](./MAESTRO_E2E.md).
 
 ## Verificación manual de conectividad
 

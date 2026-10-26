@@ -1,18 +1,39 @@
 appId: ${APP_ID}
-name: Catálogo público - búsqueda remota y filtros
+name: E2E-01 - Catálogo público - búsqueda remota y filtros
 ---
 - runFlow: support/open-catalog.yaml
 - tapOn: Explorar
 - extendedWaitUntil:
     visible: Catálogo
     timeout: 15000
+- extendedWaitUntil:
+    visible: Equipo E2E 1.*Ver producto
+    timeout: 30000
+- assertVisible: Equipo E2E 2.*Ver producto
+- tapOn: Buscar equipo ortopédico
+- inputText: Equipo E2E 1
+- hideKeyboard
+- extendedWaitUntil:
+    notVisible: Equipo E2E 2.*Ver producto
+    timeout: 30000
+- extendedWaitUntil:
+    visible: Equipo E2E 1.*Ver producto
+    timeout: 30000
+- takeScreenshot: E2E-01-busqueda
+- tapOn: Borrar búsqueda
+- extendedWaitUntil:
+    visible: Equipo E2E 2.*Ver producto
+    timeout: 30000
 - tapOn: Buscar equipo ortopédico
 - inputText: zzzsinresultadoscemydi
 - hideKeyboard
 - extendedWaitUntil:
     visible: No encontramos productos
     timeout: 30000
-- tapOn: Limpiar filtros
+- tapOn: Borrar búsqueda
+- extendedWaitUntil:
+    visible: Equipo E2E 2.*Ver producto
+    timeout: 30000
 - tapOn: Filtrar catálogo
 - assertVisible: Aplicar filtros
 - assertVisible: Ordenar por
@@ -25,3 +46,8 @@ name: Catálogo público - búsqueda remota y filtros
 - tapOn: Aplicar filtros
 - assertVisible: Catálogo
 - assertVisible: Limpiar filtros.*
+- extendedWaitUntil:
+    notVisible: Equipo E2E 2.*Ver producto
+    timeout: 30000
+- assertVisible: Equipo E2E 1.*Ver producto
+- takeScreenshot: E2E-01-disponibles

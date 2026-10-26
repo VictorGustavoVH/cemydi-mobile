@@ -1,18 +1,25 @@
 appId: ${APP_ID}
-name: Detalle de muestra - favoritos y modalidades
+name: E2E-02 - Detalle de API simulada - información y modalidades
 ---
-- runFlow: support/open-preview-product.yaml
-- extendedWaitUntil:
-    visible: Guardar en favoritos
-    timeout: 10000
-- tapOn: Guardar en favoritos
-- assertVisible: Quitar de favoritos
+- runFlow: support/open-test-product.yaml
+- scrollUntilVisible:
+    element:
+      text: Equipo E2E 1
+    direction: DOWN
+- assertVisible: Añadir al carrito
 - scrollUntilVisible:
     element:
       text: Renta
     direction: DOWN
 - tapOn: Renta
 - assertVisible: Añadir renta al carrito
+- tapOn: Compra
+- assertVisible: Añadir al carrito
+- scrollUntilVisible:
+    element:
+      text: Equipo de prueba para el catálogo público.
+    direction: DOWN
+- assertVisible: Equipo de prueba para el catálogo público.
 - scrollUntilVisible:
     element:
       text: Características
@@ -20,6 +27,7 @@ name: Detalle de muestra - favoritos y modalidades
 - tapOn: Características
 - scrollUntilVisible:
     element:
-      text: Reposabrazos y reposapiés
+      text: Modelo 1
     direction: DOWN
-- assertVisible: Reposabrazos y reposapiés
+- assertVisible: Modelo 1
+- takeScreenshot: E2E-02-caracteristicas

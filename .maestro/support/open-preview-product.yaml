@@ -1,8 +1,0 @@
-# Isolated guest fixture; never writes to a real backend.
-appId: ${APP_ID}
----
-- runFlow: open-catalog.yaml
-- openLink: ${APP_SCHEME}://producto/wheelchair?mode=purchase
-- extendedWaitUntil:
-    visible: Añadir al carrito
-    timeout: 60000
