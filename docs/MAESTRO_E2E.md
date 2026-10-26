@@ -2,16 +2,17 @@
 
 ## Pipeline Android en GitHub Actions
 
-`.github/workflows/ci.yml` encadena mediante `needs`:
+`.github/workflows/tests.yml` conserva la matriz Jest y encadena mediante `needs`:
 
 ```text
-validate + tests (unit/integration) → build_android → maestro → ci
+tests (unit/integration) + maestro_checks → build_android → maestro → e2e
 ```
 
-El check final `ci` también depende directamente de todas las etapas y falla si
-alguna no termina con éxito. Los antiguos workflows Quality y Tests se sustituyen
-por este único workflow para evitar ejecuciones duplicadas. El pipeline se ejecuta
-en PR y push de `develop`/`main`, además de permitir ejecución manual.
+El check final `e2e` también depende directamente de todas las etapas de Tests y
+falla si alguna no termina con éxito. `quality.yml` se mantiene con el job `validate`
+original y se ejecuta de forma independiente. Ambos workflows se ejecutan en PR y
+push de `develop`/`main`; Tests permite además ejecución manual. `needs` no cruza
+workflows: la protección de ramas debe exigir tanto `validate` como `e2e`.
 
 El build genera Android con CNG desde el checkout de la ejecución, sin versionar
 archivos nativos ni usar EAS. Compila un APK debug Development Build para `x86_64`
@@ -39,14 +40,14 @@ Validación sin dispositivo:
 npm run test:e2e -- --check
 node --test scripts/maestro-infra.test.cjs scripts/maestro-ci.test.cjs
 bash -n scripts/maestro-ci.sh
-actionlint .github/workflows/ci.yml
+actionlint .github/workflows/quality.yml .github/workflows/tests.yml
 ```
 
 Las pruebas del script simulan ADB y npm: verifican rechazo de entornos/seriales
 ajenos, rechazo de dispositivos no emulados, propagación de fallos y recolección de
 evidencias. No ejecutan la app. El primer run nativo de GitHub queda pendiente de
 publicar los commits; no confundir esta configuración con una ejecución CI aprobada.
-Después, configurar el check `ci` como obligatorio en `develop` y `main` según
+Después, añadir el check `e2e` a los checks obligatorios en `develop` y `main` según
 [GIT_WORKFLOW.md](./GIT_WORKFLOW.md). Detalles del pipeline en
 [TESTING.md](./TESTING.md).
 

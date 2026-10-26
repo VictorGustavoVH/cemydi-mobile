@@ -86,13 +86,14 @@ npx --yes expo-doctor
 ```
 
 Hay pre-commit con `lint-staged` (Husky) que ejecuta ESLint y Prettier sobre los
-archivos modificados. El workflow `.github/workflows/ci.yml` ejecuta calidad y
-ambas suites Jest en paralelo; mediante `needs`, encadena el build Android y los
-cinco flujos Maestro en un emulador desechable. Se activa en PR y push a `develop`
-o `main` y permite ejecución manual. El check final `ci` exige que todas las etapas
-aprueben. Ver [TESTING.md](docs/TESTING.md) para evidencias y configuración de checks
-obligatorios. La primera ejecución nativa en GitHub debe verificarse tras publicar
-los cambios del pipeline.
+archivos modificados. Los workflows `.github/workflows/quality.yml` y `tests.yml`
+se ejecutan de forma independiente en PR y push a `develop` o `main`. Quality
+conserva typecheck, lint, formato y Expo Doctor. Tests conserva ambas suites Jest y,
+mediante `needs`, añade el build Android y los cinco flujos Maestro en un emulador
+desechable; también permite ejecución manual. Su check final `e2e` exige que todas
+las etapas de Tests aprueben. Ver [TESTING.md](docs/TESTING.md) para evidencias y
+checks obligatorios. La primera ejecución nativa en GitHub debe verificarse tras
+publicar los cambios del pipeline.
 
 ## Estructura resumida
 

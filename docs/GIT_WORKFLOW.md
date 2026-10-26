@@ -51,19 +51,22 @@ Un PR hacia `develop` debe incluir:
 - riesgos, migraciones y decisiones pendientes;
 - cambios de dependencias justificados, si los hay.
 
-CI se ejecuta en PR hacia `develop`/`main`, en push a esas ramas y manualmente.
-Calidad y Jest corren en paralelo; `needs` condiciona el build Android a ambas
-validaciones y Maestro al build. El check final `ci` exige el éxito de todas las
-etapas. El merge a `develop` genera un push y vuelve a validar el estado integrado;
-no requiere un workflow adicional de merge. Los pushes de ramas de trabajo con PR
-se validan por el evento del PR, evitando otro run idéntico en cada push de feature.
+Quality y Tests se ejecutan como workflows independientes en PR hacia
+`develop`/`main` y en push a esas ramas. Quality conserva su job `validate`.
+Tests conserva la matriz Jest y añade las verificaciones de infraestructura Maestro;
+`needs` condiciona el build Android a ambas y Maestro al build. El check final
+`e2e` exige el éxito de todas las etapas de Tests; no depende del workflow Quality.
+Tests también permite ejecución manual. El merge a `develop` genera un push y
+vuelve a validar el estado integrado; no requiere un workflow adicional de merge.
+Los pushes de ramas de trabajo con PR se validan por el evento del PR, evitando
+otro run idéntico en cada push de feature.
 
 Configurar manualmente protección/rulesets en `develop` y `main` para exigir PR,
-revisión y el check final `ci`, verificando su nombre en el primer run. Sustituir
-los requisitos de Quality/Tests si quedaron asociados a los workflows eliminados.
-Los checks `validate`, `unit` e `integration` pueden seguir siendo obligatorios,
-pero no sustituyen `ci`, que incluye build y Maestro. Detalles de orden, reportes y
-límites en [TESTING.md](./TESTING.md). Un fallo no se ignora y debe bloquear el merge.
+revisión y los checks `validate` (Quality), `unit` e `integration` (Tests), además
+del nuevo check final `e2e` (Tests), verificando sus nombres en el primer run.
+`e2e` incluye build y Maestro, pero no sustituye `validate`: Quality se valida de
+forma independiente. Detalles de orden, reportes y límites en
+[TESTING.md](./TESTING.md). Un fallo no se ignora y debe bloquear el merge.
 
 Los agentes dejan cambios sin confirmar para revisión humana: no ejecutan `git add`, commit, push, merge, cambios/creación de ramas ni creación de PR salvo autorización explícita para esa operación. Los reportes generados permanecen ignorados; no se versionan automáticamente.
 
