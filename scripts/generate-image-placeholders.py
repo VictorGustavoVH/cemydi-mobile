@@ -17,7 +17,6 @@ ASSETS = sorted(
     [*ROOT.glob("assets/images/catalog/*.webp"),
      *ROOT.glob("assets/images/onboarding/*.webp"),
      *ROOT.glob("assets/images/auth/*.webp"),
-     ROOT / "assets/branding/cemydi-logo-horizontal.png",
      ROOT / "assets/branding/cemydi-logo-horizontal.webp"]
 )
 BASE83 = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz#$%*+,-.:;=?@[]^_{|}~"

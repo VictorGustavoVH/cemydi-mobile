@@ -2,8 +2,6 @@
 import type { ImageSourcePropType } from 'react-native';
 
 const localImageBlurhashes = new Map<ImageSourcePropType, string>([
-  // SHA-256: d47c82e951f6544ed9e95e5725ac14d65cd033bb0acabf634eb5f6bf4475d595
-  [require('../../assets/branding/cemydi-logo-horizontal.png'), 'L+OEbbf%Rjoz-;WUWBfj~BW;Wpoe'],
   // SHA-256: 0e337705cfdf5fe95174ad4faafe0bd46813b89c6932920c315a470211c150fc
   [require('../../assets/branding/cemydi-logo-horizontal.webp'), 'L+OEbbf%Rjoz-;WUWBfj~BW;Wpoe'],
   // SHA-256: 5cd80d07a902b1f8731c36a956984da81d5e98130aa75268ec0064d1711f0260
