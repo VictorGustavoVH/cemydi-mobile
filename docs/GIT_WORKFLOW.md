@@ -51,9 +51,19 @@ Un PR hacia `develop` debe incluir:
 - riesgos, migraciones y decisiones pendientes;
 - cambios de dependencias justificados, si los hay.
 
-Quality y Tests se ejecutan en PR hacia `develop`/`main` y en push a esas ramas. El merge a `develop` genera un push y vuelve a validar el estado integrado; no requiere un workflow adicional de merge. Los pushes de ramas de trabajo con PR se validan por el evento del PR, evitando otro run idéntico en cada push de feature.
+CI se ejecuta en PR hacia `develop`/`main`, en push a esas ramas y manualmente.
+Calidad y Jest corren en paralelo; `needs` condiciona el build Android a ambas
+validaciones y Maestro al build. El check final `ci` exige el éxito de todas las
+etapas. El merge a `develop` genera un push y vuelve a validar el estado integrado;
+no requiere un workflow adicional de merge. Los pushes de ramas de trabajo con PR
+se validan por el evento del PR, evitando otro run idéntico en cada push de feature.
 
-Configurar manualmente protección/rulesets en `develop` y `main` para exigir PR, revisión y los checks `validate` (Quality), `unit` e `integration` (Tests), verificando sus nombres en el primer run. Detalles de orden, reportes y límites en [TESTING.md](./TESTING.md). Un fallo no se ignora y debe bloquear el merge cuando esos checks sean obligatorios.
+Configurar manualmente protección/rulesets en `develop` y `main` para exigir PR,
+revisión y el check final `ci`, verificando su nombre en el primer run. Sustituir
+los requisitos de Quality/Tests si quedaron asociados a los workflows eliminados.
+Los checks `validate`, `unit` e `integration` pueden seguir siendo obligatorios,
+pero no sustituyen `ci`, que incluye build y Maestro. Detalles de orden, reportes y
+límites en [TESTING.md](./TESTING.md). Un fallo no se ignora y debe bloquear el merge.
 
 Los agentes dejan cambios sin confirmar para revisión humana: no ejecutan `git add`, commit, push, merge, cambios/creación de ramas ni creación de PR salvo autorización explícita para esa operación. Los reportes generados permanecen ignorados; no se versionan automáticamente.
 

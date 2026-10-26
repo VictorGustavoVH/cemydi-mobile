@@ -1,5 +1,60 @@
 # Maestro E2E en Android — Windows 11
 
+## Pipeline Android en GitHub Actions
+
+`.github/workflows/ci.yml` encadena mediante `needs`:
+
+```text
+validate + tests (unit/integration) → build_android → maestro → ci
+```
+
+El check final `ci` también depende directamente de todas las etapas y falla si
+alguna no termina con éxito. Los antiguos workflows Quality y Tests se sustituyen
+por este único workflow para evitar ejecuciones duplicadas. El pipeline se ejecuta
+en PR y push de `develop`/`main`, además de permitir ejecución manual.
+
+El build genera Android con CNG desde el checkout de la ejecución, sin versionar
+archivos nativos ni usar EAS. Compila un APK debug Development Build para `x86_64`
+con Java 21. El job Maestro descarga ese artefacto y verifica su SHA-256; no reutiliza
+el APK arm64 del teléfono documentado abajo. Maestro queda fijado a 2.11.0 con
+checksum del release oficial. No requiere secretos ni un teléfono conectado.
+
+`scripts/maestro-ci.sh` solo admite el runner GitHub-hosted y `emulator-5554` con
+propiedad QEMU activa. El workflow crea ese emulador nuevo y desechable (Android
+API 35, Google APIs, Pixel 6, `x86_64`); ejecutar este pipeline autoriza la instalación
+y limpieza de `com.cemydi.app` exclusivamente allí. El script configura las dos
+variables de dispositivo/limpieza y llama a `npm run test:e2e`, conservando las
+protecciones locales, los cinco flujos, Metro y la API ficticia. La autorización
+del emulador de CI no se extiende a dispositivos físicos ni emuladores locales.
+
+Las evidencias se suben incluso si falla una etapa: diagnósticos de build por 14
+días, APK/checksum por 7 días y evidencias Maestro/logcat por 14 días. El script
+conserva el código de error de instalación o E2E aunque no consiga recoger logcat.
+Los fallos de preflight pueden no generar JUnit ni `run.json`; revisar también el
+log del job. No se omiten fallos ni se añaden reintentos automáticos.
+
+Validación sin dispositivo:
+
+```bash
+npm run test:e2e -- --check
+node --test scripts/maestro-infra.test.cjs scripts/maestro-ci.test.cjs
+bash -n scripts/maestro-ci.sh
+actionlint .github/workflows/ci.yml
+```
+
+Las pruebas del script simulan ADB y npm: verifican rechazo de entornos/seriales
+ajenos, rechazo de dispositivos no emulados, propagación de fallos y recolección de
+evidencias. No ejecutan la app. El primer run nativo de GitHub queda pendiente de
+publicar los commits; no confundir esta configuración con una ejecución CI aprobada.
+Después, configurar el check `ci` como obligatorio en `develop` y `main` según
+[GIT_WORKFLOW.md](./GIT_WORKFLOW.md). Detalles del pipeline en
+[TESTING.md](./TESTING.md).
+
+Referencias: [CNG de Expo](https://docs.expo.dev/workflow/continuous-native-generation/),
+[emulador en Actions](https://github.com/ReactiveCircus/android-emulator-runner),
+[release Maestro 2.11.0](https://github.com/mobile-dev-inc/Maestro/releases/tag/cli-2.11.0)
+y [`needs` de GitHub Actions](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idneeds).
+
 ## Diagnóstico y alcance
 
 La implementación previa ya proporcionaba wrapper Java, Metro local, ADB reverse,

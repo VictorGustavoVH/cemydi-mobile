@@ -85,7 +85,14 @@ npm run check           # typecheck + lint + format:check + tests
 npx --yes expo-doctor
 ```
 
-Hay pre-commit con `lint-staged` (Husky) que ejecuta ESLint y Prettier sobre los archivos modificados. Los workflows de GitHub Actions (`.github/workflows/quality.yml` y `tests.yml`) ejecutan typecheck, lint, formato, Expo Doctor y ambas suites de Jest en cada PR y push a `develop` o `main`.
+Hay pre-commit con `lint-staged` (Husky) que ejecuta ESLint y Prettier sobre los
+archivos modificados. El workflow `.github/workflows/ci.yml` ejecuta calidad y
+ambas suites Jest en paralelo; mediante `needs`, encadena el build Android y los
+cinco flujos Maestro en un emulador desechable. Se activa en PR y push a `develop`
+o `main` y permite ejecución manual. El check final `ci` exige que todas las etapas
+aprueben. Ver [TESTING.md](docs/TESTING.md) para evidencias y configuración de checks
+obligatorios. La primera ejecución nativa en GitHub debe verificarse tras publicar
+los cambios del pipeline.
 
 ## Estructura resumida
 
