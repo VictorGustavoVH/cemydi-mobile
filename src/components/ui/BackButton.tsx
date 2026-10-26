@@ -65,5 +65,3 @@ export function BackButton({
     />
   );
 }
-
-export const AppBackButton = BackButton;

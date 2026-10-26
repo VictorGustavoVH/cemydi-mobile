@@ -51,12 +51,3 @@ export function notificationTime(value: string, now = Date.now()) {
   const years = Math.floor(days / 365);
   return `Hace ${Math.max(1, years)} ${years <= 1 ? 'año' : 'años'}`;
 }
-
-export function notificationAction(item: { category: string; destinationType: string }) {
-  if (item.destinationType === 'PRODUCT')
-    return item.category === 'OFFER' ? 'Ver oferta' : 'Ver producto';
-  if (item.destinationType === 'PROMOTION') return 'Ver oferta';
-  if (item.destinationType === 'RENTAL') return 'Ver renta';
-  if (item.destinationType === 'ACCOUNT') return 'Revisar cuenta';
-  return null;
-}

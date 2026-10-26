@@ -1,6 +1,6 @@
 # Toast global CEMYDI
 
-Referencia: `toast-cemydi-contador-compacto.html`. Implementación nativa, sin WebView. Ruta temporal `/toast-demo`, accesible mediante Expo Router/deep link; no se añade a la navegación comercial. La demo identifica las operaciones como simuladas y permite fallos, pulsaciones consecutivas, transiciones a success/error/info y pruebas dentro de AppSheet.
+Referencia: `toast-cemydi-contador-compacto.html`. Implementación nativa, sin WebView.
 
 ## Archivos y montaje
 
@@ -10,7 +10,6 @@ Referencia: `toast-cemydi-contador-compacto.html`. Implementación nativa, sin W
 - `src/app/_layout.tsx`: SafeAreaProvider y ToastProvider sobre Stack.
 - `src/components/ui/AppSheet.tsx`: host local en el modal nativo; suspende visualmente el host raíz.
 - `src/theme/colors.ts`: tokens semánticos específicos de toast.
-- `src/features/toast-demo/ToastDemoScreen.tsx` y `src/app/toast-demo.tsx`: demo separada.
 - `package.json` y lock: única dependencia añadida, expo-blur ~57.0.3 mediante expo install.
 - `jest.setup.ts`: mocks de BlurView/Worklets y ampliación de Reanimated para el entorno sin runtime nativo.
 
@@ -34,7 +33,7 @@ try {
 // Una cancelación explícita puede llamar toast.dismiss(id).
 ```
 
-Loading no expira. Los resultados duran 3800 ms por defecto; success/error/info aceptan duración como segundo argumento o dentro de update. La duración mínima es 1000 ms. La pantalla de demo es el único lugar con demoras artificiales.
+Loading no expira. Los resultados duran 3800 ms por defecto; success/error/info aceptan duración como segundo argumento o dentro de update. La duración mínima es 1000 ms.
 
 ```tsx
 const id = toast.loading('Eliminando producto...');
@@ -59,7 +58,7 @@ También existe `toast.undoable({ message, duration, onUndo, errorMessage })` cu
 
 ## Política y contratos
 
-Un toast visible; el más reciente reemplaza al anterior sin cola. Resultados idénticos se deduplican; cada loading obtiene un identificador nuevo para aislar operaciones incluso con mensajes iguales. Actualizaciones y callbacks de salida antiguos no afectan a una notificación nueva. Reemplazar, cerrar o desmontar cancela el temporizador de presentación; no cancela una operación real del servidor. Su cancelación y sus efectos de caché pertenecen al hook/service. La navegación mantiene las operaciones globales; la demo limpia sus propios temporizadores y notificaciones al salir.
+Un toast visible; el más reciente reemplaza al anterior sin cola. Resultados idénticos se deduplican; cada loading obtiene un identificador nuevo para aislar operaciones incluso con mensajes iguales. Actualizaciones y callbacks de salida antiguos no afectan a una notificación nueva. Reemplazar, cerrar o desmontar cancela el temporizador de presentación; no cancela una operación real del servidor. Su cancelación y sus efectos de caché pertenecen al hook/service. La navegación mantiene las operaciones globales.
 
 La expiración comprueba tiempo absoluto, incluso después de regresar del background. El contador actualiza solo su componente una vez por segundo y el aro SVG usa Reanimated en el UI thread. El desmontaje visual espera la salida animada. Se desactivan rotación y transformaciones con reduced motion; el progreso temporal conserva su significado funcional.
 

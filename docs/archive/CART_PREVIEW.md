@@ -1,5 +1,7 @@
 # Carrito de muestra
 
+> **Documento archivado.** Describe la etapa en que el carrito era local. La app actual usa el carrito del backend para cuentas autenticadas y un carrito de invitado en memoria; ver `../CART.md`.
+
 ## Decisiones de diseño
 
 `/carrito` toma la referencia de tarjetas, selección, controles de cantidad, cupón y resumen compartida por el usuario. Usa fondo blanco y marca CEMYDI, con una sola pantalla dividida en Compra y Renta. Ambas secciones comparten un acceso a cupones, un resumen y un botón fijo «Revisar carrito». El resumen distingue el subtotal de compra, las tarifas diarias y los depósitos de renta; no los suma como si fueran un total confirmado.

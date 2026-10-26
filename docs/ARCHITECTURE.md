@@ -1,25 +1,39 @@
 # Arquitectura de CEMYDI Mobile
 
-## CURRENT STRUCTURE
-
-La aplicación conserva un scaffold pequeño y ya incluye foundation transversal. La estructura relevante es:
+## Estructura actual
 
 ```text
 cemydi-mobile/
 ├── src/
-│   ├── app/
-│   ├── components/ui/
-│   ├── config/
-│   ├── providers/
-│   ├── services/http/
-│   └── theme/
+│   ├── app/                    # Solo rutas y layouts de Expo Router
+│   ├── components/             # UI compartida y ErrorBoundary
+│   ├── config/                 # Validación de variables de entorno
+│   ├── data/                   # Fixtures y datos de presentación locales
+│   ├── features/
+│   │   ├── auth/
+│   │   ├── cart/
+│   │   ├── catalog/
+│   │   ├── favorites/
+│   │   ├── home/
+│   │   ├── notifications/
+│   │   ├── onboarding/
+│   │   ├── products/
+│   │   └── profile/
+│   ├── hooks/                  # Hooks transversales
+│   ├── providers/              # Query, Auth, Cart, CatalogPreview y Toast
+│   ├── services/
+│   │   ├── http/               # Cliente, errores y tipos de transporte
+│   │   └── products/           # Schemas, servicio, adapters y caché de catálogo
+│   └── theme/                  # Tokens semánticos
 ├── assets/
-│   ├── branding/              # Variantes del logotipo y emblema
-│   ├── icons/                 # Iconos activos de la aplicación
-│   ├── images/onboarding/     # Imágenes de la bienvenida
-│   └── legacy/expo-template/  # Recursos anteriores sin referencias activas
-├── .agents/skills/
+│   ├── branding/
+│   ├── icons/
+│   ├── images/
+│   └── legacy/expo-template/
+├── plugins/                    # Config plugins de CNG
+├── tests/                      # Integración y soporte compartido
 ├── app.json
+├── app.config.js
 ├── babel.config.js
 ├── global.css
 ├── metro.config.js
@@ -45,67 +59,30 @@ no son fallback de la API. CatalogPreviewProvider mantiene únicamente favoritos
 locales de muestra y carrito temporal de invitado. CartProvider usa TanStack Query
 para el carrito autenticado y sus mutaciones. No hay pago ni contratación nueva.
 
-## Arquitectura global confirmada
+No se versionan `ios/` ni `android/`. `app.config.js` extiende `app.json` con Google Sign-In, `google-services.json` y el project ID de EAS.
+
+## Arquitectura global
 
 ```mermaid
 flowchart LR
-  Mobile[CEMYDI Mobile] -->|HTTPS / JSON / multipart| API[CEMYDI Backend]
+  Mobile[CEMYDI Mobile] -->|HTTPS / JSON| API[CEMYDI Backend]
   Web[CEMYDI Web] -->|HTTPS / JSON / multipart| API
   API --> DB[(PostgreSQL)]
   API --> Cloudinary[Cloudinary]
   API --> Brevo[Brevo]
   API --> Drive[Google Drive - respaldos admin]
+  API --> Push[Expo Push]
 ```
 
 El backend es la única fuente de verdad para seguridad, autorización, persistencia y reglas de negocio. Google Drive no es una dependencia directa del móvil.
 
-## TARGET STRUCTURE
-
-La siguiente estructura es un objetivo incremental. No describe carpetas existentes y no obliga a crearlas antes de que tengan un consumidor real.
-
-```text
-src/
-├── app/                      # Solo rutas y layouts de Expo Router
-├── features/
-│   ├── auth/
-│   ├── home/
-│   ├── catalog/
-│   ├── products/
-│   ├── cart/
-│   ├── rentals/
-│   └── profile/
-├── components/               # UI compartida entre features
-├── services/                 # Cliente HTTP e infraestructura transversal
-├── providers/                # Providers de alcance de aplicación
-├── hooks/                    # Hooks transversales, no específicos de feature
-├── lib/                      # Utilidades e integración de librerías
-├── types/                    # Tipos realmente compartidos
-├── utils/                    # Funciones puras transversales
-└── theme/                    # Tokens semánticos y primitives visuales
-```
-
-Una feature puede contener solo lo que necesite:
-
-```text
-features/catalog/
-├── components/
-├── hooks/
-├── services/
-├── schemas/
-├── types/
-└── adapters/
-```
-
-No crees todos estos subdirectorios por plantilla. Empieza cerca del consumidor y promueve código a compartido cuando haya reutilización real.
-
-## Capas objetivo
+## Capas
 
 ### Presentación
 
-- archivos de ruta bajo `src/app`;
-- pantallas y componentes;
-- formularios y navegación;
-- estados visuales, accesibilidad y responsive.
+- archivos de ruta delgados bajo `src/app`;
+- pantallas y componentes dentro de cada feature;
+- formularios, navegación, accesibilidad y estados visuales.
 
 No realiza fetch directo ni contiene reglas de precios, permisos o transición de estados.
 
@@ -116,14 +93,14 @@ No realiza fetch directo ni contiene reglas de precios, permisos o transición d
 - providers pequeños para infraestructura o estado transversal real;
 - estado local para interacción efímera.
 
-La caché no reemplaza al backend. Las mutaciones deben invalidar o actualizar las query keys afectadas.
+La caché no reemplaza al backend. Las mutaciones invalidan o actualizan las query keys afectadas.
 
 ### Servicios
 
-- configuración de URL por entorno;
+- configuración validada de URL por entorno;
 - cliente HTTP compartido;
-- autenticación cuando su estrategia sea aprobada;
-- serialización JSON y multipart;
+- autenticación Bearer para recursos privados;
+- serialización JSON;
 - schemas de respuesta, DTOs y adapters.
 
 Los services devuelven datos de dominio utilizables por la UI y errores normalizados; no renderizan ni navegan.
@@ -132,7 +109,7 @@ Los services devuelven datos de dominio utilizables por la UI y errores normaliz
 
 - autenticación y autorización;
 - validación normativa;
-- reglas de catálogo, carrito, cupones y rentas;
+- reglas de catálogo, carrito, cupones, rentas y notificaciones;
 - persistencia e integraciones externas.
 
 ## Flujo de una operación
@@ -158,11 +135,74 @@ Flujo resumido:
 screen → hook/query → service → API
 ```
 
+## Providers
+
+El layout raíz monta, de exterior a interior:
+
+1. `ErrorBoundary`
+2. `QueryProvider`
+3. `CatalogPreviewProvider`
+4. `SafeAreaProvider`
+5. `ToastProvider`
+6. `AuthProvider`
+7. `CartProvider`
+
+Responsabilidades:
+
+- `QueryProvider`: QueryClient único, políticas de retry, foco, reconexión y pausa offline mediante Expo Network.
+- `CatalogPreviewProvider`: estado local de invitado para favoritos y carrito de muestra durante el proceso.
+- `ToastProvider`: una sola instancia de store y viewport.
+- `AuthProvider`: sesión, restauración, refresh, logout, desafíos OTP y destino de retorno.
+- `CartProvider`: carrito remoto para cuentas autenticadas, conteo de unidades y adaptación del carrito local para invitados.
+
+No se añaden providers globales sin consumidores reales.
+
+## Autenticación móvil
+
+La estrategia aprobada usa tokens explícitos:
+
+- access token en memoria;
+- refresh rotatorio en `expo-secure-store` solo si el usuario elige mantener la sesión;
+- `httpClient` envía `Authorization: Bearer` con `credentials: omit`;
+- una única renovación concurrente y un solo reintento tras 401;
+- sesión expirada o credencial inválida limpia el estado y la credencial local;
+- pérdida de red conserva la credencial segura y permite reintentar.
+
+El detalle está en [AUTHENTICATION.md](./AUTHENTICATION.md).
+
+## Estado remoto y local
+
+- Catálogo, perfil, carrito autenticado, favoritos, rentas y notificaciones son estado remoto.
+- El carrito de invitado y los fixtures de catálogo son estado local en memoria.
+- Campos de formulario, tabs, modales, selección y borradores son estado local.
+- La sesión se restaura con refresh al arrancar y se revalida con `/users/me` al volver a foreground.
+
+Query keys principales:
+
+```ts
+['home', 'products'];
+['products', 'list', normalizedFilters];
+['products', 'detail', productId];
+['products', 'recommendations', productId];
+['promotions', 'active'];
+['reviews', 'product', productId];
+['favorites', userId];
+['favorites', 'ids', userId];
+['cart', userId];
+['profile', userId];
+['account', userId, 'rentals'];
+['account', userId, 'rental', rentalId];
+['notifications', userId, 'inbox', 'infinite', category];
+['notifications', userId, 'preferences'];
+```
+
+`productDetailKey` y `seedProductDetail` viven en `src/services/products/product-cache.ts` para que catálogo, recomendaciones y detalle compartan la misma entrada de caché.
+
 ## Patrones aplicables
 
 - **Service Layer:** concentra transporte y contratos por dominio.
 - **Adapter:** transforma respuestas externas cuando su forma no coincide con la UI o el modelo móvil.
-- **Provider:** monta QueryClient, sesión u otra infraestructura transversal; no debe convertirse en un contenedor universal.
+- **Provider:** monta QueryClient, sesión o carrito; no debe convertirse en un contenedor universal.
 - **Observer:** TanStack Query notifica a consumidores cuando cambia el estado remoto.
 - **Facade:** custom hooks exponen a las pantallas una API pequeña de queries y mutations.
 
@@ -177,35 +217,32 @@ Estos patrones se aplican donde reducen acoplamiento observable. No se crean int
 5. Schemas validan límites externos; tipos TypeScript no validan runtime.
 6. Ninguna capa móvil duplica autorización o reglas de negocio del backend.
 7. Los secretos nunca se colocan en `EXPO_PUBLIC_*` ni en el bundle.
-
-## Estado remoto y local
-
-- Catálogo, perfil, carrito y rentas son estado remoto.
-- Campos de formulario, tabs, modales y selección temporal son estado local.
-- La sesión usa access token en memoria y refresh seguro según AUTHENTICATION.md.
-- Evita copiar el patrón `CartContext` web automáticamente: en móvil TanStack Query puede mantener el carrito remoto y sus invalidaciones.
-
-## Decisiones arquitectónicas pendientes
-
-- configuración de push por entorno y validación de persistencia/refresh en dispositivos;
-- política offline más allá de detección de conectividad y refetch al recuperar foco o red;
-- política offline;
-- navegación autenticada final;
-- soporte de tablet y breakpoints;
-- ejecución nativa de E2E con Maestro y builds de prueba.
+8. Los iconos se importan individualmente desde `lucide-react-native/icons/*`, nunca desde el barrel general.
 
 ## Decisiones de UX y rendimiento vigentes
 
 - El Stack raíz desactiva las transiciones nativas en Android (`animation: 'none'`) como mitigación del contenido desvanecido o blanco al navegar; iOS conserva su transición predeterminada. El contenedor y las escenas usan `colors.background`. No añadir fades por ruta en Android sin validar en dispositivo físico. La causa exacta del fallo reportado sigue pendiente de reproducción nativa.
-- No se requiere un AppHeader global. Cada pantalla conserva su encabezado; piezas como BackButton se comparten cuando tienen una responsabilidad común.
-- CatalogImage, ProductCard, AppBottomBar y AppSheet viven en UI compartida. Se eliminaron los cinco reexports de Home sin adaptación (incluido home-mocks); los imports apuntan a la implementación o fuente real.
-- GlobalBottomBar se monta como tabBar del grupo `(tabs)` y aparece en Inicio, Catálogo, Carrito y Perfil. Los detalles y subrutas no duplican la barra. Los cambios de pestaña usan navigate y conservan estado.
-- CatalogPreviewProvider conserva estado de sesión y acciones estables. Las tarjetas memoizadas consumen el contexto de acciones, por lo que cambiar otra selección/cantidad no fuerza su actualización. El contexto completo sigue notificando cambios legítimos a pantallas y resúmenes.
-- AuthProvider comparte la sesión comprobada y limpia las cachés privadas al salir. ToastProvider ya crea una única instancia de store con useState; QueryProvider ya crea un único QueryClient. No se añaden providers globales de conectividad/errores sin consumidores.
-- Home conserva la key requerida por FlatList al cambiar numColumns y restaura el offset cuando se mide el contenido nuevo; el nativo puede limitarlo al final si el contenido queda más corto. No se promete conservar el mismo producto arriba cuando cambia el número de columnas.
-- useHome usa ['home', 'products'], API pública, caché de 30 segundos y políticas compartidas de conectividad/foco/retry. Catálogo usa useInfiniteQuery con filtros normalizados; promociones y detalle tienen consultas separadas. Los fixtures no son fallback de producción.
-- Home conserva cabecera/buscador durante la carga y revela sus secciones al recibir datos. ProductGridSkeleton representa tarjetas pendientes; CatalogImage representa la carga posterior de fotos. Las imágenes locales conservan hashes precalculados; el backend aún no entrega hashes remotos.
-- Home y catálogo montan cabecera y buscador dentro de ListHeaderComponent, sin stickyHeaderIndices: se desplazan con la lista. Solo el desplegable usa AppScreenPopover, anclado al input y alojado por AppScreen fuera del scroll principal. Al arrastrar la lista se cierra; su propio arrastre/inercia mantienen aislados los gestos. No usa Modal ni AppSheet y limita su altura al espacio disponible sobre el teclado.
-- OTP mantiene el reloj absoluto y su comprobación en el servicio; solo OtpResendButton se actualiza cada segundo, limpia listeners/intervalo y deja de contar al finalizar. La pausa breve tras verificar conserva la confirmación animada existente, no simula latencia de red.
+- No se requiere un `AppHeader` global. Cada pantalla conserva su encabezado; `BackButton` y otras piezas se comparten cuando tienen una responsabilidad común.
+- `CatalogImage`, `ProductCard`, `AppBottomBar` y `AppSheet` viven en UI compartida. Los imports apuntan a la implementación real, sin reexports de features.
+- `GlobalBottomBar` se monta como tabBar del grupo `(tabs)` y aparece en Inicio, Catálogo, Carrito y Perfil. Los detalles y subrutas no duplican la barra. Los cambios de pestaña usan `navigate` y conservan estado.
+- `CatalogPreviewProvider` conserva estado de sesión y acciones estables. Las tarjetas memoizadas consumen el contexto de acciones, por lo que cambiar otra selección o cantidad no fuerza su actualización.
+- `CartProvider` separa acciones, conteo y datos para que la barra inferior no se suscriba a todo el carrito. El carrito remoto se sincroniza cada 10 segundos mientras hay conexión.
+- `AuthProvider` comparte la sesión comprobada y limpia las cachés privadas al salir. `ToastProvider` ya crea una única instancia de store con `useState`; `QueryProvider` ya crea un único `QueryClient`. No se añaden providers globales de conectividad/errores sin consumidores.
+- Home conserva la key requerida por `FlatList` al cambiar `numColumns` y restaura el offset cuando se mide el contenido nuevo; el nativo puede limitarlo al final si el contenido queda más corto. No se promete conservar el mismo producto arriba cuando cambia el número de columnas.
+- `useHome` usa `['home', 'products']`, API pública, caché de 30 segundos y políticas compartidas de conectividad, foco y retry. Catálogo usa `useInfiniteQuery` con filtros normalizados; promociones y detalle tienen consultas separadas. Los fixtures no son fallback de producción.
+- Home conserva cabecera y buscador durante la carga y revela sus secciones al recibir datos. `ProductGridSkeleton` representa tarjetas pendientes; `CatalogImage` representa la carga posterior de fotos. Las imágenes locales conservan hashes precalculados; el backend aún no entrega hashes remotos.
+- Home y catálogo montan cabecera y buscador dentro de `ListHeaderComponent`, sin `stickyHeaderIndices`: se desplazan con la lista. Solo el desplegable usa `AppScreenPopover`, anclado al input y alojado por `AppScreen` fuera del scroll principal. Al arrastrar la lista se cierra; su propio arrastre/inercia mantienen aislados los gestos. No usa `Modal` ni `AppSheet` y limita su altura al espacio disponible sobre el teclado.
+- OTP mantiene el reloj absoluto y su comprobación en el servicio; solo `OtpResendButton` se actualiza cada segundo, limpia listeners e intervalo y deja de contar al finalizar. La pausa breve tras verificar conserva la confirmación animada existente, no simula latencia de red.
+- Las notificaciones se agrupan por día, se refrescan cada 30 segundos mientras la pantalla está activa y pausan el polling en segundo plano.
 
 Las convenciones para nuevas pantallas, imágenes y estados de carga están en [DESIGN_SYSTEM.md](./DESIGN_SYSTEM.md) y [CONVENTIONS.md](./CONVENTIONS.md).
+
+## Decisiones arquitectónicas pendientes
+
+- política offline más allá de detección de conectividad y refetch;
+- persistencia o descarga de documentos de renta;
+- app/universal links verificados para tokens de correo;
+- soporte formal de tablet y breakpoints;
+- ejecución E2E nativa con Maestro y builds de prueba;
+- identificadores y credenciales de EAS/Google Play;
+- respuesta a notificaciones push (apertura desde el sistema) en una build nativa.

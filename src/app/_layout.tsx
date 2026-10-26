@@ -76,10 +76,6 @@ export default function RootLayout() {
                       <Stack.Screen name="forgot-password" options={{ headerShown: false }} />
                       <Stack.Screen name="otp" options={{ headerShown: false }} />
                       <Stack.Screen name="new-password" options={{ headerShown: false }} />
-                      <Stack.Screen
-                        name="toast-demo"
-                        options={{ title: 'Demo de notificaciones' }}
-                      />
                     </Stack>
                   </View>
                 </CartProvider>
