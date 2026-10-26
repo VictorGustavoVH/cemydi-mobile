@@ -85,7 +85,16 @@ npm run check           # typecheck + lint + format:check + tests
 npx --yes expo-doctor
 ```
 
-Hay pre-commit con `lint-staged` (Husky) que ejecuta ESLint y Prettier sobre los archivos modificados. Los workflows de GitHub Actions (`.github/workflows/quality.yml` y `tests.yml`) ejecutan typecheck, lint, formato, Expo Doctor y ambas suites de Jest en cada PR y push a `develop` o `main`.
+Hay pre-commit con `lint-staged` (Husky) que ejecuta ESLint y Prettier sobre los
+archivos modificados. Los workflows `.github/workflows/quality.yml` y `tests.yml`
+se ejecutan de forma independiente en PR y push a `develop` o `main`. Quality
+conserva typecheck, lint, formato y Expo Doctor. Tests conserva ambas suites Jest y,
+mediante `needs`, añade el build Android y los cinco flujos Maestro cuando hay
+cambios relevantes. Los PR documentales conservan las validaciones rápidas y omiten
+el APK. La ejecución manual o la etiqueta `ci:android` fuerzan Android completo.
+El check final `e2e` distingue esa omisión legítima de un fallo. Ver
+[TESTING.md](docs/TESTING.md) para evidencias y checks obligatorios. La corrección
+de KVM requiere una nueva ejecución nativa en GitHub para validar los cinco flujos.
 
 ## Estructura resumida
 

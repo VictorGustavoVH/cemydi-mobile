@@ -1,5 +1,203 @@
 # Maestro E2E en Android — Windows 11
 
+## Pipeline Android en GitHub Actions
+
+`.github/workflows/tests.yml` conserva la matriz Jest y encadena mediante `needs`:
+
+```text
+changes + tests (unit/integration) + maestro_checks
+                   → build_android (si requerido) → maestro (si requerido) → e2e
+```
+
+El check final `e2e` también depende directamente de todas las etapas de Tests.
+Exige éxito en selección y checks rápidos; solo acepta build/Maestro omitidos cuando
+`changes` declara Android opcional. Si Android es requerido, ambos deben aprobar.
+Fallos, cancelaciones y omisiones inesperadas siguen bloqueando. `quality.yml` se mantiene con el job `validate`
+original y se ejecuta de forma independiente. Ambos workflows se ejecutan en PR y
+push de `develop`/`main`; Tests permite además ejecución manual. `needs` no cruza
+workflows: la protección de ramas debe exigir tanto `validate` como `e2e`.
+
+La selección de `scripts/ci/android-policy.cjs` usa el diff acumulado del PR contra
+su base, o `before`/SHA en push, e incluye archivos eliminados y las dos rutas de
+renombrados. Documentación, tests/fixtures Jest y herramientas de carga/rendimiento
+ajenas a Maestro omiten Android. Código de app, assets, dependencias, configuración,
+plugins, `.maestro`, su API ficticia y scripts CI lo requieren. Las rutas desconocidas
+también lo requieren. Un diff inválido falla; no habilita una omisión silenciosa.
+`workflow_dispatch` y la etiqueta de PR `ci:android` fuerzan los cinco flujos,
+incluida la validación explícita de una versión. Detalles y excepciones en
+[TESTING.md](./TESTING.md).
+
+El build genera Android con CNG desde el checkout de la ejecución, sin versionar
+archivos nativos ni usar EAS. Compila un APK debug Development Build para `x86_64`
+con Java 21. El job Maestro descarga ese artefacto y verifica su SHA-256; no reutiliza
+el APK arm64 del teléfono documentado abajo. Maestro queda fijado a 2.11.0 con
+checksum del release oficial. No requiere secretos ni un teléfono conectado.
+
+`scripts/maestro-ci.sh` solo admite el runner GitHub-hosted y `emulator-5554` con
+propiedad QEMU activa. El workflow crea ese emulador nuevo y desechable (Android
+API 35, AOSP `aosp_atd`, Pixel 6, `x86_64`, 2 cores/3072 MB y 720×1600 a 320 dpi);
+ejecutar este pipeline autoriza la instalación
+y limpieza de `com.cemydi.app` exclusivamente allí. El script configura las dos
+variables de dispositivo/limpieza y llama a `npm run test:e2e`, conservando las
+protecciones locales, los cinco flujos, Metro y la API ficticia. La autorización
+del emulador de CI no se extiende a dispositivos físicos ni emuladores locales.
+
+Las evidencias se suben incluso si falla una etapa: diagnósticos de build por 14
+días, APK/checksum por 7 días y evidencias Maestro/logcat por 14 días. El script
+conserva el código de error de instalación o E2E aunque no consiga recoger logcat.
+Los fallos de preflight pueden no generar JUnit ni `run.json`; revisar también el
+log del job. No se omiten fallos ni se añaden reintentos automáticos.
+
+Antes de instalar el APK se espera a las colas normal y de fondo de Package
+Manager, con timeout de 60 s cada una. No basta `sys.boot_completed` para terminar
+la preparación inicial del OS. Se guarda el último ANR antes y después de la suite.
+Metro usa un único worker y modo headless de Expo 57 para evitar la instalación y
+ejecución automática de Electron DevTools en el runner sin escritorio.
+
+`scripts/ci/prepare-kvm.cjs` corre antes de instalar Java, Maestro y dependencias.
+Registra nodo, modo, propietario y acceso a `/dev/kvm` en `ci/kvm.json`, incluso
+cuando falla. Solo si encuentra un dispositivo de caracteres sin acceso concede
+lectura/escritura con `sudo -n chmod a+rw /dev/kvm` y verifica el resultado de forma
+síncrona. Si el nodo no existe o el permiso no se puede corregir, falla. No depende
+de reglas udev pendientes ni arranca con `-accel off`: el emulador exige `-accel on`.
+
+Validación sin dispositivo:
+
+```bash
+npm run test:e2e -- --check
+node --test scripts/maestro-infra.test.cjs scripts/maestro-ci.test.cjs
+node --test scripts/ci/android-policy.test.cjs scripts/ci/prepare-kvm.test.cjs
+bash -n scripts/maestro-ci.sh
+actionlint .github/workflows/quality.yml .github/workflows/tests.yml
+```
+
+Las pruebas del script simulan ADB y npm: verifican rechazo de entornos/seriales
+ajenos, rechazo de dispositivos no emulados, propagación de fallos y recolección de
+evidencias. Las pruebas de política cubren selección, renombrados/borrados, diff
+inválido, ejecución manual, fallos/cancelaciones y omisiones legítimas o inesperadas.
+Las de KVM simulan el estado del nodo y la concesión de permisos; no usan KVM local
+ni ADB. No ejecutan la app. La revisión necesita publicarse y aprobar los cinco
+flujos nativos en GitHub; no confundir estos tests con una ejecución E2E aprobada.
+Después, añadir el check `e2e` a los checks obligatorios en `develop` y `main` según
+[GIT_WORKFLOW.md](./GIT_WORKFLOW.md). Detalles del pipeline en
+[TESTING.md](./TESTING.md).
+
+Referencias: [CNG de Expo](https://docs.expo.dev/workflow/continuous-native-generation/),
+[emulador en Actions](https://github.com/ReactiveCircus/android-emulator-runner),
+[release Maestro 2.11.0](https://github.com/mobile-dev-inc/Maestro/releases/tag/cli-2.11.0)
+y [`needs` de GitHub Actions](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idneeds).
+
+## Diagnóstico de GitHub Actions — 26 de octubre de 2026
+
+Evidencia consultada: [run 40371511049](https://github.com/VictorGustavoVH/cemydi-mobile/actions/runs/40371511049)
+y [log completo del job Maestro](https://github.com/VictorGustavoVH/cemydi-mobile/actions/runs/40371511049/job/121751103373).
+El PR #147 estaba abierto y su head era `866b15d`; se probó el merge virtual
+`6e173d2af12c9eeb9a16c4b89a2bff81b7cad19a`.
+
+- `unit`, `integration`, `maestro_checks` y `build_android`: aprobados.
+- Gradle compiló el APK `x86_64` en 11 min 45 s. El build descargó CMake 3.22.1
+  además de 3.30.5; ahora ambas versiones se declaran en el paso SDK.
+- El job Maestro descargó el APK y validó su checksum. Java Temurin 21.0.12 y la
+  CLI Maestro 2.11.0 arrancaron correctamente. El runner era Ubuntu 24.04.5,
+  imagen `20261012.334.1`.
+- `Enable KVM` terminó con código 1 a las 18:00:25 UTC. El emulador quedó `skipped`:
+  no se ejecutó ningún flujo nativo. La subida de evidencias no encontró archivos.
+- `e2e` falló al detectar Maestro fallido; ese resultado era correcto.
+
+El bloque ejecutaba escritura de regla udev, `udevadm control --reload-rules`,
+`udevadm trigger --name-match=kvm` y `test -r /dev/kvm && test -w /dev/kvm`.
+El log solo contiene el eco de la regla y la salida 1: no tiene trazas por comando,
+stderr adicional, `stat` del nodo ni diagnóstico de permisos. **No permite comprobar
+cuál de los comandos silenciosos devolvió 1**, ni distinguir nodo ausente, permisos
+o una carrera al aplicar la regla. Atribuirlo a permisos o a udev sería una hipótesis,
+no una causa raíz demostrada. Sí está probado que el fallo ocurrió en preparación
+KVM, antes del emulador, y no en un escenario Maestro.
+
+La revisión sustituye ese bloque opaco por inspección y concesión condicional
+síncrona de acceso. No afirma resolver un problema de hardware desconocido. El
+próximo run debe aportar `kvm.json` y completar la ejecución nativa: JUnit con los
+cinco escenarios, sin fallos ni omitidos, y `run.json` con código 0, sin interrupción,
+peticiones inesperadas ni errores de infraestructura/limpieza.
+
+La combinación Ubuntu x64/API 35/Google APIs/`x86_64`/Java 21 se conserva: el build
+y la CLI ya aprobaron, pero el arranque del AVD y los cinco flujos en esa imagen
+siguen pendientes. GitHub documenta aceleración Android en sus runners Linux, y
+[Android documenta los requisitos de KVM](https://developer.android.com/studio/run/emulator-acceleration).
+Si un nuevo diagnóstico muestra que el runner no expone KVM, no se permite aprobar
+sin E2E. Una alternativa es un runner GitHub-hosted Intel macOS compatible usando
+el hipervisor de macOS en lugar del paso KVM, o un Linux dedicado con virtualización
+habilitada y una política explícita para ese runner. Ambas requieren ajustar y
+validar el entorno; no se cambia a ellas automáticamente ni se usa el teléfono.
+
+## Segundo run: ANR de Pixel Launcher y pérdida de ADB
+
+En el [run 40378701635 del PR #148](https://github.com/VictorGustavoVH/cemydi-mobile/actions/runs/40378701635),
+Quality, Jest, infraestructura, selección y build aprobaron. `kvm.json` confirma
+que el nodo existía con modo 660, sin acceso para el usuario del runner; la concesión
+síncrona lo dejó en 666 con lectura/escritura. El emulador arrancó y el APK se instaló.
+
+La captura `step-010-assertCondition-Connect.png` muestra **Pixel Launcher isn't
+responding**, con Dev Launcher detrás. El diálogo del OS impide que Maestro vea
+`Connect`. En los cuatro flujos siguientes, los logs registran
+`DeviceServerDiedException`, `device offline` y finalmente dispositivo no encontrado.
+JUnit informa cinco fallos, pero no demuestra cinco regresiones funcionales: el
+primero fue una obstrucción del OS y los restantes no pudieron usar el dispositivo.
+No hubo bundle JS servido ni peticiones inesperadas a la API ficticia.
+
+Además, `metro.log` contiene un aborto SUID de Electron al instalar React Native
+DevTools. El código del CLI Expo 57 instalado (`createDebugMiddleware.js` y
+`utils/env.js`) confirma que `CI=1` por sí solo no desactiva ese proceso;
+`EXPO_UNSTABLE_HEADLESS=1` sí impide habilitar el shell standalone.
+
+Cambios de esta revisión:
+
+- Imagen AOSP `default` en lugar de Google APIs: estos flujos no usan GMS ni Google
+  Sign-In y no necesitan Pixel Launcher. Se comprobó la disponibilidad estable de
+  `system-images;android-35;default;x86_64` en el catálogo oficial del SDK.
+- Resolución reducida, RAM explícita, dos cores y un worker Metro para limitar la
+  competencia de recursos. La presión exacta de CPU/memoria no quedó medida en el
+  run fallido; se trata de una mitigación, no de una causa demostrada del ANR.
+- Preparación de Package Manager con esperas acotadas y conservación de ANR.
+- Metro headless sin relajar ni desactivar el sandbox de Electron.
+- Preservación del fallo principal de Maestro y registro separado de cada fallo
+  de limpieza. El mensaje `listener tcp:8091 not found` era posterior al fallo de
+  los flujos; ya no sustituye su diagnóstico principal en `run.json`.
+
+Se conserva la espera de `Connect`, las cinco aserciones funcionales, la limpieza
+autorizada del emulador y el check final bloqueante. No se cierran diálogos ANR
+automáticamente, no se reintentan tests ni se usa el teléfono. Hace falta un nuevo
+run con cinco escenarios aprobados para validar la corrección; los tests locales
+de infraestructura no acreditan ese resultado.
+
+## Tercer run: Quickstep falla antes de instalar CEMYDI
+
+En el [run 40384189949](https://github.com/VictorGustavoVH/cemydi-mobile/actions/runs/40384189949)
+KVM, el APK y los checks rápidos aprobaron. Metro ya no registró el aborto de
+Electron y ADB permaneció disponible: los cinco flujos pudieron intentar la misma
+espera de `Connect` durante 30 segundos. Las capturas muestran el diálogo
+**Quickstep isn't responding** bloqueando Dev Launcher.
+
+`lastanr-before.txt` y `lastanr-after.txt` coinciden: el ANR ocurrió a las 19:22:55 UTC,
+antes de instalar CEMYDI (19:22:58), con motivo
+`Input dispatching timed out (Application does not have a focused window)`.
+El job acababa de enviar `input keyevent 82` al completar `sys.boot_completed`.
+La coincidencia temporal señala el arranque/foco del launcher; no acredita una
+regresión de CEMYDI. La imagen AOSP normal también contiene Quickstep, de modo que
+eliminar solo los servicios Google no resolvió el bloqueo.
+
+La revisión cambia a `aosp_atd` API 35/x86_64, disponible en el canal estable del
+[catálogo oficial SDK](https://dl.google.com/android/repository/sys-img/aosp_atd/sys-img2-3.xml).
+[Android documenta](https://developer.android.com/studio/test/managed-devices#enable-atd)
+que las imágenes ATD eliminan Quickstep, SystemUI y aplicaciones ajenas a pruebas.
+Estos flujos de invitado no necesitan servicios Google, navegador ni launcher del OS;
+siguen usando el Development Build de Expo y la app real, con imágenes renderizadas
+por software. No son pruebas de fidelidad gráfica con aceleración hardware.
+
+El preflight ahora rechaza cualquier ANR ya registrado por el emulador desechable
+antes de instalar el APK. No cierra el diálogo ni lo ignora. El check `e2e` conserva
+su política: cuando Android es requerido, Maestro debe aprobar los cinco escenarios.
+La nueva imagen debe verificarse en un run nativo antes de considerar esto resuelto.
+
 ## Diagnóstico y alcance
 
 La implementación previa ya proporcionaba wrapper Java, Metro local, ADB reverse,

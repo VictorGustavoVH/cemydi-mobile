@@ -6,6 +6,26 @@ const os = require('node:os');
 const path = require('node:path');
 const { createFixtureApi } = require('./maestro-api.cjs');
 const { checkFlows } = require('./maestro-check.cjs');
+const { createMetroEnv } = require('./maestro-e2e.cjs');
+
+test('Metro: entorno headless sin .env ni valores públicos heredados', () => {
+  const source = {
+    PATH: 'herramientas',
+    EXPO_PUBLIC_API_URL: 'https://otro.test.invalid',
+    EXPO_PUBLIC_OTHER: 'no-heredar',
+    EXPO_UNSTABLE_HEADLESS: '0',
+    REACT_NATIVE_PACKAGER_HOSTNAME: 'otro.test.invalid',
+  };
+  const env = createMetroEnv(source, 4198);
+  assert.equal(env.PATH, 'herramientas');
+  assert.equal(env.EXPO_UNSTABLE_HEADLESS, '1');
+  assert.equal(env.EXPO_NO_DOTENV, '1');
+  assert.equal(env.EXPO_OFFLINE, '1');
+  assert.equal(env.EXPO_PUBLIC_API_URL, 'http://127.0.0.1:4198');
+  assert.equal(env.EXPO_PUBLIC_OTHER, undefined);
+  assert.equal(env.REACT_NATIVE_PACKAGER_HOSTNAME, undefined);
+  assert.equal(source.EXPO_UNSTABLE_HEADLESS, '0');
+});
 
 async function fixture(t) {
   const rejected = [];
