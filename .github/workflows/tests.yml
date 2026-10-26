@@ -2,6 +2,7 @@ name: Tests
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
     branches:
       - develop
       - main
@@ -28,6 +29,33 @@ defaults:
     shell: bash
 
 jobs:
+  changes:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      android_required: ${{ steps.select.outputs.android_required }}
+    steps:
+      - name: Checkout tested revision and history
+        uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Setup Node.js
+        uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 22
+          package-manager-cache: false
+      - name: Select Android validation
+        id: select
+        run: node scripts/ci/android-policy.cjs select
+      - name: Upload selection evidence
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: android-selection-${{ github.sha }}-${{ github.run_attempt }}
+          path: test-results/ci/
+          retention-days: 14
+          if-no-files-found: warn
+
   tests:
     name: ${{ matrix.suite }}
     runs-on: ubuntu-24.04
@@ -77,10 +105,11 @@ jobs:
       - name: Validate Maestro flows and infrastructure
         run: |
           npm run test:e2e -- --check
-          node --test scripts/maestro-infra.test.cjs scripts/maestro-ci.test.cjs
+          node --test scripts/maestro-infra.test.cjs scripts/maestro-ci.test.cjs scripts/ci/android-policy.test.cjs scripts/ci/prepare-kvm.test.cjs
 
   build_android:
-    needs: [tests, maestro_checks]
+    needs: [changes, tests, maestro_checks]
+    if: needs.changes.outputs.android_required == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     env:
@@ -103,7 +132,7 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v4.0.4
       - name: Install native build tools
-        run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0' 'ndk;27.1.12297006' 'cmake;3.30.5'
+        run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0' 'ndk;27.1.12297006' 'cmake;3.30.5' 'cmake;3.22.1'
       - name: Setup Gradle cache
         uses: gradle/actions/setup-gradle@v6.4.0
         with:
@@ -137,7 +166,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7.0.2
         with:
-          name: android-build-${{ github.run_attempt }}
+          name: android-build-${{ github.sha }}-${{ github.run_attempt }}
           path: |
             test-results/android/
             android/build/reports/
@@ -146,7 +175,8 @@ jobs:
           if-no-files-found: warn
 
   maestro:
-    needs: [build_android]
+    needs: [changes, build_android]
+    if: needs.changes.outputs.android_required == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
@@ -159,6 +189,8 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - name: Enable KVM
+        run: node scripts/ci/prepare-kvm.cjs
       - name: Setup Java
         uses: actions/setup-java@v6.1.0
         with:
@@ -181,12 +213,6 @@ jobs:
           echo '5384593cb4e7a106489e75a821d157dd43f4e438df6bc308b72e82c685e1283a  .tools/maestro.zip' | sha256sum --check
           unzip -q .tools/maestro.zip -d .tools/maestro
           npm run maestro -- --version
-      - name: Enable KVM
-        run: |
-          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-          sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm
-          test -r /dev/kvm && test -w /dev/kvm
       - name: Run Maestro on a disposable Android emulator
         uses: reactivecircus/android-emulator-runner@v2.38.0
         with:
@@ -200,13 +226,13 @@ jobs:
           disable-animations: true
           disable-spellchecker: true
           disable-linux-hw-accel: false
-          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none -camera-front none
+          emulator-options: -accel on -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none -camera-front none
           script: bash scripts/maestro-ci.sh
       - name: Upload Maestro evidence
         if: always()
         uses: actions/upload-artifact@v7.0.2
         with:
-          name: maestro-android-${{ github.run_attempt }}
+          name: maestro-android-${{ github.sha }}-${{ github.run_attempt }}
           path: test-results/maestro/
           retention-days: 14
           if-no-files-found: warn
@@ -214,12 +240,26 @@ jobs:
   e2e:
     name: e2e
     if: always()
-    needs: [tests, maestro_checks, build_android, maestro]
+    needs: [changes, tests, maestro_checks, build_android, maestro]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     env:
       JOB_RESULTS: ${{ toJSON(needs) }}
     steps:
-      - name: Require every stage to succeed
-        run: |
-          node -e 'const jobs = Object.entries(JSON.parse(process.env.JOB_RESULTS)); for (const [name, job] of jobs) console.log(`${name}: ${job.result}`); if (jobs.some(([, job]) => job.result !== "success")) process.exit(1);'
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+      - name: Setup Node.js
+        uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 22
+          package-manager-cache: false
+      - name: Require the expected stages to succeed
+        run: node scripts/ci/android-policy.cjs result
+      - name: Upload final decision
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: e2e-decision-${{ github.sha }}-${{ github.run_attempt }}
+          path: test-results/ci/
+          retention-days: 14
+          if-no-files-found: warn
