@@ -217,9 +217,9 @@ jobs:
         uses: reactivecircus/android-emulator-runner@v2.38.0
         with:
           api-level: 35
-          # Guest/fixture flows do not use Google services. AOSP omits the
-          # Pixel Launcher whose ANR blocked Dev Launcher in the failed run.
-          target: default
+          # ATD omits Quickstep/SystemUI and other apps unused by guest flows.
+          # Both Google APIs and ordinary AOSP launchers produced boot ANRs.
+          target: aosp_atd
           arch: x86_64
           profile: pixel_6
           cores: 2

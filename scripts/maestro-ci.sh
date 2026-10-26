@@ -34,6 +34,10 @@ adb -s "$ANDROID_SERIAL" shell wm density 320
 adb -s "$ANDROID_SERIAL" shell cmd package wait-for-handler --timeout 60000
 adb -s "$ANDROID_SERIAL" shell cmd package wait-for-background-handler --timeout 60000
 adb -s "$ANDROID_SERIAL" shell dumpsys activity lastanr > test-results/maestro/ci/lastanr-before.txt
+if grep -q 'ANR time:' test-results/maestro/ci/lastanr-before.txt; then
+  echo 'El emulador ya tiene un ANR antes de instalar CEMYDI. Consulta lastanr-before.txt.' >&2
+  exit 1
+fi
 adb -s "$ANDROID_SERIAL" logcat -c
 adb -s "$ANDROID_SERIAL" install test-results/apk/app-debug.apk
 export CEMYDI_E2E_DEVICE="$ANDROID_SERIAL"

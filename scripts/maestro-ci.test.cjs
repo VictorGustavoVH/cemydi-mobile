@@ -30,7 +30,7 @@ function run(t, overrides = {}) {
     *'logcat -d') printf 'fixture log'; return "$LOGCAT_STATUS" ;;
     *'wait-for-handler '*) return "$PACKAGE_STATUS" ;;
     *'wait-for-background-handler '*) return "$PACKAGE_STATUS" ;;
-    *'dumpsys activity lastanr') printf 'fixture ANR' ;;
+    *'dumpsys activity lastanr') printf '%s' "$ANR_REPORT" ;;
   esac
 }
 npm() {
@@ -56,6 +56,7 @@ npm() {
       TEST_STATUS: '0',
       LOGCAT_STATUS: '0',
       PACKAGE_STATUS: '0',
+      ANR_REPORT: 'fixture ANR',
       CEMYDI_E2E_DEVICE: '',
       CEMYDI_E2E_ALLOW_CLEAR: '',
       ...overrides,
@@ -121,4 +122,13 @@ test('CI: Package Manager no disponible falla antes de instalar o ejecutar flujo
   assert.equal(result.status, 31);
   assert.doesNotMatch(result.calls, /install|npm/);
   assert.equal(readFileSync(result.log, 'utf8'), 'fixture log');
+});
+
+test('CI: ANR previo falla antes de instalar y conserva diagnóstico sin cerrar diálogos', (t) => {
+  const result = run(t, { ANR_REPORT: 'ANR time: fixture\nReason: no focused window' });
+  assert.equal(result.status, 1);
+  assert.doesNotMatch(result.calls, /install|npm|force-stop|keyevent/);
+  assert.match(result.stderr, /ya tiene un ANR/);
+  const before = path.join(path.dirname(result.log), 'lastanr-before.txt');
+  assert.match(readFileSync(before, 'utf8'), /no focused window/);
 });

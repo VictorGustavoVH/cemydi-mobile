@@ -195,7 +195,7 @@ compilación y reportes Gradle por 14 días, incluso si falla la compilación.
 
 `maestro` requiere `needs: [changes, build_android]` y Android requerido: descarga el APK de la misma ejecución,
 comprueba su checksum e instala Maestro 2.11.0 con checksum fijado. Usa un emulador
-nuevo Android API 35, AOSP `default`, `x86_64`, perfil Pixel 6 con 2 cores/3072 MB,
+nuevo Android API 35, AOSP `aosp_atd`, `x86_64`, perfil Pixel 6 con 2 cores/3072 MB,
 pantalla 720×1600 a 320 dpi, KVM y serial
 `emulator-5554`; timeout de 30 minutos. `scripts/maestro-ci.sh` comprueba el runner
 GitHub-hosted, el serial y la propiedad QEMU antes de instalar o autorizar limpieza.
@@ -221,6 +221,15 @@ en el CLI Expo 57 instalado). No cambia el selector `Connect` ni reintenta tests
 Conserva `lastanr-before.txt` y `lastanr-after.txt`, además de logcat. Los errores
 de limpieza se registran en `run.json.cleanupFailures` sin reemplazar el fallo
 principal; siguen haciendo fallar el runner. Estos cambios necesitan otro run nativo.
+
+En el run 40384189949 el ADB permaneció conectado y Metro dejó de lanzar Electron,
+pero AOSP normal mostró un ANR de Quickstep antes de instalar el APK: `lastanr-before.txt`
+registra `Input dispatching timed out (Application does not have a focused window)`.
+La imagen ahora es `aosp_atd`, que elimina Quickstep y servicios ajenos a los flujos.
+El catálogo estable del SDK ofrece `system-images;android-35;aosp_atd;x86_64`.
+Si el emulador ya tiene un ANR, el runner falla antes de instalar, conserva el
+diagnóstico y no cierra el diálogo para simular éxito. La aceptación sigue requiriendo
+los cinco flujos reales, sin fallos ni omitidos.
 
 El check final `e2e` usa `if: always()` y
 `needs: [changes, tests, maestro_checks, build_android, maestro]`. El cálculo vive

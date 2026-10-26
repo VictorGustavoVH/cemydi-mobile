@@ -35,7 +35,7 @@ checksum del release oficial. No requiere secretos ni un teléfono conectado.
 
 `scripts/maestro-ci.sh` solo admite el runner GitHub-hosted y `emulator-5554` con
 propiedad QEMU activa. El workflow crea ese emulador nuevo y desechable (Android
-API 35, AOSP `default`, Pixel 6, `x86_64`, 2 cores/3072 MB y 720×1600 a 320 dpi);
+API 35, AOSP `aosp_atd`, Pixel 6, `x86_64`, 2 cores/3072 MB y 720×1600 a 320 dpi);
 ejecutar este pipeline autoriza la instalación
 y limpieza de `com.cemydi.app` exclusivamente allí. El script configura las dos
 variables de dispositivo/limpieza y llama a `npm run test:e2e`, conservando las
@@ -168,6 +168,35 @@ autorizada del emulador y el check final bloqueante. No se cierran diálogos ANR
 automáticamente, no se reintentan tests ni se usa el teléfono. Hace falta un nuevo
 run con cinco escenarios aprobados para validar la corrección; los tests locales
 de infraestructura no acreditan ese resultado.
+
+## Tercer run: Quickstep falla antes de instalar CEMYDI
+
+En el [run 40384189949](https://github.com/VictorGustavoVH/cemydi-mobile/actions/runs/40384189949)
+KVM, el APK y los checks rápidos aprobaron. Metro ya no registró el aborto de
+Electron y ADB permaneció disponible: los cinco flujos pudieron intentar la misma
+espera de `Connect` durante 30 segundos. Las capturas muestran el diálogo
+**Quickstep isn't responding** bloqueando Dev Launcher.
+
+`lastanr-before.txt` y `lastanr-after.txt` coinciden: el ANR ocurrió a las 19:22:55 UTC,
+antes de instalar CEMYDI (19:22:58), con motivo
+`Input dispatching timed out (Application does not have a focused window)`.
+El job acababa de enviar `input keyevent 82` al completar `sys.boot_completed`.
+La coincidencia temporal señala el arranque/foco del launcher; no acredita una
+regresión de CEMYDI. La imagen AOSP normal también contiene Quickstep, de modo que
+eliminar solo los servicios Google no resolvió el bloqueo.
+
+La revisión cambia a `aosp_atd` API 35/x86_64, disponible en el canal estable del
+[catálogo oficial SDK](https://dl.google.com/android/repository/sys-img/aosp_atd/sys-img2-3.xml).
+[Android documenta](https://developer.android.com/studio/test/managed-devices#enable-atd)
+que las imágenes ATD eliminan Quickstep, SystemUI y aplicaciones ajenas a pruebas.
+Estos flujos de invitado no necesitan servicios Google, navegador ni launcher del OS;
+siguen usando el Development Build de Expo y la app real, con imágenes renderizadas
+por software. No son pruebas de fidelidad gráfica con aceleración hardware.
+
+El preflight ahora rechaza cualquier ANR ya registrado por el emulador desechable
+antes de instalar el APK. No cierra el diálogo ni lo ignora. El check `e2e` conserva
+su política: cuando Android es requerido, Maestro debe aprobar los cinco escenarios.
+La nueva imagen debe verificarse en un run nativo antes de considerar esto resuelto.
 
 ## Diagnóstico y alcance
 
