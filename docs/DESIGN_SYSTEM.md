@@ -8,11 +8,16 @@ un segundo padding para esa barra. Detalles y formularios permanecen fuera del
 grupo de pestañas. Véase [MOBILE_QUALITY.md](./MOBILE_QUALITY.md).
 
 Onboarding consume las tres variantes WebP recuperadas, con dimensiones originales
-y BlurHash propios. El mapa compartido incluye 15 recursos y se verifica mediante
+y BlurHash propios. El mapa compartido incluye 14 recursos y se verifica mediante
 `python scripts/generate-image-placeholders.py --check`. Los PNG originales se
 conservan, sin importarlos adicionalmente desde el mapa de onboarding. El script
 de conversión no borra originales ni sobrescribe variantes existentes. La revisión
 de calidad visual y presentación nativa sigue siendo obligatoria.
+
+Autenticación, Inicio y onboarding importan únicamente el logo horizontal WebP.
+El PNG original se conserva como fuente, sin importarlo en la app ni en el registro
+de placeholders: Android asigna el mismo nombre de recurso a ambos formatos y
+falla con `Duplicate resources` si se empaquetan juntos.
 
 ## Estado actual
 
@@ -206,7 +211,7 @@ Implementado:
 
 - CatalogImage usa expo-image con memory-disk, recyclingKey derivada del origen, contain y fallback accesible. Cambiar el origen reinicia el fallo anterior.
 - Admite blurhash opcional correspondiente a cada imagen remota; HomeProduct.imageBlurhash e imágenes de galería son metadatos de presentación, no campos supuestos del backend. Sin hash muestra fondo neutro. No genera hashes durante render ni asigna uno genérico a los productos.
-- Las 15 imágenes locales activas de catálogo, onboarding, autenticación y logo horizontal tienen hashes propios precalculados en src/data/local-image-placeholders.ts. CatalogImage los resuelve automáticamente; comparte también contentFit, dimensiones y fallback con esas pantallas. La transición de 150 ms se desactiva con movimiento reducido. No hay esperas para mostrar el placeholder ni cambios en los archivos originales.
+- Las 14 imágenes locales activas de catálogo, onboarding, autenticación y logo horizontal tienen hashes propios precalculados en src/data/local-image-placeholders.ts. CatalogImage los resuelve automáticamente; comparte también contentFit, dimensiones y fallback con esas pantallas. La transición de 150 ms se desactiva con movimiento reducido. No hay esperas para mostrar el placeholder ni cambios en los archivos originales.
 - Regenerar al cambiar recursos con `python scripts/generate-image-placeholders.py` (requiere Pillow); `--check` verifica hashes y SHA-256 contra los archivos actuales. La transparencia se compone sobre blanco solo para generar el hash; el original conserva su alfa.
 - Home muestra cabecera, buscador y navegación desde el primer render. Su consulta real de seis productos usa ProductGridSkeleton; banners, categorías y filtros conservan el reveal por opacidad de 180 ms y desfases 0/40/80 ms, respetando movimiento reducido. Refetch conserva contenido y ofrece reintento si falla.
 - ProductGridSkeleton reutiliza Skeleton/SkeletonBlock y representa las tarjetas actuales. Catálogo paginado y detalle conectado tienen carga inicial; no superponen Skeleton sobre fotos con datos disponibles.
