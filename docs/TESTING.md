@@ -159,23 +159,51 @@ EAS, Google ni backend real; no publica ni distribuye builds.
 - resumen con `scripts/test-summary.cjs` incluso si la suite falla;
 - artefactos `jest-<suite>-<run_attempt>` con retención de 14 días.
 
-El nuevo job `maestro_checks` ejecuta `npm run test:e2e -- --check` y
-`node --test scripts/maestro-infra.test.cjs scripts/maestro-ci.test.cjs`, sin
-dispositivo y en paralelo con Jest; timeout de 15 minutos.
+`maestro_checks` ejecuta `npm run test:e2e -- --check` y las pruebas Node de
+infraestructura, script CI, selección de cambios, resultado final y preparación de
+KVM, sin dispositivo y en paralelo con Jest; timeout de 15 minutos. Estas
+verificaciones rápidas no se omiten por cambios documentales.
 
-`build_android` requiere `needs: [tests, maestro_checks]`: solo compila si las
-dos suites Jest y la infraestructura Maestro aprueban. Genera Android mediante CNG y compila `assembleDebug`
-para `x86_64` con Java 21, SDK/build-tools 36, NDK 27.1.12297006 y CMake 3.30.5.
+El job `changes` calcula `android_required` con `scripts/ci/android-policy.cjs`.
+En PR compara el árbol del merge probado con el SHA base del evento (diff acumulado
+del PR); en push compara `before` con el SHA probado. Usa historial completo,
+separadores NUL y `--no-renames`, por lo que borrados y renombrados consideran ambas
+rutas. Si falta historia o el diff falla, falla la selección; no se asume que Android
+sea opcional. Un primer push sin revisión anterior requiere Android completo.
+
+- Documentación, templates de issues/PR, tests Jest, `tests/support`, herramientas
+  de carga/rendimiento y configuración exclusiva de análisis/Jest: solo checks rápidos.
+- Runtime `src`, assets, dependencias, Expo/Android, plugins, Maestro, su API ficticia,
+  scripts CI y el workflow Tests: cadena Android completa.
+- Los fixtures Jest no los importa Maestro; los fixtures E2E están en
+  `scripts/maestro-api.cjs`. Cambiar estos últimos sí requiere Android. Una ruta nueva
+  o no clasificada, incluidos seeds nuevos, requiere Android por precaución hasta
+  confirmar sus consumidores.
+- `workflow_dispatch` siempre fuerza Android completo. La etiqueta `ci:android`
+  también lo fuerza en un PR, incluso documental; añadirla o retirarla recalcula la
+  selección. Para preparar una versión, usar esta solicitud explícita o la ejecución
+  manual, además de los cambios de versión/configuración que ya activan Android.
+
+`build_android` requiere `needs: [changes, tests, maestro_checks]` y
+`android_required == 'true'`: solo compila si la selección, las dos suites Jest y la
+infraestructura Maestro aprueban. Genera Android mediante CNG y compila `assembleDebug`
+para `x86_64` con Java 21, SDK/build-tools 36, NDK 27.1.12297006 y CMake 3.30.5/3.22.1.
 Las versiones corresponden al React Native instalado con Expo 57.0.31. Se usa
 Gradle del proyecto, caché de Gradle de solo lectura en PR y timeout de 60 minutos.
 El APK Development Build y su SHA-256 se conservan por 7 días; logs de prebuild,
 compilación y reportes Gradle por 14 días, incluso si falla la compilación.
 
-`maestro` requiere `needs: [build_android]`: descarga el APK de la misma ejecución,
+`maestro` requiere `needs: [changes, build_android]` y Android requerido: descarga el APK de la misma ejecución,
 comprueba su checksum e instala Maestro 2.11.0 con checksum fijado. Usa un emulador
 nuevo Android API 35, `google_apis`, `x86_64`, perfil Pixel 6, KVM y serial
 `emulator-5554`; timeout de 30 minutos. `scripts/maestro-ci.sh` comprueba el runner
 GitHub-hosted, el serial y la propiedad QEMU antes de instalar o autorizar limpieza.
+Antes de instalar Java/Maestro o dependencias, `scripts/ci/prepare-kvm.cjs` registra
+existencia, tipo, propietario, modo y acceso a `/dev/kvm`; si existe como dispositivo
+de caracteres sin acceso, aplica `sudo -n chmod a+rw /dev/kvm` y verifica nuevamente.
+No depende de la aplicación asíncrona de reglas udev. Si falta KVM o no se puede
+conceder acceso, falla con diagnóstico persistido en `ci/kvm.json`. El emulador exige
+aceleración con `-accel on`; no se transforma un fallo de infraestructura en éxito.
 Después ejecuta el runner existente con Metro y la API ficticia local. Un fallo de
 instalación, preflight, flujo o limpieza falla el job; no hay reintentos para ocultarlo.
 Se recogen logcat, JUnit, capturas, logs y `run.json` cuando cada etapa los produce,
@@ -183,17 +211,37 @@ con subida de evidencias incluso tras un fallo y retención de 14 días. Un erro
 anterior al arranque de Maestro puede no producir JUnit ni `run.json`.
 
 El check final `e2e` usa `if: always()` y
-`needs: [tests, maestro_checks, build_android, maestro]`. Exige `success` en todas
-las etapas de Tests: falla también si un job fue omitido o cancelado. Maestro no se
-ejecuta tras fallos previos. Quality no forma parte de esta cadena: `needs` solo
-relaciona jobs de un mismo workflow y `validate` se exige de forma independiente.
+`needs: [changes, tests, maestro_checks, build_android, maestro]`. El cálculo vive
+en `scripts/ci/android-policy.cjs` y se prueba automáticamente:
+
+- `changes`, `tests` y `maestro_checks` deben terminar en `success` siempre.
+- Si Android es requerido, build y Maestro deben terminar en `success`.
+- Si Android no es requerido, ambos deben quedar en `skipped`.
+- Una decisión ausente/inválida, un fallo, una cancelación u otra omisión falla el
+  check. No se ignoran todos los `skipped` ni se usa `continue-on-error`.
+
+Maestro no se ejecuta tras fallos previos. Quality no forma parte de esta cadena:
+`needs` solo relaciona jobs de un mismo workflow y `validate` se exige de forma
+independiente. Un `e2e` aprobado con Android opcional solo acredita checks rápidos;
+el Summary y los artefactos muestran explícitamente esa decisión.
+
+Las cachés npm siguen ligadas al lockfile y siempre se usa `npm ci`. `changes` y
+`e2e` usan solo Node integrado, sin instalar dependencias ni restaurar caché npm.
+Gradle conserva su caché con solo lectura en PR; no se reutiliza un APK de otro
+commit/run. El SDK aprovecha los componentes preinstalados y `sdkmanager` instala
+idempotentemente versiones fijadas solo en el build requerido, incluida CMake
+3.22.1 que el build observado descargaba durante Gradle. No se cachean proyectos
+nativos generados, snapshots del AVD ni todo el SDK con claves imprecisas.
 
 Para consultar evidencia: GitHub → Actions → Tests → ejecución → Summary y artefactos
 `jest-unit-*`, `jest-integration-*`, `android-development-*`, `android-build-*` y
-`maestro-android-*`. No se publican comentarios automáticos en el PR.
+`maestro-android-*`, `android-selection-*` y `e2e-decision-*`. Los diagnósticos
+Android/Maestro y decisiones incluyen SHA e intento en el nombre; GitHub los asocia
+al run. El APK conserva nombre por SHA dentro del run para reutilizarlo al repetir
+solo un job fallido. No se publican comentarios automáticos en el PR.
 
 Para protección de ramas, conservar los checks obligatorios `validate` (Quality),
-`unit` e `integration` (Tests), y añadir `e2e` después de confirmar su nombre y
+`unit`, `integration` y `maestro_checks` (Tests), y añadir `e2e` después de confirmar su nombre y
 ejecución en GitHub. `e2e` incluye build y Maestro; no sustituye a Quality.
 
 ## Maestro local Android
@@ -224,8 +272,9 @@ falla también por peticiones imprevistas o errores de limpieza, aunque JUnit es
 
 Sin dispositivo o build compatible se devuelve error antes de abrir la app o iniciar
 servidores; no se produce un reporte aprobado. iOS sigue pendiente. El pipeline
-Android está configurado; su primera ejecución nativa en GitHub debe verificarse
-tras publicar estos cambios. Las pruebas locales del script de CI usan comandos
+Android está configurado; el run 40371511049 compiló el APK pero falló al preparar
+KVM antes de arrancar Maestro. La revisión actual requiere otro run en GitHub y
+cinco flujos nativos aprobados para confirmar su funcionamiento. Las pruebas locales del script de CI usan comandos
 simulados y no acreditan la ejecución del emulador en GitHub.
 
 La ejecución física del 25 de octubre de 2026 en HUAWEI STK-LX3 / Android 10

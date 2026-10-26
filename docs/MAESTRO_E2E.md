@@ -5,14 +5,27 @@
 `.github/workflows/tests.yml` conserva la matriz Jest y encadena mediante `needs`:
 
 ```text
-tests (unit/integration) + maestro_checks → build_android → maestro → e2e
+changes + tests (unit/integration) + maestro_checks
+                   → build_android (si requerido) → maestro (si requerido) → e2e
 ```
 
-El check final `e2e` también depende directamente de todas las etapas de Tests y
-falla si alguna no termina con éxito. `quality.yml` se mantiene con el job `validate`
+El check final `e2e` también depende directamente de todas las etapas de Tests.
+Exige éxito en selección y checks rápidos; solo acepta build/Maestro omitidos cuando
+`changes` declara Android opcional. Si Android es requerido, ambos deben aprobar.
+Fallos, cancelaciones y omisiones inesperadas siguen bloqueando. `quality.yml` se mantiene con el job `validate`
 original y se ejecuta de forma independiente. Ambos workflows se ejecutan en PR y
 push de `develop`/`main`; Tests permite además ejecución manual. `needs` no cruza
 workflows: la protección de ramas debe exigir tanto `validate` como `e2e`.
+
+La selección de `scripts/ci/android-policy.cjs` usa el diff acumulado del PR contra
+su base, o `before`/SHA en push, e incluye archivos eliminados y las dos rutas de
+renombrados. Documentación, tests/fixtures Jest y herramientas de carga/rendimiento
+ajenas a Maestro omiten Android. Código de app, assets, dependencias, configuración,
+plugins, `.maestro`, su API ficticia y scripts CI lo requieren. Las rutas desconocidas
+también lo requieren. Un diff inválido falla; no habilita una omisión silenciosa.
+`workflow_dispatch` y la etiqueta de PR `ci:android` fuerzan los cinco flujos,
+incluida la validación explícita de una versión. Detalles y excepciones en
+[TESTING.md](./TESTING.md).
 
 El build genera Android con CNG desde el checkout de la ejecución, sin versionar
 archivos nativos ni usar EAS. Compila un APK debug Development Build para `x86_64`
@@ -34,19 +47,30 @@ conserva el código de error de instalación o E2E aunque no consiga recoger log
 Los fallos de preflight pueden no generar JUnit ni `run.json`; revisar también el
 log del job. No se omiten fallos ni se añaden reintentos automáticos.
 
+`scripts/ci/prepare-kvm.cjs` corre antes de instalar Java, Maestro y dependencias.
+Registra nodo, modo, propietario y acceso a `/dev/kvm` en `ci/kvm.json`, incluso
+cuando falla. Solo si encuentra un dispositivo de caracteres sin acceso concede
+lectura/escritura con `sudo -n chmod a+rw /dev/kvm` y verifica el resultado de forma
+síncrona. Si el nodo no existe o el permiso no se puede corregir, falla. No depende
+de reglas udev pendientes ni arranca con `-accel off`: el emulador exige `-accel on`.
+
 Validación sin dispositivo:
 
 ```bash
 npm run test:e2e -- --check
 node --test scripts/maestro-infra.test.cjs scripts/maestro-ci.test.cjs
+node --test scripts/ci/android-policy.test.cjs scripts/ci/prepare-kvm.test.cjs
 bash -n scripts/maestro-ci.sh
 actionlint .github/workflows/quality.yml .github/workflows/tests.yml
 ```
 
 Las pruebas del script simulan ADB y npm: verifican rechazo de entornos/seriales
 ajenos, rechazo de dispositivos no emulados, propagación de fallos y recolección de
-evidencias. No ejecutan la app. El primer run nativo de GitHub queda pendiente de
-publicar los commits; no confundir esta configuración con una ejecución CI aprobada.
+evidencias. Las pruebas de política cubren selección, renombrados/borrados, diff
+inválido, ejecución manual, fallos/cancelaciones y omisiones legítimas o inesperadas.
+Las de KVM simulan el estado del nodo y la concesión de permisos; no usan KVM local
+ni ADB. No ejecutan la app. La revisión necesita publicarse y aprobar los cinco
+flujos nativos en GitHub; no confundir estos tests con una ejecución E2E aprobada.
 Después, añadir el check `e2e` a los checks obligatorios en `develop` y `main` según
 [GIT_WORKFLOW.md](./GIT_WORKFLOW.md). Detalles del pipeline en
 [TESTING.md](./TESTING.md).
@@ -55,6 +79,48 @@ Referencias: [CNG de Expo](https://docs.expo.dev/workflow/continuous-native-gene
 [emulador en Actions](https://github.com/ReactiveCircus/android-emulator-runner),
 [release Maestro 2.11.0](https://github.com/mobile-dev-inc/Maestro/releases/tag/cli-2.11.0)
 y [`needs` de GitHub Actions](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idneeds).
+
+## Diagnóstico de GitHub Actions — 26 de octubre de 2026
+
+Evidencia consultada: [run 40371511049](https://github.com/VictorGustavoVH/cemydi-mobile/actions/runs/40371511049)
+y [log completo del job Maestro](https://github.com/VictorGustavoVH/cemydi-mobile/actions/runs/40371511049/job/121751103373).
+El PR #147 estaba abierto y su head era `866b15d`; se probó el merge virtual
+`6e173d2af12c9eeb9a16c4b89a2bff81b7cad19a`.
+
+- `unit`, `integration`, `maestro_checks` y `build_android`: aprobados.
+- Gradle compiló el APK `x86_64` en 11 min 45 s. El build descargó CMake 3.22.1
+  además de 3.30.5; ahora ambas versiones se declaran en el paso SDK.
+- El job Maestro descargó el APK y validó su checksum. Java Temurin 21.0.12 y la
+  CLI Maestro 2.11.0 arrancaron correctamente. El runner era Ubuntu 24.04.5,
+  imagen `20261012.334.1`.
+- `Enable KVM` terminó con código 1 a las 18:00:25 UTC. El emulador quedó `skipped`:
+  no se ejecutó ningún flujo nativo. La subida de evidencias no encontró archivos.
+- `e2e` falló al detectar Maestro fallido; ese resultado era correcto.
+
+El bloque ejecutaba escritura de regla udev, `udevadm control --reload-rules`,
+`udevadm trigger --name-match=kvm` y `test -r /dev/kvm && test -w /dev/kvm`.
+El log solo contiene el eco de la regla y la salida 1: no tiene trazas por comando,
+stderr adicional, `stat` del nodo ni diagnóstico de permisos. **No permite comprobar
+cuál de los comandos silenciosos devolvió 1**, ni distinguir nodo ausente, permisos
+o una carrera al aplicar la regla. Atribuirlo a permisos o a udev sería una hipótesis,
+no una causa raíz demostrada. Sí está probado que el fallo ocurrió en preparación
+KVM, antes del emulador, y no en un escenario Maestro.
+
+La revisión sustituye ese bloque opaco por inspección y concesión condicional
+síncrona de acceso. No afirma resolver un problema de hardware desconocido. El
+próximo run debe aportar `kvm.json` y completar la ejecución nativa: JUnit con los
+cinco escenarios, sin fallos ni omitidos, y `run.json` con código 0, sin interrupción,
+peticiones inesperadas ni errores de infraestructura/limpieza.
+
+La combinación Ubuntu x64/API 35/Google APIs/`x86_64`/Java 21 se conserva: el build
+y la CLI ya aprobaron, pero el arranque del AVD y los cinco flujos en esa imagen
+siguen pendientes. GitHub documenta aceleración Android en sus runners Linux, y
+[Android documenta los requisitos de KVM](https://developer.android.com/studio/run/emulator-acceleration).
+Si un nuevo diagnóstico muestra que el runner no expone KVM, no se permite aprobar
+sin E2E. Una alternativa es un runner GitHub-hosted Intel macOS compatible usando
+el hipervisor de macOS en lugar del paso KVM, o un Linux dedicado con virtualización
+habilitada y una política explícita para ese runner. Ambas requieren ajustar y
+validar el entorno; no se cambia a ellas automáticamente ni se usa el teléfono.
 
 ## Diagnóstico y alcance
 

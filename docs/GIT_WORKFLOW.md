@@ -54,15 +54,21 @@ Un PR hacia `develop` debe incluir:
 Quality y Tests se ejecutan como workflows independientes en PR hacia
 `develop`/`main` y en push a esas ramas. Quality conserva su job `validate`.
 Tests conserva la matriz Jest y añade las verificaciones de infraestructura Maestro;
-`needs` condiciona el build Android a ambas y Maestro al build. El check final
-`e2e` exige el éxito de todas las etapas de Tests; no depende del workflow Quality.
-Tests también permite ejecución manual. El merge a `develop` genera un push y
+`changes` decide si Android es necesario y `needs` condiciona el build a esa
+selección, Jest e infraestructura. Maestro depende del build. `e2e` exige éxito en
+los checks rápidos y, si Android es requerido, también build/Maestro; solo permite
+omitir ambos si la selección lo declara opcional. No depende de Quality.
+Los PR documentales o de herramientas ajenas a Maestro evitan el APK, pero conservan
+Quality, Jest e infraestructura. Las rutas desconocidas ejecutan Android. La etiqueta
+`ci:android` fuerza la cadena en un PR y `workflow_dispatch` siempre la ejecuta
+completa; usar una de estas opciones para validación explícita de release.
+El merge a `develop` genera un push y
 vuelve a validar el estado integrado; no requiere un workflow adicional de merge.
 Los pushes de ramas de trabajo con PR se validan por el evento del PR, evitando
 otro run idéntico en cada push de feature.
 
 Configurar manualmente protección/rulesets en `develop` y `main` para exigir PR,
-revisión y los checks `validate` (Quality), `unit` e `integration` (Tests), además
+revisión y los checks `validate` (Quality), `unit`, `integration` y `maestro_checks` (Tests), además
 del nuevo check final `e2e` (Tests), verificando sus nombres en el primer run.
 `e2e` incluye build y Maestro, pero no sustituye `validate`: Quality se valida de
 forma independiente. Detalles de orden, reportes y límites en
