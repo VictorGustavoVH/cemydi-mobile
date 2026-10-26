@@ -195,7 +195,8 @@ compilación y reportes Gradle por 14 días, incluso si falla la compilación.
 
 `maestro` requiere `needs: [changes, build_android]` y Android requerido: descarga el APK de la misma ejecución,
 comprueba su checksum e instala Maestro 2.11.0 con checksum fijado. Usa un emulador
-nuevo Android API 35, `google_apis`, `x86_64`, perfil Pixel 6, KVM y serial
+nuevo Android API 35, AOSP `default`, `x86_64`, perfil Pixel 6 con 2 cores/3072 MB,
+pantalla 720×1600 a 320 dpi, KVM y serial
 `emulator-5554`; timeout de 30 minutos. `scripts/maestro-ci.sh` comprueba el runner
 GitHub-hosted, el serial y la propiedad QEMU antes de instalar o autorizar limpieza.
 Antes de instalar Java/Maestro o dependencias, `scripts/ci/prepare-kvm.cjs` registra
@@ -209,6 +210,17 @@ instalación, preflight, flujo o limpieza falla el job; no hay reintentos para o
 Se recogen logcat, JUnit, capturas, logs y `run.json` cuando cada etapa los produce,
 con subida de evidencias incluso tras un fallo y retención de 14 días. Un error
 anterior al arranque de Maestro puede no producir JUnit ni `run.json`.
+
+El run 40378701635 superó KVM y la instalación, pero una captura muestra un ANR de
+Pixel Launcher encima de Dev Launcher; después ADB quedó offline y los flujos
+restantes fallaron al perder el servidor Maestro. `metro.log` también registró un
+aborto del DevTools Electron por sandbox SUID. La revisión actual usa AOSP sin
+Pixel Launcher/servicios Google, espera ambas colas de Package Manager antes de
+instalar y ejecuta Metro con un worker y `EXPO_UNSTABLE_HEADLESS=1` (opción comprobada
+en el CLI Expo 57 instalado). No cambia el selector `Connect` ni reintenta tests.
+Conserva `lastanr-before.txt` y `lastanr-after.txt`, además de logcat. Los errores
+de limpieza se registran en `run.json.cleanupFailures` sin reemplazar el fallo
+principal; siguen haciendo fallar el runner. Estos cambios necesitan otro run nativo.
 
 El check final `e2e` usa `if: always()` y
 `needs: [changes, tests, maestro_checks, build_android, maestro]`. El cálculo vive

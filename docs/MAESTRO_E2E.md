@@ -35,7 +35,8 @@ checksum del release oficial. No requiere secretos ni un teléfono conectado.
 
 `scripts/maestro-ci.sh` solo admite el runner GitHub-hosted y `emulator-5554` con
 propiedad QEMU activa. El workflow crea ese emulador nuevo y desechable (Android
-API 35, Google APIs, Pixel 6, `x86_64`); ejecutar este pipeline autoriza la instalación
+API 35, AOSP `default`, Pixel 6, `x86_64`, 2 cores/3072 MB y 720×1600 a 320 dpi);
+ejecutar este pipeline autoriza la instalación
 y limpieza de `com.cemydi.app` exclusivamente allí. El script configura las dos
 variables de dispositivo/limpieza y llama a `npm run test:e2e`, conservando las
 protecciones locales, los cinco flujos, Metro y la API ficticia. La autorización
@@ -46,6 +47,12 @@ días, APK/checksum por 7 días y evidencias Maestro/logcat por 14 días. El scr
 conserva el código de error de instalación o E2E aunque no consiga recoger logcat.
 Los fallos de preflight pueden no generar JUnit ni `run.json`; revisar también el
 log del job. No se omiten fallos ni se añaden reintentos automáticos.
+
+Antes de instalar el APK se espera a las colas normal y de fondo de Package
+Manager, con timeout de 60 s cada una. No basta `sys.boot_completed` para terminar
+la preparación inicial del OS. Se guarda el último ANR antes y después de la suite.
+Metro usa un único worker y modo headless de Expo 57 para evitar la instalación y
+ejecución automática de Electron DevTools en el runner sin escritorio.
 
 `scripts/ci/prepare-kvm.cjs` corre antes de instalar Java, Maestro y dependencias.
 Registra nodo, modo, propietario y acceso a `/dev/kvm` en `ci/kvm.json`, incluso
@@ -121,6 +128,46 @@ sin E2E. Una alternativa es un runner GitHub-hosted Intel macOS compatible usand
 el hipervisor de macOS en lugar del paso KVM, o un Linux dedicado con virtualización
 habilitada y una política explícita para ese runner. Ambas requieren ajustar y
 validar el entorno; no se cambia a ellas automáticamente ni se usa el teléfono.
+
+## Segundo run: ANR de Pixel Launcher y pérdida de ADB
+
+En el [run 40378701635 del PR #148](https://github.com/VictorGustavoVH/cemydi-mobile/actions/runs/40378701635),
+Quality, Jest, infraestructura, selección y build aprobaron. `kvm.json` confirma
+que el nodo existía con modo 660, sin acceso para el usuario del runner; la concesión
+síncrona lo dejó en 666 con lectura/escritura. El emulador arrancó y el APK se instaló.
+
+La captura `step-010-assertCondition-Connect.png` muestra **Pixel Launcher isn't
+responding**, con Dev Launcher detrás. El diálogo del OS impide que Maestro vea
+`Connect`. En los cuatro flujos siguientes, los logs registran
+`DeviceServerDiedException`, `device offline` y finalmente dispositivo no encontrado.
+JUnit informa cinco fallos, pero no demuestra cinco regresiones funcionales: el
+primero fue una obstrucción del OS y los restantes no pudieron usar el dispositivo.
+No hubo bundle JS servido ni peticiones inesperadas a la API ficticia.
+
+Además, `metro.log` contiene un aborto SUID de Electron al instalar React Native
+DevTools. El código del CLI Expo 57 instalado (`createDebugMiddleware.js` y
+`utils/env.js`) confirma que `CI=1` por sí solo no desactiva ese proceso;
+`EXPO_UNSTABLE_HEADLESS=1` sí impide habilitar el shell standalone.
+
+Cambios de esta revisión:
+
+- Imagen AOSP `default` en lugar de Google APIs: estos flujos no usan GMS ni Google
+  Sign-In y no necesitan Pixel Launcher. Se comprobó la disponibilidad estable de
+  `system-images;android-35;default;x86_64` en el catálogo oficial del SDK.
+- Resolución reducida, RAM explícita, dos cores y un worker Metro para limitar la
+  competencia de recursos. La presión exacta de CPU/memoria no quedó medida en el
+  run fallido; se trata de una mitigación, no de una causa demostrada del ANR.
+- Preparación de Package Manager con esperas acotadas y conservación de ANR.
+- Metro headless sin relajar ni desactivar el sandbox de Electron.
+- Preservación del fallo principal de Maestro y registro separado de cada fallo
+  de limpieza. El mensaje `listener tcp:8091 not found` era posterior al fallo de
+  los flujos; ya no sustituye su diagnóstico principal en `run.json`.
+
+Se conserva la espera de `Connect`, las cinco aserciones funcionales, la limpieza
+autorizada del emulador y el check final bloqueante. No se cierran diálogos ANR
+automáticamente, no se reintentan tests ni se usa el teléfono. Hace falta un nuevo
+run con cinco escenarios aprobados para validar la corrección; los tests locales
+de infraestructura no acreditan ese resultado.
 
 ## Diagnóstico y alcance
 

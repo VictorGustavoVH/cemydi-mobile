@@ -217,9 +217,13 @@ jobs:
         uses: reactivecircus/android-emulator-runner@v2.38.0
         with:
           api-level: 35
-          target: google_apis
+          # Guest/fixture flows do not use Google services. AOSP omits the
+          # Pixel Launcher whose ANR blocked Dev Launcher in the failed run.
+          target: default
           arch: x86_64
           profile: pixel_6
+          cores: 2
+          ram-size: 3072M
           avd-name: cemydi-ci
           emulator-port: 5554
           force-avd-creation: true

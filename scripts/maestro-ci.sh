@@ -20,10 +20,20 @@ finish() {
   if ! adb -s "$ANDROID_SERIAL" logcat -d > test-results/maestro/ci/logcat.log 2>&1; then
     echo 'No se pudo recoger logcat del emulador.' >&2
   fi
+  if ! adb -s "$ANDROID_SERIAL" shell dumpsys activity lastanr > test-results/maestro/ci/lastanr-after.txt 2>&1; then
+    echo 'No se pudo recoger el último ANR del emulador.' >&2
+  fi
   exit "$status"
 }
 trap finish EXIT
 
+# boot_completed alone does not mean first-boot package work has finished.
+# Android 35 supports bounded waits on both Package Manager handlers.
+adb -s "$ANDROID_SERIAL" shell wm size 720x1600
+adb -s "$ANDROID_SERIAL" shell wm density 320
+adb -s "$ANDROID_SERIAL" shell cmd package wait-for-handler --timeout 60000
+adb -s "$ANDROID_SERIAL" shell cmd package wait-for-background-handler --timeout 60000
+adb -s "$ANDROID_SERIAL" shell dumpsys activity lastanr > test-results/maestro/ci/lastanr-before.txt
 adb -s "$ANDROID_SERIAL" logcat -c
 adb -s "$ANDROID_SERIAL" install test-results/apk/app-debug.apk
 export CEMYDI_E2E_DEVICE="$ANDROID_SERIAL"

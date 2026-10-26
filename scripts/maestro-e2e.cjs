@@ -33,6 +33,27 @@ function stopTree(child) {
       throw new Error(`No se pudo detener el proceso ${child.pid}.`);
   } else process.kill(-child.pid, 'SIGTERM');
 }
+function createMetroEnv(source, apiPort) {
+  // Headless prevents SDK 57 from installing/starting Electron DevTools in CI.
+  const env = Object.fromEntries(
+    Object.entries(source).filter(
+      ([key]) => !key.startsWith('EXPO_') && key !== 'REACT_NATIVE_PACKAGER_HOSTNAME',
+    ),
+  );
+  return Object.assign(env, {
+    CI: '1',
+    NODE_ENV: 'development',
+    EXPO_NO_DOTENV: '1',
+    EXPO_OFFLINE: '1',
+    EXPO_NO_TELEMETRY: '1',
+    EXPO_UNSTABLE_HEADLESS: '1',
+    EXPO_PUBLIC_APP_ENV: 'development',
+    EXPO_PUBLIC_API_URL: `http://127.0.0.1:${apiPort}`,
+    EXPO_PUBLIC_WEBSITE_URL: `http://127.0.0.1:${apiPort}`,
+    EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID: '',
+    EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID: '',
+  });
+}
 async function main() {
   process.chdir(path.dirname(require.resolve('../package.json')));
   const flows = checkFlows();
@@ -128,6 +149,7 @@ async function main() {
   let runner;
   let interrupted = false;
   let failure;
+  const cleanupFailures = [];
   let code = 1;
   const reversed = [];
   const onSignal = () => {
@@ -158,23 +180,7 @@ async function main() {
       reversed.push(port);
     }
     // Never load .env or inherit public values from a developer's shell.
-    const childEnv = Object.fromEntries(
-      Object.entries(process.env).filter(
-        ([key]) => !key.startsWith('EXPO_') && key !== 'REACT_NATIVE_PACKAGER_HOSTNAME',
-      ),
-    );
-    Object.assign(childEnv, {
-      CI: '1',
-      NODE_ENV: 'development',
-      EXPO_NO_DOTENV: '1',
-      EXPO_OFFLINE: '1',
-      EXPO_NO_TELEMETRY: '1',
-      EXPO_PUBLIC_APP_ENV: 'development',
-      EXPO_PUBLIC_API_URL: `http://127.0.0.1:${apiPort}`,
-      EXPO_PUBLIC_WEBSITE_URL: `http://127.0.0.1:${apiPort}`,
-      EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID: '',
-      EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID: '',
-    });
+    const childEnv = createMetroEnv(process.env, apiPort);
     metro = spawn(
       process.execPath,
       [
@@ -186,6 +192,8 @@ async function main() {
         '--clear',
         '--port',
         String(metroPort),
+        '--max-workers',
+        '1',
       ],
       {
         env: childEnv,
@@ -255,6 +263,8 @@ async function main() {
       runner.once('error', reject);
       runner.once('close', (status) => resolve(status ?? 1));
     });
+    if (code !== 0)
+      failure = `Maestro terminó con código ${code}. Consulta results.xml y maestro-console.log.`;
     if (unexpected.length || interrupted) code = 1;
   } catch (error) {
     failure = error.message;
@@ -282,7 +292,8 @@ async function main() {
           });
         }
       } catch (error) {
-        failure = error.message;
+        cleanupFailures.push(error.message);
+        failure ||= error.message;
         code = 1;
       }
     }
@@ -292,7 +303,8 @@ async function main() {
       try {
         adb(['-s', serial, 'reverse', '--remove', `tcp:${port}`]);
       } catch (error) {
-        failure = error.message;
+        cleanupFailures.push(error.message);
+        failure ||= error.message;
         code = 1;
       }
     }
@@ -318,6 +330,7 @@ async function main() {
           interrupted,
           unexpected,
           failure,
+          cleanupFailures,
         },
         null,
         2,
@@ -327,7 +340,9 @@ async function main() {
   if (failure) console.error(failure);
   process.exitCode = code;
 }
-main().catch((error) => {
-  console.error(error.message);
-  process.exitCode = 1;
-});
+if (require.main === module)
+  main().catch((error) => {
+    console.error(error.message);
+    process.exitCode = 1;
+  });
+module.exports = { createMetroEnv };

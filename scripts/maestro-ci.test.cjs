@@ -28,6 +28,9 @@ function run(t, overrides = {}) {
     *'shell getprop ro.kernel.qemu') printf '%s\\n' "$QEMU" ;;
     *' install '*) return "$INSTALL_STATUS" ;;
     *'logcat -d') printf 'fixture log'; return "$LOGCAT_STATUS" ;;
+    *'wait-for-handler '*) return "$PACKAGE_STATUS" ;;
+    *'wait-for-background-handler '*) return "$PACKAGE_STATUS" ;;
+    *'dumpsys activity lastanr') printf 'fixture ANR' ;;
   esac
 }
 npm() {
@@ -52,6 +55,7 @@ npm() {
       INSTALL_STATUS: '0',
       TEST_STATUS: '0',
       LOGCAT_STATUS: '0',
+      PACKAGE_STATUS: '0',
       CEMYDI_E2E_DEVICE: '',
       CEMYDI_E2E_ALLOW_CLEAR: '',
       ...overrides,
@@ -102,5 +106,19 @@ test('CI: autoriza solo su emulador, ejecuta la suite y conserva logcat', (t) =>
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.calls, /-s emulator-5554 install test-results\/apk\/app-debug.apk/);
   assert.match(result.calls, /npm run test:e2e/);
+  assert.equal(readFileSync(result.log, 'utf8'), 'fixture log');
+  assert.equal(
+    readFileSync(path.join(path.dirname(result.log), 'lastanr-after.txt'), 'utf8'),
+    'fixture ANR',
+  );
+  assert.ok(
+    result.calls.indexOf('wait-for-background-handler') < result.calls.indexOf(' install '),
+  );
+});
+
+test('CI: Package Manager no disponible falla antes de instalar o ejecutar flujos', (t) => {
+  const result = run(t, { PACKAGE_STATUS: '31' });
+  assert.equal(result.status, 31);
+  assert.doesNotMatch(result.calls, /install|npm/);
   assert.equal(readFileSync(result.log, 'utf8'), 'fixture log');
 });
