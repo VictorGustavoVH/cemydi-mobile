@@ -1,21 +1,39 @@
 import { useEffect } from 'react';
-import { fireEvent, render, screen } from '@testing-library/react-native';
-import { CatalogPreviewProvider, useCatalogPreview } from '@/providers/catalog-preview-provider';
+import { fireEvent, screen } from '@testing-library/react-native';
+import { render } from '../../../../tests/support/render-with-toast';
+import { useCatalogPreview } from '@/providers/catalog-preview-provider';
+import { CatalogPreviewProvider } from '../../../../tests/support/catalog-cart-provider';
 import { CartPreviewScreen } from '../CartPreviewScreen';
+import { useAuth } from '@/providers/auth-provider';
+import { AUTH_ACCOUNT, installAuthApiMock } from '../../../../tests/support/auth-api-mock';
+import * as CatalogImageModule from '@/components/ui/CatalogImage';
+import {
+  CART_RESPONSE,
+  CART_LINE,
+  RENTAL_LINE,
+  installCartApiMock,
+} from '../../../../tests/support/cart-api-mock';
 
+const mockRouter = { canGoBack: () => true, back: jest.fn(), push: jest.fn(), replace: jest.fn() };
 jest.mock('expo-router', () => ({
-  useRouter: () => ({
-    canGoBack: () => true,
-    back: jest.fn(),
-    push: jest.fn(),
-    replace: jest.fn(),
-  }),
+  useRouter: () => mockRouter,
+  useLocalSearchParams: () => ({}),
 }));
 jest.mock('expo-haptics', () => ({ selectionAsync: jest.fn().mockResolvedValue(undefined) }));
 
-function Seed({ quantity = 1, oxygen = false }: { quantity?: number; oxygen?: boolean }) {
+function Seed({
+  quantity = 1,
+  oxygen = false,
+  signedIn = false,
+}: {
+  quantity?: number;
+  oxygen?: boolean;
+  signedIn?: boolean;
+}) {
   const { addItem, updateQuantity } = useCatalogPreview();
+  const { service } = useAuth();
   useEffect(() => {
+    if (signedIn) void service.login(AUTH_ACCOUNT.correo, AUTH_ACCOUNT.password, false);
     addItem('wheelchair', 'purchase');
     addItem('wheelchair', 'rental');
     if (quantity > 1) updateQuantity('wheelchair', 'purchase', quantity);
@@ -27,22 +45,43 @@ function Seed({ quantity = 1, oxygen = false }: { quantity?: number; oxygen?: bo
 }
 
 describe('Carrito de muestra', () => {
+  beforeEach(() => installAuthApiMock());
+  it('no renderiza la imagen de otra tarjeta al cambiar selección o cantidad', async () => {
+    const image = jest.spyOn(CatalogImageModule, 'CatalogImage');
+    const view = await render(
+      <CatalogPreviewProvider>
+        <Seed oxygen />
+      </CatalogPreviewProvider>,
+    );
+    const item = await screen.findByLabelText('Ver Silla de ruedas, compra');
+    await fireEvent(item, 'longPress');
+    image.mockClear();
+    await fireEvent.press(screen.getByLabelText('Seleccionar Silla de ruedas, compra'));
+    expect(image.mock.calls.some(([props]) => props.label === 'Concentrador de oxígeno')).toBe(
+      false,
+    );
+    image.mockClear();
+    await fireEvent.press(screen.getByLabelText('Aumentar cantidad de Silla de ruedas, compra'));
+    expect(image.mock.calls.some(([props]) => props.label === 'Concentrador de oxígeno')).toBe(
+      false,
+    );
+    expect(screen.getByLabelText('Cantidad de Silla de ruedas, compra: 2')).toBeTruthy();
+    await view.unmount();
+  });
   it('actualiza cantidad, selección, resumen y contador sin mezclar modalidades', async () => {
     await render(
       <CatalogPreviewProvider>
         <Seed />
       </CatalogPreviewProvider>,
     );
-    expect(screen.getByRole('button', { name: 'Carrito, 2 unidades' })).toBeTruthy();
     expect(screen.queryAllByRole('checkbox')).toHaveLength(0);
     expect(screen.queryByText(/Carrito de muestra/)).toBeNull();
     expect(screen.getAllByRole('button', { name: 'Revisar carrito' })).toHaveLength(1);
-    expect(screen.getAllByLabelText('Cupones · próximamente')).toHaveLength(1);
+    expect(screen.getAllByLabelText('Aplicar cupón')).toHaveLength(1);
     await fireEvent.press(screen.getByLabelText('Aumentar cantidad de Silla de ruedas, compra'));
     expect(screen.getByLabelText('Cantidad de Silla de ruedas, compra: 2')).toBeTruthy();
     expect(screen.getByLabelText('Cantidad de Silla de ruedas, renta: 1')).toBeTruthy();
     expect(screen.getByLabelText('Subtotal de compra: $7,700.00 MXN')).toBeTruthy();
-    expect(screen.getByLabelText('Carrito, 3 unidades')).toBeTruthy();
     await fireEvent(screen.getByLabelText('Ver Silla de ruedas, compra'), 'longPress');
     await fireEvent.press(
       screen.getByRole('checkbox', { name: 'Seleccionar Silla de ruedas, compra' }),
@@ -51,7 +90,6 @@ describe('Carrito de muestra', () => {
     expect(screen.getByRole('button', { name: 'Revisar carrito', disabled: false })).toBeTruthy();
     await fireEvent.press(screen.getByLabelText('Seleccionar Silla de ruedas, renta'));
     expect(screen.getByRole('button', { name: 'Revisar carrito', disabled: true })).toBeTruthy();
-    expect(screen.getByLabelText('Carrito, 3 unidades')).toBeTruthy();
     await fireEvent.press(
       screen.getByRole('checkbox', { name: 'Seleccionar toda la sección Compra' }),
     );
@@ -81,10 +119,10 @@ describe('Carrito de muestra', () => {
     ).toBeTruthy();
     await fireEvent.press(screen.getByLabelText('Eliminar Silla de ruedas, compra'));
     expect(screen.queryByLabelText('Cantidad de Silla de ruedas, compra: 25')).toBeNull();
-    expect(screen.getByLabelText('Carrito, 1 unidad')).toBeTruthy();
-    await fireEvent.press(screen.getByLabelText('Deshacer'));
-    expect(screen.getByLabelText('Cantidad de Silla de ruedas, compra: 25')).toBeTruthy();
-    expect(screen.getByLabelText('Carrito, 26 unidades')).toBeTruthy();
+    expect(await screen.findByText('Producto eliminado')).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText('Deshacer eliminación del producto'));
+    expect(await screen.findByText('Producto restaurado')).toBeTruthy();
+    expect(await screen.findByLabelText('Cantidad de Silla de ruedas, compra: 25')).toBeTruthy();
   });
 
   it('valida fechas, guarda un borrador por equipo y conserva datos al editar o deshacer', async () => {
@@ -108,19 +146,34 @@ describe('Carrito de muestra', () => {
     expect(screen.getByText('01/03/2027 al 10/03/2027 · Borrador · Requiere receta')).toBeTruthy();
     expect(screen.getByLabelText('Configurar renta de Silla de ruedas')).toBeTruthy();
     await fireEvent.press(screen.getByLabelText('Eliminar Concentrador de oxígeno, renta'));
-    await fireEvent.press(screen.getByLabelText('Deshacer'));
+    await fireEvent.press(screen.getByLabelText('Deshacer eliminación del producto'));
     await fireEvent.press(screen.getByLabelText('Editar renta de Concentrador de oxígeno'));
     expect(screen.getByDisplayValue('Entrega por la mañana')).toBeTruthy();
     expect(screen.getByDisplayValue('01/03/2027')).toBeTruthy();
   });
 
   it('permite revisar solo lo seleccionado y comunica el límite de cupones', async () => {
+    installCartApiMock({
+      ...CART_RESPONSE,
+      items: [
+        { ...CART_LINE, quantity: 1 },
+        RENTAL_LINE,
+        {
+          ...RENTAL_LINE,
+          id: 9,
+          product: { ...RENTAL_LINE.product, id: 102, nombre: 'Concentrador de oxígeno' },
+        },
+      ],
+    });
     await render(
       <CatalogPreviewProvider>
-        <Seed oxygen />
+        <Seed oxygen signedIn />
       </CatalogPreviewProvider>,
     );
-    await fireEvent(screen.getByLabelText('Ver Concentrador de oxígeno, renta'), 'longPress');
+    await fireEvent(
+      await screen.findByLabelText('Ver Concentrador de oxígeno, renta'),
+      'longPress',
+    );
     await fireEvent.press(screen.getByLabelText('Seleccionar Concentrador de oxígeno, renta'));
     await fireEvent.press(screen.getByLabelText('Listo'));
     await fireEvent.press(screen.getByLabelText('Revisar carrito'));
@@ -128,8 +181,10 @@ describe('Carrito de muestra', () => {
     expect(screen.queryByText('Concentrador de oxígeno · 1 unidad')).toBeNull();
     expect(screen.getByText(/Esta revisión no envía una solicitud/)).toBeTruthy();
     await fireEvent.press(screen.getByLabelText('Volver al carrito'));
-    await fireEvent.press(screen.getByLabelText('Cupones · próximamente'));
-    expect(screen.getByText(/no se aplica ningún descuento/)).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText('Aplicar cupón'));
+    await fireEvent.changeText(screen.getByLabelText('Código de cupón'), 'x');
+    await fireEvent.press(screen.getAllByLabelText('Aplicar cupón').at(-1)!);
+    expect(screen.getByText(/Usa entre 4 y 24/)).toBeTruthy();
   });
 
   it('muestra carrito vacío sin badge y permite deshacer la última eliminación', async () => {
@@ -140,9 +195,8 @@ describe('Carrito de muestra', () => {
     );
     await fireEvent.press(screen.getByLabelText('Eliminar Silla de ruedas, compra'));
     await fireEvent.press(screen.getByLabelText('Eliminar Silla de ruedas, renta'));
-    expect(screen.getByText('Tu carrito está vacío')).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Carrito' })).toBeTruthy();
-    await fireEvent.press(screen.getByLabelText('Deshacer'));
-    expect(screen.getByLabelText('Cantidad de Silla de ruedas, renta: 1')).toBeTruthy();
+    expect(await screen.findByText('Tu carrito está vacío')).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText('Deshacer eliminación del producto'));
+    expect(await screen.findByLabelText('Cantidad de Silla de ruedas, renta: 1')).toBeTruthy();
   });
 });

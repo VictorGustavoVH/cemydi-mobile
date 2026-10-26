@@ -3,8 +3,6 @@ import { useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
 import {
   FlatList,
-  Image,
-  Pressable,
   ScrollView,
   Text,
   View,
@@ -26,6 +24,7 @@ import ChevronRight from 'lucide-react-native/icons/chevron-right';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppButton } from '@/components/ui/AppButton';
+import { CatalogImage } from '@/components/ui/CatalogImage';
 import { colors } from '@/theme';
 
 type OnboardingPage = {
@@ -37,19 +36,19 @@ type OnboardingPage = {
 
 const pages: OnboardingPage[] = [
   {
-    image: require('../../../assets/images/onboarding/rehabilitacion-con-apoyo-y-cuidado.png'),
+    image: require('../../../assets/images/onboarding/rehabilitacion-con-apoyo-y-cuidado.webp'),
     imageDescription: 'Profesional de salud acompaña a una persona durante su rehabilitación',
     title: 'Tu bienestar empieza aquí.',
     description: 'Equipo ortopédico y suministros para acompañarte cada día.',
   },
   {
-    image: require('../../../assets/images/onboarding/asistencia-geriatrica-y-movilidad.png'),
+    image: require('../../../assets/images/onboarding/asistencia-geriatrica-y-movilidad.webp'),
     imageDescription: 'Profesional de salud acompaña a una persona durante su movilidad',
     title: 'Muévete con confianza.',
     description: 'Encuentra apoyo para rehabilitación y movilidad en un solo lugar.',
   },
   {
-    image: require('../../../assets/images/onboarding/tienda-de-ayudas-ortopedicas.png'),
+    image: require('../../../assets/images/onboarding/tienda-de-ayudas-ortopedicas.webp'),
     imageDescription: 'Persona en rehabilitación usando apoyo para caminar',
     title: 'Cuidado a tu medida.',
     description: 'Conoce opciones de venta y renta de equipo médico.',
@@ -79,8 +78,9 @@ function PaginationDot({ index, isSelected, onPress, scrollX, width }: Paginatio
   });
 
   return (
-    <Pressable
-      accessibilityLabel={`Ir a pantalla ${index + 1} de ${pages.length}`}
+    <AppButton
+      variant="unstyled"
+      label={`Ir a pantalla ${index + 1} de ${pages.length}`}
       accessibilityRole="tab"
       accessibilityState={{ selected: isSelected }}
       className="h-11 items-center justify-center px-1"
@@ -88,7 +88,7 @@ function PaginationDot({ index, isSelected, onPress, scrollX, width }: Paginatio
       onPress={onPress}
     >
       <Animated.View className="h-2 rounded-full bg-brand" style={animatedDotStyle} />
-    </Pressable>
+    </AppButton>
   );
 }
 
@@ -141,9 +141,8 @@ function OnboardingSlide({
       <Animated.View className="flex-1 justify-center px-6 py-4" style={animatedSlideStyle}>
         <View className="w-full items-center justify-center gap-4">
           <View className="items-center justify-center">
-            <Image
-              accessibilityLabel={page.imageDescription}
-              resizeMode="contain"
+            <CatalogImage
+              label={page.imageDescription}
               source={page.image}
               style={{
                 height: Math.min(height * 0.42, 340),
@@ -153,16 +152,10 @@ function OnboardingSlide({
           </View>
 
           <View className="w-full items-center gap-2.5 px-2">
-            <Text
-              className="w-full text-center font-sans-bold text-[26px] leading-[34px] text-primary"
-              maxFontSizeMultiplier={1.3}
-            >
+            <Text className="w-full text-center font-sans-bold text-[26px] leading-[34px] text-primary">
               {page.title}
             </Text>
-            <Text
-              className="max-w-[340px] text-center font-sans text-[17px] leading-[26px] text-secondary"
-              maxFontSizeMultiplier={1.3}
-            >
+            <Text className="w-full text-center font-sans text-[17px] leading-[26px] text-secondary">
               {page.description}
             </Text>
           </View>
@@ -188,11 +181,11 @@ export function OnboardingScreen() {
 
   const goToPage = (page: number) => {
     flatListRef.current?.scrollToOffset({
-      animated: true,
+      animated: !reducedMotion,
       offset: page * width,
     });
     setCurrentPage(page);
-    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
   };
 
   const handleScrollEnd = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -200,14 +193,14 @@ export function OnboardingScreen() {
     const clampedPage = Math.max(0, Math.min(page, pages.length - 1));
     if (clampedPage !== currentPage) {
       setCurrentPage(clampedPage);
-      void Haptics.selectionAsync();
+      void Haptics.selectionAsync().catch(() => undefined);
     }
   };
 
   const handleContinue = () => {
     if (currentPage === pages.length - 1) {
-      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      router.replace('./inicio');
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
+      router.replace('/inicio');
       return;
     }
 
@@ -215,36 +208,33 @@ export function OnboardingScreen() {
   };
 
   const handleSkip = () => {
-    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.replace('./inicio');
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
+    router.replace('/inicio');
   };
 
   return (
     <SafeAreaView className="flex-1 bg-white" edges={['top', 'right', 'bottom', 'left']}>
       {/* Barra superior con marca y botón Omitir */}
       <View className="min-h-14 flex-row items-center justify-between px-6 pb-2 pt-2">
-        <Image
-          accessibilityLabel="Ortopedia CEMYDI"
-          resizeMode="contain"
-          source={require('../../../assets/branding/cemydi-logo-horizontal.png')}
+        <CatalogImage
+          label="Ortopedia CEMYDI"
+          compact
+          source={require('../../../assets/branding/cemydi-logo-horizontal.webp')}
           style={{ height: 36, width: 124 }}
         />
         {currentPage < pages.length - 1 ? (
-          <Pressable
-            accessibilityLabel="Omitir introducción e ir al inicio"
+          <AppButton
+            variant="unstyled"
+            label="Omitir introducción y explorar catálogo"
             accessibilityRole="button"
             className="min-h-11 min-w-[64px] items-center justify-center rounded-lg px-2 active:opacity-60"
             hitSlop={{ bottom: 8, left: 8, right: 8, top: 8 }}
             onPress={handleSkip}
           >
-            <Text
-              className="font-sans-medium text-sm text-secondary"
-              maxFontSizeMultiplier={1.3}
-              numberOfLines={1}
-            >
+            <Text className="font-sans-medium text-sm text-secondary" numberOfLines={1}>
               Omitir
             </Text>
-          </Pressable>
+          </AppButton>
         ) : (
           <View className="h-11 w-16" />
         )}
@@ -282,7 +272,7 @@ export function OnboardingScreen() {
       />
 
       {/* Navegación y botón de acción anclados abajo */}
-      <View className="gap-6 px-6 pb-6 pt-2">
+      <View className="gap-1 px-6 pb-6 pt-2">
         <View
           accessibilityLabel="Indicador de pantallas"
           accessibilityRole="tablist"
@@ -303,17 +293,37 @@ export function OnboardingScreen() {
         <AppButton
           accessibilityLabel={
             currentPage === pages.length - 1
-              ? 'Comenzar a usar la aplicación'
+              ? 'Explorar catálogo sin iniciar sesión'
               : 'Ir a la siguiente pantalla'
           }
           className="min-h-14 rounded-2xl"
-          label={currentPage === pages.length - 1 ? 'Comenzar' : 'Siguiente'}
+          label={currentPage === pages.length - 1 ? 'Explorar catálogo' : 'Siguiente'}
           labelClassName="font-sans-semibold text-base"
           onPress={handleContinue}
           rightIcon={
             <ChevronRight aria-hidden color={colors.onBrand} size={16} strokeWidth={2.5} />
           }
         />
+        <View className="min-h-11 items-center justify-center">
+          <View
+            pointerEvents={currentPage === pages.length - 1 ? 'auto' : 'none'}
+            accessibilityElementsHidden={currentPage !== pages.length - 1}
+            importantForAccessibility={
+              currentPage === pages.length - 1 ? 'auto' : 'no-hide-descendants'
+            }
+            style={{ opacity: currentPage === pages.length - 1 ? 1 : 0 }}
+            className="flex-row flex-wrap items-center justify-center gap-x-1"
+          >
+            <Text className="font-sans text-sm text-secondary">¿Ya tienes cuenta?</Text>
+            <AppButton
+              label="Inicia sesión"
+              variant="ghost"
+              className="px-1"
+              labelClassName="text-sm text-brand-strong"
+              onPress={() => router.replace('/login')}
+            />
+          </View>
+        </View>
       </View>
     </SafeAreaView>
   );

@@ -1,5 +1,7 @@
-module.exports = {
+const shared = {
+  roots: ['<rootDir>/src', '<rootDir>/tests'],
   preset: 'jest-expo',
+  setupFiles: ['<rootDir>/jest.env.js'],
   setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
@@ -13,4 +15,42 @@ module.exports = {
     '/node_modules/react-native-reanimated/plugin/',
   ],
   testPathIgnorePatterns: ['/node_modules/'],
+  clearMocks: true,
+};
+
+// Reporters belong to the root config, not to individual Jest projects.
+const reportSuite =
+  { 'test:unit': 'unit', 'test:integration': 'integration' }[process.env.npm_lifecycle_event] ||
+  'all';
+
+module.exports = {
+  maxWorkers: 2,
+  // La suite de integración renderiza pantallas completas y compite por CPU con la unitaria.
+  // El timeout por defecto de 5 s se agotaba por contención, no por bloqueos del flujo.
+  testTimeout: 15_000,
+  reporters: [
+    'default',
+    [
+      'jest-junit',
+      {
+        outputDirectory: `<rootDir>/test-results/jest/${reportSuite}`,
+        outputName: 'junit.xml',
+        suiteName: `CEMYDI ${reportSuite}`,
+        addFileAttribute: 'true',
+        reportTestSuiteErrors: 'true',
+      },
+    ],
+  ],
+  projects: [
+    {
+      ...shared,
+      displayName: 'unit',
+      testMatch: ['**/src/**/*.test.[jt]s?(x)'],
+    },
+    {
+      ...shared,
+      displayName: 'integration',
+      testMatch: ['**/tests/integration/**/*.test.[jt]s?(x)'],
+    },
+  ],
 };

@@ -2,116 +2,124 @@
 
 ## Fuente de verdad
 
-Este documento incluye únicamente rutas confirmadas en controllers del backend auditado. No convierte tipos del frontend web en contratos normativos.
+Este documento incluye únicamente rutas confirmadas en controllers del backend y consumidas por el cliente móvil. No convierte tipos del frontend web en contratos normativos.
 
 No inventes endpoints, campos, filtros, roles o respuestas. Cuando cambie el backend, actualiza schemas, adapters, tests y este documento en la misma tarea.
 
 ## URL base
 
-El backend no define un prefijo global `/api`. Su default local es:
-
-```text
-http://localhost:4000
-```
+El backend no define un prefijo global `/api`. Su default local es `http://localhost:4000`.
 
 La web usa `/api` porque Next.js lo reescribe al backend. El móvil no debe asumir que `/api` forma parte de la ruta real.
 
-### Configuración objetivo
+La URL se configura con `EXPO_PUBLIC_API_URL` y se valida en `src/config/env.ts`:
 
-La foundation usa `EXPO_PUBLIC_API_URL` únicamente para la URL no secreta del backend y centraliza su acceso en `src/config/env.ts`. `.env.example` documenta valores seguros de ejemplo.
+- debe ser una URL absoluta `http` o `https`;
+- `production` exige HTTPS;
+- un dispositivo físico no puede usar `localhost` para alcanzar la computadora de desarrollo;
+- en el emulador Android, `10.0.2.2` alcanza el host;
+- nunca se colocan claves privadas en variables `EXPO_PUBLIC_*`.
 
-- Un dispositivo físico no puede usar `localhost` para alcanzar la computadora de desarrollo.
-- Producción debe usar HTTPS.
-- No incluyas claves privadas en variables `EXPO_PUBLIC_*`.
-- Las URLs definitivas de development, staging y production están pendientes.
+## Transporte y headers
 
-## Acceso, headers y transporte actual
+- El cliente HTTP compartido vive en `src/services/http`.
+- Las lecturas públicas usan `credentials: 'omit'` y no envían autorización.
+- Los recursos privados usan `authenticated: true`, que envía `Authorization: Bearer <access token>` con `credentials: 'omit'`.
+- El móvil no usa cookies ni CSRF. El backend exime las peticiones Bearer sin cookies de access/refresh; los guards JWT y de rol siguen aplicando.
+- JSON usa `Content-Type: application/json` y `Accept: application/json`.
+- Timeout por defecto: 15 segundos.
+- Ante 401, `httpClient` coordina un único refresh y repite la operación como máximo una vez. Un segundo 401 expira la sesión.
+- Los errores HTTP se normalizan en `ApiError`; la UI muestra mensajes seguros en español.
+- Ninguna petición registra credenciales, tokens ni bodies sensibles.
 
-- Las lecturas públicas de productos, promociones y reseñas no requieren credenciales.
 - Perfil, carrito, rentas propias, documentos privados y reseñas propias requieren autenticación.
-- El backend acepta el access JWT desde la cookie `cemydi_access` o desde `Authorization: Bearer <token>`.
-- Login no devuelve ese JWT en el body y refresh obtiene `cemydi_refresh` exclusivamente de cookie; por ello Bearer no es todavía un flujo móvil completo.
-- JSON usa `Content-Type: application/json` y `Accept: application/json` cuando corresponda.
-- Uploads de receta usan multipart con el campo `file`; el runtime debe generar el boundary.
-- Cuando CSRF está activo, las mutaciones no excluidas requieren la cookie `cemydi_csrf` y el header `x-csrf-token` coincidente.
-- El backend habilita CORS con origins configurados y `credentials: true`; la lista real de producción no fue leída ni verificada.
+- Móvil usa login/refresh/logout explícitos de `/auth/mobile/*`; el access token vive en memoria y el refresh en SecureStore según [AUTHENTICATION.md](./AUTHENTICATION.md).
+- Las rutas web de autenticación conservan cookies HTTP-only y CSRF; no se usan para simular una sesión nativa.
 
-La decisión entre cookies y tokens para móvil sigue pendiente. Consulta `AUTHENTICATION.md` antes de implementar un cliente autenticado.
+## Autenticación y recuperación
 
-## Contratos confirmados
+| Método | Ruta                                    | Body                              | Uso móvil                                     |
+| ------ | --------------------------------------- | --------------------------------- | --------------------------------------------- |
+| POST   | `/auth/register`                        | `nombre`, `correo`, `password`    | Registro; no crea sesión                      |
+| POST   | `/auth/mobile/login`                    | `correo`, `password`              | Login con tokens móviles                      |
+| POST   | `/auth/mobile/google`                   | `idToken`                         | Google Sign-In nativo                         |
+| POST   | `/auth/mobile/refresh`                  | `refreshToken`                    | Restauración y rotación de sesión             |
+| POST   | `/auth/mobile/logout`                   | `refreshToken`                    | Revocación de la sesión                       |
+| POST   | `/auth/email-verification/send`         | `correo`                          | Reenvío de verificación                       |
+| POST   | `/auth/email-verification/confirm-code` | `correo`, `codigo`                | Verificación de correo                        |
+| POST   | `/auth/password-reset/request`          | `correo`                          | Solicitud de recuperación                     |
+| POST   | `/auth/password-reset/verify-code`      | `correo`, `codigo`                | Verificación del código; devuelve `expiresAt` |
+| POST   | `/auth/password-reset/confirm`          | `correo`, `codigo`, `newPassword` | Cambio de contraseña                          |
+| GET    | `/users/me`                             | —                                 | Revalidación de sesión con Bearer             |
 
-### Verificación inicial de conectividad
+Los endpoints `/auth/login`, `/auth/refresh`, `/auth/logout`, `/auth/google` y `/auth/google/callback` son flujos web basados en cookies y no se usan en móvil.
 
-| Método | Ruta | Acceso  | Respuesta confirmada |
-| ------ | ---- | ------- | -------------------- |
-| GET    | `/`  | Público | `Hello World!`       |
+Sesión móvil:
 
-Este endpoint está definido en `AppController` y su respuesta en `AppService`. La app lo usa exclusivamente como una verificación manual, segura y sin efectos secundarios de la conexión inicial; no representa un contrato de salud operativa ni agrega lógica de negocio al cliente.
+```ts
+{
+  user: {
+    id: number;
+    nombre: string;
+    correo: string;
+    activo: boolean;
+    rol: 'ADMIN' | 'CLIENT';
+    emailVerified: boolean;
+    emailVerifiedAt: string | null;
+  }
+  accessToken: string;
+  refreshToken: string; // 64 caracteres hexadecimales
+  accessExpiresInMs: number;
+  refreshExpiresInMs: number;
+}
+```
 
-Para comprobar TK-08 desde la app:
+Los endpoints móviles no emiten cookies y llevan `Cache-Control: no-store`. El refresh rota en cada uso y solo su hash se guarda en el backend.
 
-1. configura `EXPO_PUBLIC_API_URL` con una URL alcanzable del backend y ejecuta `npm run start`;
-2. abre `/diagnostico` y pulsa **Probar conexión** (en Expo Go, usa `exp://HOST:PUERTO/--/diagnostico`);
-3. confirma que aparece el estado exitoso y la respuesta validada `Hello World!`;
-4. detén el backend o configura temporalmente una URL/puerto sin servicio, reinicia Expo y repite la acción para comprobar el estado de error;
-5. restaura la URL correcta antes de continuar el desarrollo.
+## Perfil y seguridad
 
-La verificación usa `httpClient`, lee la base desde `env.apiUrl`, valida la respuesta con Zod y no registra ni almacena secretos. No se agregó un framework de pruebas porque el proyecto todavía no tiene uno configurado.
+| Método | Ruta                                | Body                                 |
+| ------ | ----------------------------------- | ------------------------------------ |
+| GET    | `/users/me`                         | —                                    |
+| PATCH  | `/users/me`                         | `nombre?`, `telefono?`, `direccion?` |
+| POST   | `/users/me/email-change/request`    | `newEmail`, `currentPassword`        |
+| POST   | `/users/me/email-change/resend`     | `{}`                                 |
+| POST   | `/users/me/email-change/confirm`    | `newEmail`, `codigo`                 |
+| POST   | `/users/me/password-change/request` | `currentPassword`                    |
+| POST   | `/users/me/password-change/resend`  | `{}`                                 |
+| POST   | `/users/me/password-change/confirm` | `codigo`, `newPassword`              |
 
-### Autenticación y recuperación
+`GET /users/me` responde `{ user }` o `{ user: null }`. `PATCH /users/me` responde `{ message, user }`.
 
-| Método | Ruta                                    | Body confirmado                   | Comportamiento                                        |
-| ------ | --------------------------------------- | --------------------------------- | ----------------------------------------------------- |
-| POST   | `/auth/register`                        | `nombre`, `correo`, `password`    | Registro y envío de verificación; respuesta genérica  |
-| POST   | `/auth/login`                           | `correo`, `password`              | Emite cookies y devuelve `{ user }`                   |
-| GET    | `/auth/google`                          | —                                 | Inicia OAuth web mediante redirect                    |
-| GET    | `/auth/google/callback`                 | query `code`, `state`, `error`    | Callback web y redirect al frontend                   |
-| POST   | `/auth/refresh`                         | —                                 | Lee refresh cookie, rota sesión y devuelve `{ user }` |
-| GET    | `/auth/csrf`                            | —                                 | Emite cookie CSRF y devuelve mensaje                  |
-| POST   | `/auth/logout`                          | —                                 | Revoca sesión cuando puede y limpia cookies           |
-| POST   | `/auth/email-verification/send`         | `correo`                          | Reenvía verificación con respuesta no enumerativa     |
-| POST   | `/auth/email-verification/confirm`      | `token`                           | Confirma por token                                    |
-| POST   | `/auth/email-verification/confirm-code` | `correo`, `codigo`                | Confirma por código                                   |
-| POST   | `/auth/password-reset/request`          | `correo`                          | Solicita recuperación                                 |
-| POST   | `/auth/password-reset/verify-code`      | `correo`, `codigo`                | Verifica código                                       |
-| POST   | `/auth/password-reset/verify-token`     | `token`                           | Verifica token                                        |
-| POST   | `/auth/password-reset/confirm`          | `correo`, `codigo`, `newPassword` | Cambia contraseña por código                          |
-| POST   | `/auth/password-reset/confirm-token`    | `token`, `newPassword`            | Cambia contraseña por token                           |
+Las solicitudes de cambio de correo o contraseña responden `{ message, resendAt, expiresAt }`. Las confirmaciones responden `{ message }` y revocan las sesiones del backend; el móvil limpia su sesión y vuelve a login.
 
-`GET /auth/google` y su callback son flujos diseñados para navegador. No constituyen todavía un contrato Google Sign-In nativo.
+Roles confirmados: `ADMIN` y `CLIENT`. Las features de cliente validan el rol `CLIENT` antes de habilitar recursos privados.
 
-### Perfil
+## Productos y catálogo
 
-| Método | Ruta        | Contrato confirmado                                                                              |
-| ------ | ----------- | ------------------------------------------------------------------------------------------------ |
-| GET    | `/users/me` | `{ user: AuthUserProfile \| null }` sin credenciales; credenciales inválidas pueden producir 401 |
-| PATCH  | `/users/me` | Campos opcionales: `nombre`, `correo`, `telefono`, `direccion`, `password`                       |
-
-Roles confirmados: `ADMIN` y `CLIENT`.
-
-### Productos y catálogo
+Integración móvil vigente: [CATALOG.md](./CATALOG.md). Home, catálogo y detalle consumen lecturas públicas mediante schemas/adapters de `src/services/products`, sin credenciales. Promociones se consultan separadamente; carrito y sesión se documentan en [CART.md](./CART.md) y [AUTHENTICATION.md](./AUTHENTICATION.md).
 
 | Método | Ruta                            | Acceso                 |
 | ------ | ------------------------------- | ---------------------- |
 | GET    | `/products`                     | Público; auth opcional |
-| GET    | `/products/slug/:slug`          | Público; auth opcional |
 | GET    | `/products/:id`                 | Público; auth opcional |
 | GET    | `/products/:id/recommendations` | Público; auth opcional |
+| GET    | `/promotions`                   | Público                |
+| GET    | `/reviews/product/:productId`   | Público                |
 
-Query params confirmados para `GET /products`:
+Query params usados por el móvil en `GET /products`:
 
 - `search`: texto, máximo 120 caracteres;
-- `clasificaciones`: lista o texto separado por comas, máximo 20;
-- `marcas`: lista o texto separado por comas, máximo 20;
-- `tipos`: máximo 3 valores; el servicio reconoce `VENTA`, `RENTA`, `MIXTO`;
+- `clasificaciones`: lista separada por comas;
+- `marcas`: lista separada por comas;
+- `tipos`: `VENTA`, `RENTA` o `MIXTO`, separados por comas;
 - `requiereReceta`: `true` o `false`;
-- `soloDisponibles`: booleano textual;
-- `sort`: texto, máximo 20;
+- `soloDisponibles`: `true`;
+- `sort`: `reciente`, `precio-asc`, `precio-desc`, `disponibles`, `popular`, `nombre-asc` o `nombre-desc`;
 - `page`: entero desde 1;
-- `pageSize`: entero de 1 a 200;
-- `includeInactive`: existe, pero el service exige `ADMIN` cuando es verdadero.
+- `pageSize`: el móvil usa 24 en catálogo.
 
-Respuesta confirmada de listado:
+Respuesta de listado:
 
 ```ts
 {
@@ -128,71 +136,118 @@ Respuesta confirmada de listado:
 }
 ```
 
-El detalle responde `{ product }`. Las recomendaciones limitan `limit` al rango 1–12 y usan 5 por default.
+El detalle responde `{ product }`. Las recomendaciones usan `limit=5`. Los precios, la disponibilidad y los descuentos finales provienen del backend; el móvil no los recalcula.
 
-### Promociones
+`soloDisponibles`, filtros y orden se combinan en `normalizeProductFilters`. Los errores de parseo se muestran como respuesta inválida, nunca como datos parciales.
 
-| Método | Ruta          | Acceso                            |
-| ------ | ------------- | --------------------------------- |
-| GET    | `/promotions` | Público; devuelve ofertas activas |
+## Promociones y reseñas
 
-`includeExpired=true` está reservado por el service para `ADMIN`. Los descuentos finales deben provenir del backend.
+- `GET /promotions` devuelve las ofertas activas.
+- `GET /reviews/product/:productId` devuelve la calificación y las reseñas públicas.
+- `GET /reviews/mine` devuelve las reseñas del cliente autenticado.
 
-### Carrito
+`POST /reviews` existe en el backend, pero el móvil todavía no lo consume.
 
-Todos los endpoints usan `JwtAuthGuard`.
+## Carrito
 
-| Método | Ruta                  | Body                                                               |
-| ------ | --------------------- | ------------------------------------------------------------------ |
-| GET    | `/cart`               | —                                                                  |
-| POST   | `/cart/items`         | `productId`, `quantity`, `mode?`, fechas/notas de renta opcionales |
-| PATCH  | `/cart/items/:itemId` | `quantity`, fechas/notas de renta opcionales                       |
-| DELETE | `/cart/items/:itemId` | —                                                                  |
-| POST   | `/cart/coupon`        | `{ code }`                                                         |
-| DELETE | `/cart/coupon`        | —                                                                  |
-| DELETE | `/cart/rentals`       | —                                                                  |
-| DELETE | `/cart`               | —                                                                  |
+Todos los endpoints exigen autenticación. El móvil no usa el carrito del backend para invitados: mantiene un carrito local en memoria.
 
-`mode` admite `VENTA` o `RENTA`. `quantity` admite 1–25. El backend devuelve el carrito completo después de las mutaciones y calcula disponibilidad, promoción, cupón, subtotales, depósitos y total.
+| Método | Ruta                  | Body                                                              |
+| ------ | --------------------- | ----------------------------------------------------------------- |
+| GET    | `/cart`               | —                                                                 |
+| POST   | `/cart/items`         | `productId`, `quantity`, `mode`, fechas/notas de renta opcionales |
+| PATCH  | `/cart/items/:itemId` | `quantity`, fechas/notas de renta opcionales                      |
+| DELETE | `/cart/items/:itemId` | —                                                                 |
+| POST   | `/cart/coupon`        | `{ code }`                                                        |
+| DELETE | `/cart/coupon`        | —                                                                 |
+| DELETE | `/cart/rentals`       | —                                                                 |
+| DELETE | `/cart`               | —                                                                 |
 
-El controller de carrito exige autenticación, pero no tiene un guard explícito de rol `CLIENT`. No añadas una restricción móvil fingiendo que ya es autorización del servidor.
+Campos confirmados del request:
 
-### Rentas
+- `mode`: `VENTA` o `RENTA`;
+- `quantity`: entero de 1 a 25;
+- `productId`: entero positivo;
+- `rentalStartDate` y `rentalEndDate`: fechas ISO `YYYY-MM-DD` opcionales;
+- `rentalNotes`: texto de hasta 500 caracteres;
+- `code`: 4 a 24 letras, números, guiones o guion bajo.
+
+Todas las operaciones responden `{ cart }` con el carrito completo. El backend calcula disponibilidad, promoción, cupón, subtotales, depósitos y total.
+
+Estados de línea confirmados: `configurationStatus` (`PENDING` o `COMPLETE`), `availability`, `promotion`, `rentalSummary` y `document`. Una línea de renta puede requerir fechas antes de considerarse completa.
+
+Mensajes de negocio reconocidos: stock insuficiente, producto no encontrado, cupón inexistente/vencido/agotado, compra mínima, renta mínima y límite de unidades. Cualquier otro mensaje se reemplaza por uno seguro.
+
+## Rentas
 
 Las operaciones del cliente exigen sesión y rol `CLIENT`.
 
-| Método | Ruta                  | Descripción                                               |
-| ------ | --------------------- | --------------------------------------------------------- |
-| GET    | `/rentals/mine`       | Lista paginada, búsqueda, conteos y filtros de estado     |
-| GET    | `/rentals/mine/:id`   | Detalle propio                                            |
-| POST   | `/rentals/from-cart`  | Crea una solicitud desde items de renta válidos           |
-| PATCH  | `/rentals/:id/cancel` | Cancela una solicitud propia cuando el backend lo permite |
+| Método | Ruta                  | Uso móvil                                                    |
+| ------ | --------------------- | ------------------------------------------------------------ |
+| GET    | `/rentals/mine`       | Lista paginada; el móvil usa `pageSize=8`                    |
+| GET    | `/rentals/mine/:id`   | Detalle propio                                               |
+| PATCH  | `/rentals/:id/cancel` | Cancela una solicitud pendiente cuando el backend lo permite |
 
-Filtros confirmados de `mine`: `status`, `search`, `page`, `pageSize`. `pageSize` máximo: 30.
+Estados confirmados de renta: `PENDING`, `APPROVED`, `REJECTED`, `CANCELLED`, `DELIVERED` y `RETURNED`.
 
-El DTO de creación confirma datos del solicitante, paciente opcional, método de entrega, domicilio condicional, referencias, horario, notas y aceptaciones legales obligatorias.
+Estados de depósito: `PENDING`, `RETURNED`, `RETAINED` y `PARTIALLY_RETAINED`.
 
-### Documentos de renta
+El detalle incluye folio, fechas, importes, método de entrega, domicilio, notas, estado de depósito e items con su receta asociada.
 
-| Método | Ruta                                       | Transporte                            |
-| ------ | ------------------------------------------ | ------------------------------------- |
-| POST   | `/rentals/cart-items/:itemId/prescription` | multipart, campo `file`               |
-| DELETE | `/rentals/cart-items/:itemId/prescription` | —                                     |
-| POST   | `/rentals/items/:itemId/prescription`      | multipart, campo `file`               |
-| GET    | `/rentals/documents/:documentId/content`   | binario; query `disposition` opcional |
-| GET    | `/rentals/items/:itemId/prescription`      | binario legacy/por item               |
+**No implementado en móvil:** `POST /rentals/from-cart`, la carga/eliminación de recetas y la descarga de documentos. El backend ya expone esos contratos; el cliente no los consume todavía.
 
-Formatos confirmados: PDF, JPG/JPEG y PNG. Tamaño máximo: 8 MB. El servidor valida extensión, MIME y contenido real.
+## Documentos legales
 
-### Reseñas
+| Método | Ruta                     | Acceso  |
+| ------ | ------------------------ | ------- |
+| GET    | `/legal-documents/:slug` | Público |
 
-| Método | Ruta                               | Acceso                                                  |
-| ------ | ---------------------------------- | ------------------------------------------------------- |
-| GET    | `/reviews/product/:productId`      | Público                                                 |
-| GET    | `/reviews/testimonials`            | Público                                                 |
-| GET    | `/reviews/mine`                    | Autenticado                                             |
-| GET    | `/reviews/product/:productId/mine` | Autenticado                                             |
-| POST   | `/reviews`                         | Autenticado; `productId`, `rating` 1–5, `comment` 5–500 |
+Slugs confirmados:
+
+- `politicas-de-privacidad`
+- `terminos-y-condiciones`
+
+La respuesta contiene `document.slug`, `title`, `description` y `sections[]` con `id`, `title`, `body` y `variant` opcional. El móvil convierte el HTML en texto plano y nunca ejecuta scripts ni carga recursos remotos.
+
+## Favoritos
+
+| Método | Ruta                           | Respuesta                    |
+| ------ | ------------------------------ | ---------------------------- |
+| GET    | `/favorites`                   | Lista de productos favoritos |
+| GET    | `/favorites/ids`               | Identificadores favoritos    |
+| POST   | `/favorites/toggle/:productId` | Estado resultante            |
+| POST   | `/favorites/:productId`        | Agrega el producto           |
+| DELETE | `/favorites/:productId`        | Elimina el producto          |
+
+Todas requieren autenticación. `productId` es numérico.
+
+Respuestas confirmadas:
+
+- `GET /favorites`: `{ products, favoriteIds, total }`.
+- `GET /favorites/ids`: `{ favoriteIds }`.
+- Toggle, alta y baja: `{ message, favorited, productId }`.
+
+## Notificaciones
+
+| Método | Ruta                                      | Body / query                                 |
+| ------ | ----------------------------------------- | -------------------------------------------- |
+| GET    | `/notifications`                          | `page`, `category` opcional                  |
+| GET    | `/notifications/:id`                      | —                                            |
+| GET    | `/notifications/promotion/:id`            | —                                            |
+| PATCH  | `/notifications/read`                     | `{ ids }`                                    |
+| PATCH  | `/notifications/read-all`                 | —                                            |
+| GET    | `/notifications/preferences`              | —                                            |
+| PATCH  | `/notifications/preferences`              | `pushEnabled`, `system`, `offers`, `rentals` |
+| POST   | `/notifications/subscriptions/register`   | `{ channel: 'EXPO', endpoint }`              |
+| POST   | `/notifications/subscriptions/unregister` | `{ endpoint }`                               |
+
+Categorías: `SYSTEM`, `OFFER` y `RENTAL`. Filtros de bandeja: `ALL`, `RENTAL`, `SYSTEM` y `OFFER`.
+
+Destinos: `NONE`, `PRODUCT`, `PROMOTION`, `RENTAL` y `ACCOUNT`.
+
+La bandeja responde `{ items, unreadCount, total, page, pageSize }`. El detalle responde `{ item }` y la promoción `{ promotion }`.
+
+El comportamiento de UI y push está en [NOTIFICATIONS.md](./NOTIFICATIONS.md).
 
 ## Funcionalidades ausentes
 
@@ -205,19 +260,6 @@ Formatos confirmados: PDF, JPG/JPEG y PNG. Tamaño máximo: 8 MB. El servidor va
 > **NOT IMPLEMENTED IN CURRENT BACKEND:** historial de pedidos de venta consumible por móvil.
 
 No diseñes rutas provisionales para estas funciones. Requieren contrato y reglas de backend antes de implementar UI conectada.
-
-## Cliente HTTP objetivo
-
-Debe existir una sola infraestructura compartida que:
-
-1. resuelva la URL base;
-2. serialice JSON o multipart sin fijar manualmente el boundary;
-3. normalice errores del backend;
-4. valide respuestas relevantes con Zod;
-5. coordine un solo refresh en vuelo, si la estrategia aprobada lo permite;
-6. no registre credenciales ni bodies sensibles.
-
-No elijas todavía el transporte de sesión. Consulta `AUTHENTICATION.md`.
 
 ## Errores
 
@@ -233,33 +275,28 @@ type ApiErrorBody = {
 };
 ```
 
-El cliente debe conservar `statusCode` y body para decisiones técnicas, pero presentar mensajes seguros en español. Maneja explícitamente 400, 401, 403, 404, 409, 429 y 5xx.
+El cliente conserva `statusCode` y body para decisiones técnicas, pero presenta mensajes seguros en español. Distingue red, timeout, cancelación, parseo y HTTP.
 
-## DTOs, schemas y adapters
+Política de TanStack Query:
 
-- Un request DTO móvil debe reflejar solo campos confirmados.
-- Un schema Zod valida el límite externo.
-- Un adapter es apropiado para fechas, valores opcionales o formas convenientes para UI.
-- No agregues defaults que oculten una respuesta incompatible.
-- Nunca reutilices directamente DTOs administrativos para flujos de cliente.
+- `staleTime`: 30 segundos;
+- máximo 2 reintentos para errores retryables;
+- sin reintento para 4xx, errores de parseo o cancelaciones;
+- pausa offline y refetch al reconectar o volver a foco;
+- las mutaciones no reintentan automáticamente.
 
 ## TanStack Query
 
-Propuesta de familias de query keys:
+Antes de modificar una operación, revisa las query keys reales en [ARCHITECTURE.md](./ARCHITECTURE.md).
 
-```ts
-['session']['profile'][('products', 'list', normalizedFilters)][
-  ('products', 'detail', productIdOrSlug)
-][('products', 'recommendations', productId)][('promotions', 'active')]['cart'][
-  ('rentals', 'mine', normalizedFilters)
-][('rentals', 'detail', rentalId)][('reviews', 'product', productId)];
-```
-
-Después de mutar carrito, cupón, receta o renta, actualiza la caché con la respuesta del servidor o invalida las keys relacionadas. No inventes optimistic updates para operaciones con reglas complejas sin una estrategia de rollback.
+Después de mutar carrito, cupón, favoritos, notificaciones o renta, actualiza la caché con la respuesta del servidor o invalida las keys relacionadas. No inventes optimistic updates para operaciones con reglas complejas sin una estrategia de rollback.
 
 ## Uploads y binarios
 
-- React Native usa URIs y objetos multipart nativos, no `File` del DOM.
-- No fijes `Content-Type: multipart/form-data` con boundary manual.
-- Valida tamaño y tipo para UX, pero conserva la validación del backend como autoridad.
-- La política de descarga, preview y compartir documentos sigue pendiente.
+El móvil todavía no sube recetas ni descarga documentos. Cuando se implemente:
+
+- React Native usa URIs y objetos multipart nativos, no `File` del DOM;
+- no fijes `Content-Type: multipart/form-data` con boundary manual;
+- valida tamaño y tipo para UX, pero conserva la validación del backend como autoridad;
+- los formatos confirmados son PDF, JPG/JPEG y PNG, con máximo de 8 MB;
+- la política de descarga, preview y compartición sigue pendiente.

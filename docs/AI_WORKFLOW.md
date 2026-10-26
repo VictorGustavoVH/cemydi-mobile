@@ -41,7 +41,7 @@ Explicita comportamiento, archivos, estados de UI, caché, accesibilidad, plataf
 - para paquetes Expo nativos usa `npx expo install`;
 - no expone secretos.
 
-La estrategia de autenticación móvil está bloqueada hasta aprobación. No elijas cookies o tokens implícitamente.
+La autenticación móvil usa tokens explícitos aprobados: access en memoria y refresh en `expo-secure-store` cuando el usuario elige mantener la sesión. No cambies el transporte ni añadas cookies sin aprobación.
 
 ### 7. Validar
 
@@ -53,7 +53,7 @@ npm run typecheck
 npm run format:check
 ```
 
-Agrega tests cuando exista el framework. Para UI o APIs nativas, valida Android/iOS proporcionalmente al riesgo.
+Ejecuta tests con `npm test` (o `test:unit` / `test:integration` según el alcance). Para UI o APIs nativas, valida Android/iOS proporcionalmente al riesgo.
 
 `npm run format:check` debe pasar sin incidencias.
 

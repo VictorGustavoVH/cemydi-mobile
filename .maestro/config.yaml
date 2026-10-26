@@ -1,0 +1,6 @@
+flows:
+  - catalog.yaml
+  - product-detail.yaml
+  - cart.yaml
+  - onboarding.yaml
+  - tabs.yaml

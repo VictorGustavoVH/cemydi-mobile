@@ -1,0 +1,33 @@
+appId: ${APP_ID}
+name: E2E-02 - Detalle de API simulada - información y modalidades
+---
+- runFlow: support/open-test-product.yaml
+- scrollUntilVisible:
+    element:
+      text: Equipo E2E 1
+    direction: DOWN
+- assertVisible: Añadir al carrito
+- scrollUntilVisible:
+    element:
+      text: Renta
+    direction: DOWN
+- tapOn: Renta
+- assertVisible: Añadir renta al carrito
+- tapOn: Compra
+- assertVisible: Añadir al carrito
+- scrollUntilVisible:
+    element:
+      text: Equipo de prueba para el catálogo público.
+    direction: DOWN
+- assertVisible: Equipo de prueba para el catálogo público.
+- scrollUntilVisible:
+    element:
+      text: Características
+    direction: DOWN
+- tapOn: Características
+- scrollUntilVisible:
+    element:
+      text: Modelo 1
+    direction: DOWN
+- assertVisible: Modelo 1
+- takeScreenshot: E2E-02-caracteristicas

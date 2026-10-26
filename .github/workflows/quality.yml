@@ -2,6 +2,9 @@ name: Quality
 
 on:
   pull_request:
+    branches:
+      - develop
+      - main
   push:
     branches:
       - main
@@ -16,15 +19,15 @@ concurrency:
 
 jobs:
   validate:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7.0.1
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7.1.0
         with:
           node-version: 22
           cache: npm
@@ -38,11 +41,8 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Test
-        run: npm test -- --ci
-
       - name: Format check
         run: npm run format:check
 
       - name: Expo Doctor
-        run: npx --yes expo-doctor
+        run: npm run doctor

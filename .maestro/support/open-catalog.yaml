@@ -1,0 +1,7 @@
+appId: ${APP_ID}
+---
+- runFlow: open-app.yaml
+- tapOn: Omitir introducción y explorar catálogo
+- extendedWaitUntil:
+    visible: Buscar equipo ortopédico
+    timeout: 60000

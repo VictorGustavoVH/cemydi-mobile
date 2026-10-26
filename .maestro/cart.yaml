@@ -1,0 +1,26 @@
+appId: ${APP_ID}
+name: E2E-03 - Carrito invitado - cantidad, eliminación y deshacer
+---
+- runFlow: support/open-test-product.yaml
+- extendedWaitUntil:
+    visible: Añadir al carrito
+    timeout: 10000
+- tapOn: Añadir al carrito
+- tapOn: Ver carrito.*
+- extendedWaitUntil:
+    visible: Mi carrito
+    timeout: 10000
+- assertVisible: 'Cantidad de Equipo E2E 1, compra: 1'
+- tapOn: Aumentar cantidad de Equipo E2E 1, compra
+- assertVisible: 'Cantidad de Equipo E2E 1, compra: 2'
+- tapOn:
+    text: Eliminar Equipo E2E 1, compra
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 100
+- assertVisible: Tu carrito está vacío
+- tapOn:
+    text: Deshacer eliminación del producto
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 100
+- assertVisible: 'Cantidad de Equipo E2E 1, compra: 2'
+- takeScreenshot: E2E-03-deshacer

@@ -35,6 +35,7 @@ Las ramas `feature/*` se integran de regreso a `develop` mediante Pull Request. 
 
 - pequeños, coherentes y revisables;
 - mensaje imperativo que explique el cambio;
+- seguir Conventional Commits (`ci:`, `test:`, `docs:`, `fix:`, `feat:` según el cambio);
 - no incluir secretos, artefactos locales ni archivos generados innecesarios;
 - separar cambios funcionales, pruebas y documentación solo cuando ayude a la revisión, sin fragmentar artificialmente.
 
@@ -49,6 +50,31 @@ Un PR hacia `develop` debe incluir:
 - pruebas agregadas y comandos ejecutados;
 - riesgos, migraciones y decisiones pendientes;
 - cambios de dependencias justificados, si los hay.
+
+Quality y Tests se ejecutan como workflows independientes en PR hacia
+`develop`/`main` y en push a esas ramas. Quality conserva su job `validate`.
+Tests conserva la matriz Jest y añade las verificaciones de infraestructura Maestro;
+`changes` decide si Android es necesario y `needs` condiciona el build a esa
+selección, Jest e infraestructura. Maestro depende del build. `e2e` exige éxito en
+los checks rápidos y, si Android es requerido, también build/Maestro; solo permite
+omitir ambos si la selección lo declara opcional. No depende de Quality.
+Los PR documentales o de herramientas ajenas a Maestro evitan el APK, pero conservan
+Quality, Jest e infraestructura. Las rutas desconocidas ejecutan Android. La etiqueta
+`ci:android` fuerza la cadena en un PR y `workflow_dispatch` siempre la ejecuta
+completa; usar una de estas opciones para validación explícita de release.
+El merge a `develop` genera un push y
+vuelve a validar el estado integrado; no requiere un workflow adicional de merge.
+Los pushes de ramas de trabajo con PR se validan por el evento del PR, evitando
+otro run idéntico en cada push de feature.
+
+Configurar manualmente protección/rulesets en `develop` y `main` para exigir PR,
+revisión y los checks `validate` (Quality), `unit`, `integration` y `maestro_checks` (Tests), además
+del nuevo check final `e2e` (Tests), verificando sus nombres en el primer run.
+`e2e` incluye build y Maestro, pero no sustituye `validate`: Quality se valida de
+forma independiente. Detalles de orden, reportes y límites en
+[TESTING.md](./TESTING.md). Un fallo no se ignora y debe bloquear el merge.
+
+Los agentes dejan cambios sin confirmar para revisión humana: no ejecutan `git add`, commit, push, merge, cambios/creación de ramas ni creación de PR salvo autorización explícita para esa operación. Los reportes generados permanecen ignorados; no se versionan automáticamente.
 
 ## Release
 

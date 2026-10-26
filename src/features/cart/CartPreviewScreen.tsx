@@ -1,55 +1,54 @@
-import { useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { SectionList, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import ArrowLeft from 'lucide-react-native/icons/arrow-left';
+import { BackButton } from '@/components/ui/BackButton';
 import ArrowRight from 'lucide-react-native/icons/arrow-right';
 import Check from 'lucide-react-native/icons/check';
 import Minus from 'lucide-react-native/icons/minus';
-import ChevronRight from 'lucide-react-native/icons/chevron-right';
-import TicketPercent from 'lucide-react-native/icons/ticket-percent';
 import ShoppingBag from 'lucide-react-native/icons/shopping-bag';
 import CalendarDays from 'lucide-react-native/icons/calendar-days';
-import { AppBottomBar } from '@/components/ui/AppBottomBar';
+import { type PreviewCartItem } from '@/providers/catalog-preview-provider';
+import { useCart } from '@/providers/cart-provider';
+import { getFriendlyErrorMessage } from '@/services/http/api-error';
+import { LoadingState } from '@/components/ui/LoadingState';
+import { ErrorState } from '@/components/ui/ErrorState';
+import { OfflineState } from '@/components/ui/OfflineState';
+import { AppRefreshControl } from '@/components/ui/AppRefreshControl';
+import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { AppButton } from '@/components/ui/AppButton';
 import { AppScreen } from '@/components/ui/AppScreen';
 import { AppSheet } from '@/components/ui/AppSheet';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { useCatalogPreview, type PreviewCartItem } from '@/providers/catalog-preview-provider';
 import { colors } from '@/theme';
+
+import { useToast, useToastScroll } from '@/hooks/useToast';
+import { useAccountAccess } from '@/hooks/useAccountAccess';
+import { useThrottledCallback } from '@/hooks/useThrottledCallback';
 import { CartItemCard } from './components/CartItemCard';
 import { RentalConfigurationSheet } from './components/RentalConfigurationSheet';
+import { ServerCartSummary } from './components/ServerCartSummary';
+import { CartCouponForm } from './components/CartCouponForm';
+import { CartCouponButton } from './components/CartCouponButton';
 import {
   displayDraftDate,
   formatPreviewMoney,
-  getCartEntries,
   getPreviewSummary,
   type CartPreviewEntry,
 } from './cart-preview';
 
 type CartSection = { mode: PreviewCartItem['mode']; title: string; data: CartPreviewEntry[] };
-type Panel = 'review' | 'coupon' | 'profile' | null;
+const cartKey = ({ item }: CartPreviewEntry) =>
+  String(item.serverId ?? `${item.productId}-${item.mode}`);
+type Panel = 'review' | 'coupon' | null;
 type CartSummaryProps = { sections: CartSection[]; onCoupon: () => void };
 function CartSummary({ sections, onCoupon }: CartSummaryProps) {
   const purchase = sections.find((section) => section.mode === 'purchase');
   const rentals = sections.find((section) => section.mode === 'rental');
-  const purchaseSummary = getPreviewSummary(purchase?.data ?? []);
-  const rentalSummary = getPreviewSummary(rentals?.data ?? []);
+  const purchaseSummary = useMemo(() => getPreviewSummary(purchase?.data ?? []), [purchase]);
+  const rentalSummary = useMemo(() => getPreviewSummary(rentals?.data ?? []), [rentals]);
   return (
     <View className="mx-5 gap-4 pb-4 pt-3">
-      <AppButton
-        label="Cupones · próximamente"
-        variant="unstyled"
-        className="justify-between rounded-2xl bg-brand/5 px-3 py-2"
-        onPress={onCoupon}
-      >
-        <View className="flex-1 flex-row items-center gap-3">
-          <View className="rounded-full bg-brand/10 p-2">
-            <TicketPercent aria-hidden color={colors.brandStrong} size={20} />
-          </View>
-          <Text className="flex-1 font-sans-semibold text-sm text-primary">¿Tienes un cupón?</Text>
-        </View>
-        <ChevronRight aria-hidden color={colors.brandStrong} size={18} />
-      </AppButton>
+      <CartCouponButton label="Aplicar cupón" onPress={onCoupon} />
       <View className="gap-2 border-t border-border/40 pt-3">
         <Text accessibilityRole="header" className="font-sans-semibold text-base text-primary">
           Resumen
@@ -92,39 +91,115 @@ function CartSummary({ sections, onCoupon }: CartSummaryProps) {
 
 export function CartPreviewScreen() {
   const router = useRouter();
-  const { items, removeItem, restoreItem, selectMode } = useCatalogPreview();
-  const [removed, setRemoved] = useState<{ item: PreviewCartItem; index: number } | null>(null);
+  const toast = useToast();
+  const onToastScroll = useToastScroll();
+  const { requestAccess } = useAccountAccess();
+  const {
+    items,
+    entries,
+    removeItem,
+    restoreItem,
+    selectMode,
+    connected,
+    cart,
+    query,
+    status,
+    busy,
+    online,
+    uncertain,
+    refreshCart,
+    guestItems,
+    saveGuestItems,
+    discardGuestItems,
+    userId,
+    authVersion,
+    isCurrent,
+  } = useCart();
+  const disabled = connected && (busy || !online || uncertain);
+  const { refreshing, onRefresh } = usePullToRefresh(refreshCart, {
+    enabled: connected && online && !busy,
+  });
   const [configuring, setConfiguring] = useState<string | null>(null);
   const [selectionMode, setSelectionMode] = useState(false);
   const [panel, setPanel] = useState<Panel>(null);
-  const entries = getCartEntries(items);
   const count = items.reduce((sum, item) => sum + item.quantity, 0);
-  const sections: CartSection[] = [
-    {
-      mode: 'purchase',
-      title: 'Compra',
-      data: entries.filter(({ item }) => item.mode === 'purchase'),
-    },
-    { mode: 'rental', title: 'Renta', data: entries.filter(({ item }) => item.mode === 'rental') },
-  ].filter((section): section is CartSection => section.data.length > 0);
-  const configured = entries.find(
-    ({ item }) => item.mode === 'rental' && item.productId === configuring,
+  const sections = useMemo(
+    () =>
+      [
+        {
+          mode: 'purchase',
+          title: 'Compra',
+          data: entries.filter(({ item }) => item.mode === 'purchase'),
+        },
+        {
+          mode: 'rental',
+          title: 'Renta',
+          data: entries.filter(({ item }) => item.mode === 'rental'),
+        },
+      ].filter((section): section is CartSection => section.data.length > 0),
+    [entries],
   );
-  const summary = getPreviewSummary(entries);
-  const goToCatalog = () => router.replace('/inicio');
-  const panelTitle =
-    panel === 'coupon' ? 'Cupones' : panel === 'profile' ? 'Tu perfil' : 'Revisar carrito';
+  const configured = entries.find(
+    ({ item }) => item.mode === 'rental' && String(item.serverId ?? item.productId) === configuring,
+  );
+  const summary = useMemo(() => getPreviewSummary(entries), [entries]);
+  const goToCatalog = useCallback(() => router.replace('/inicio'), [router]);
+  const startSelection = useCallback(() => setSelectionMode(true), []);
+  const openProduct = useThrottledCallback(
+    (item: PreviewCartItem) =>
+      router.push({
+        pathname: '/producto/[id]',
+        params: { id: item.productId, mode: item.mode },
+      }),
+    750,
+  );
+  const remove = useCallback(
+    async (item: PreviewCartItem, index: number) => {
+      const version = authVersion();
+      try {
+        await removeItem(item.productId, item.mode, item.serverId);
+        toast.undoable({
+          message: 'Producto eliminado',
+          placement: 'bottom',
+          duration: 6000,
+          onUndo: async () => {
+            if (connected && !isCurrent(userId, version)) throw new Error('La sesión cambió.');
+            await restoreItem(item, index);
+          },
+          errorMessage: 'No se pudo restaurar el producto',
+        });
+      } catch (error) {
+        toast.error(getFriendlyErrorMessage(error));
+      }
+    },
+    [removeItem, restoreItem, toast, connected, userId, authVersion, isCurrent],
+  );
+  const renderItem = useCallback(
+    ({ item: entry }: { item: CartPreviewEntry }) => (
+      <CartItemCard
+        {...entry}
+        index={items.indexOf(entry.item)}
+        selectionMode={selectionMode}
+        disabled={disabled}
+        onStartSelection={startSelection}
+        onConfigure={setConfiguring}
+        onProduct={openProduct}
+        onRemove={remove}
+      />
+    ),
+    [items, selectionMode, startSelection, openProduct, remove, disabled],
+  );
+  const renderSectionHeader = useCallback(
+    ({ section }: { section: CartSection }) => (
+      <CartSectionHeader section={section} selectionMode={selectionMode} onSelect={selectMode} />
+    ),
+    [selectionMode, selectMode],
+  );
+  const panelTitle = panel === 'coupon' ? 'Cupones' : 'Revisar carrito';
   return (
-    <AppScreen edges={['top', 'bottom', 'left', 'right']}>
+    <AppScreen edges={['top', 'left', 'right']}>
       <View className="flex-row items-center gap-3 px-5 py-2">
-        <AppButton
-          hideLabel
-          label="Volver"
-          variant="ghost"
-          className="h-11 w-11 px-0 py-0"
-          onPress={() => (router.canGoBack() ? router.back() : goToCatalog())}
-          leftIcon={<ArrowLeft aria-hidden color={colors.textPrimary} size={24} />}
-        />
+        <BackButton fallbackHref="/inicio" />
         <View className="flex-1 items-center gap-0.5">
           <Text accessibilityRole="header" className="font-sans-semibold text-xl text-primary">
             Mi carrito
@@ -132,6 +207,58 @@ export function CartPreviewScreen() {
         </View>
         <View className="w-11" />
       </View>
+      {!connected && items.some((item) => item.productSnapshot) ? (
+        <Text className="px-5 pb-2 font-sans text-xs leading-5 text-secondary">
+          Carrito temporal de esta sesión. Importes estimados; disponibilidad y precios finales
+          pendientes de confirmación.
+        </Text>
+      ) : null}
+      {connected && guestItems.length > 0 ? (
+        <View className="gap-2 px-5 pb-3">
+          <Text className="font-sans text-sm text-secondary">
+            Tienes productos de invitado pendientes de guardar en esta cuenta.
+          </Text>
+          <AppButton
+            label="Guardar productos de invitado"
+            disabled={disabled || !cart}
+            loading={busy}
+            onPress={() => {
+              void saveGuestItems().catch((error: unknown) =>
+                toast.error(getFriendlyErrorMessage(error)),
+              );
+            }}
+          />
+          <AppButton
+            label="Descartar productos de invitado"
+            variant="ghost"
+            disabled={busy}
+            onPress={discardGuestItems}
+          />
+        </View>
+      ) : null}
+      {connected && !online && cart ? (
+        <Text accessibilityLiveRegion="polite" className="px-5 font-sans text-sm text-secondary">
+          Mostrando el último carrito consultado. Sin conexión; no puedes modificarlo.
+        </Text>
+      ) : null}
+      {connected && uncertain ? (
+        <Text accessibilityLiveRegion="assertive" className="px-5 font-sans text-sm text-danger">
+          No pudimos confirmar la actualización. Consulta el carrito antes de repetirla.
+        </Text>
+      ) : null}
+      {connected && cart ? (
+        <AppButton
+          label="Actualizar carrito"
+          variant="ghost"
+          disabled={busy || !online || query.isFetching}
+          onPress={onRefresh}
+        />
+      ) : null}
+      {connected && cart && query.isError ? (
+        <Text accessibilityLiveRegion="polite" className="px-5 font-sans text-sm text-danger">
+          No pudimos actualizar el carrito. {getFriendlyErrorMessage(query.error)}
+        </Text>
+      ) : null}
       {selectionMode && entries.length > 0 ? (
         <View className="mx-5 mb-1 flex-row items-center justify-between gap-3">
           <Text className="flex-1 font-sans-medium text-sm text-primary">
@@ -145,95 +272,45 @@ export function CartPreviewScreen() {
           />
         </View>
       ) : null}
-      {removed ? (
-        <View className="mx-5 mb-2 flex-row items-center gap-2 rounded-xl bg-surface-muted px-3">
-          <Text
-            accessibilityLiveRegion="polite"
-            className="flex-1 font-sans text-sm text-secondary"
-          >
-            Producto eliminado.
-          </Text>
-          <AppButton
-            label="Deshacer"
-            variant="ghost"
-            labelClassName="text-sm text-brand-strong"
-            onPress={() => {
-              restoreItem(removed.item, removed.index);
-              setRemoved(null);
-            }}
-          />
-        </View>
-      ) : null}
-      {entries.length > 0 ? (
+      {status === 'loading' ? (
+        <LoadingState label="Comprobando sesión" />
+      ) : connected && !cart ? (
+        !online ? (
+          <OfflineState />
+        ) : query.isError ? (
+          <ErrorState onRetry={onRefresh} />
+        ) : (
+          <LoadingState label="Cargando carrito" />
+        )
+      ) : entries.length > 0 ? (
         <>
           <SectionList<CartPreviewEntry, CartSection>
+            refreshControl={
+              connected ? (
+                <AppRefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+              ) : undefined
+            }
+            onScroll={onToastScroll}
+            scrollEventThrottle={16}
             sections={sections}
             extraData={selectionMode}
             stickySectionHeadersEnabled={false}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{ paddingTop: 4, paddingBottom: 4 }}
-            keyExtractor={({ item }) => `${item.productId}-${item.mode}`}
-            renderSectionHeader={({ section }) => {
-              const allSelected = section.data.every(({ item }) => item.selected);
-              const anySelected = section.data.some(({ item }) => item.selected);
-              const Icon = section.mode === 'rental' ? CalendarDays : ShoppingBag;
-              return (
-                <View className="min-h-11 flex-row flex-wrap items-center justify-between gap-2 px-5 pb-1 pt-1">
-                  <View className="flex-row items-center gap-2">
-                    <Icon aria-hidden color={colors.brandStrong} size={18} />
-                    <Text
-                      accessibilityRole="header"
-                      className="font-sans-semibold text-base text-primary"
-                    >
-                      {section.title}
-                    </Text>
-                  </View>
-                  {selectionMode ? (
-                    <AppButton
-                      label={`Seleccionar toda la sección ${section.title}`}
-                      accessibilityRole="checkbox"
-                      accessibilityState={{
-                        checked: allSelected ? true : anySelected ? 'mixed' : false,
-                      }}
-                      variant="unstyled"
-                      className="gap-2 px-1"
-                      onPress={() => selectMode(section.mode, !allSelected)}
-                    >
-                      <View
-                        className={`h-[18px] w-[18px] items-center justify-center rounded border ${anySelected ? 'border-brand-strong bg-brand-strong' : 'border-border bg-surface'}`}
-                      >
-                        {allSelected ? (
-                          <Check aria-hidden color={colors.onBrand} size={14} />
-                        ) : anySelected ? (
-                          <Minus aria-hidden color={colors.onBrand} size={14} />
-                        ) : null}
-                      </View>
-                      <Text className="font-sans text-xs text-secondary">Seleccionar todo</Text>
-                    </AppButton>
-                  ) : null}
-                </View>
-              );
-            }}
-            renderItem={({ item: entry }) => (
-              <CartItemCard
-                {...entry}
-                selectionMode={selectionMode}
-                onStartSelection={() => setSelectionMode(true)}
-                onConfigure={() => setConfiguring(entry.item.productId)}
-                onProduct={() =>
-                  router.push({
-                    pathname: '/producto/[id]',
-                    params: { id: entry.item.productId, mode: entry.item.mode },
-                  })
-                }
-                onRemove={() => {
-                  setRemoved({ item: entry.item, index: items.indexOf(entry.item) });
-                  removeItem(entry.item.productId, entry.item.mode);
-                }}
-              />
-            )}
+            keyExtractor={cartKey}
+            renderSectionHeader={renderSectionHeader}
+            renderItem={renderItem}
             ListFooterComponent={
-              <CartSummary sections={sections} onCoupon={() => setPanel('coupon')} />
+              connected && cart ? (
+                <ServerCartSummary
+                  cart={cart}
+                  partialSelection={summary.units !== count}
+                  disabled={disabled}
+                  onCoupon={() => setPanel('coupon')}
+                />
+              ) : (
+                <CartSummary sections={sections} onCoupon={() => setPanel('coupon')} />
+              )
             }
           />
           <View className="gap-2 border-t border-border/40 px-5 pb-2 pt-2">
@@ -246,7 +323,9 @@ export function CartPreviewScreen() {
               label="Revisar carrito"
               className="rounded-full"
               disabled={summary.units === 0}
-              onPress={() => setPanel('review')}
+              onPress={() => {
+                if (requestAccess('/carrito')) setPanel('review');
+              }}
               rightIcon={
                 <ArrowRight
                   aria-hidden
@@ -265,31 +344,16 @@ export function CartPreviewScreen() {
           onAction={goToCatalog}
         />
       )}
-      <AppBottomBar
-        selectedTab="cart"
-        cartCount={count}
-        onHome={goToCatalog}
-        onExplore={goToCatalog}
-        onCart={() => undefined}
-        onProfile={() => setPanel('profile')}
-      />
       {configured ? (
         <RentalConfigurationSheet
-          key={configured.item.productId}
+          key={cartKey(configured)}
           {...configured}
           onClose={() => setConfiguring(null)}
         />
       ) : null}
       <AppSheet title={panelTitle} visible={panel !== null} onClose={() => setPanel(null)}>
         {panel === 'coupon' ? (
-          <Text className="font-sans text-base leading-7 text-secondary">
-            Próximamente podrás aplicar un cupón desde tu cuenta. Por ahora no se aplica ningún
-            descuento.
-          </Text>
-        ) : panel === 'profile' ? (
-          <Text className="font-sans text-base leading-7 text-secondary">
-            Aquí podrás administrar tu cuenta cuando esté habilitada.
-          </Text>
+          <CartCouponForm onRequireLogin={() => setPanel(null)} />
         ) : (
           <>
             {sections.map((section) => {
@@ -305,7 +369,7 @@ export function CartPreviewScreen() {
                   </Text>
                   {selected.map(({ item, product }) => (
                     <View
-                      key={`${item.productId}-${item.mode}`}
+                      key={String(item.serverId ?? `${item.productId}-${item.mode}`)}
                       className="gap-1 border-b border-border/40 pb-2"
                     >
                       <Text className="font-sans-semibold text-sm text-primary">
@@ -315,7 +379,7 @@ export function CartPreviewScreen() {
                       {item.mode === 'rental' ? (
                         <Text className="font-sans text-sm leading-6 text-secondary">
                           {item.rentalDraft
-                            ? `${displayDraftDate(item.rentalDraft.startDate)} al ${displayDraftDate(item.rentalDraft.endDate)} · Borrador`
+                            ? `${displayDraftDate(item.rentalDraft.startDate)} al ${displayDraftDate(item.rentalDraft.endDate)}${connected ? '' : ' · Borrador'}`
                             : 'Falta elegir fechas'}
                           {product.prescription ? ' · Receta pendiente' : ''}
                         </Text>
@@ -324,7 +388,9 @@ export function CartPreviewScreen() {
                   ))}
                   <Text className="font-sans text-sm leading-6 text-secondary">
                     {section.mode === 'rental'
-                      ? 'Las fechas son borradores. La disponibilidad, la receta y el envío de la solicitud se habilitarán con tu cuenta. Esta revisión no envía una solicitud.'
+                      ? connected
+                        ? 'Las fechas se guardan en el carrito. Esta revisión no envía una solicitud. El envío de solicitudes y la carga móvil de recetas siguen pendientes.'
+                        : 'Las fechas son borradores. La disponibilidad, la receta y el envío de la solicitud se habilitarán con tu cuenta. Esta revisión no envía una solicitud.'
                       : 'La compra y los pagos todavía no están habilitados.'}
                   </Text>
                 </View>
@@ -339,5 +405,49 @@ export function CartPreviewScreen() {
         />
       </AppSheet>
     </AppScreen>
+  );
+}
+
+type CartSectionHeaderProps = {
+  section: CartSection;
+  selectionMode: boolean;
+  onSelect: (mode: PreviewCartItem['mode'], selected: boolean) => void;
+};
+function CartSectionHeader({ section, selectionMode, onSelect }: CartSectionHeaderProps) {
+  const allSelected = section.data.every(({ item }) => item.selected);
+  const anySelected = section.data.some(({ item }) => item.selected);
+  const Icon = section.mode === 'rental' ? CalendarDays : ShoppingBag;
+  return (
+    <View className="min-h-11 flex-row flex-wrap items-center justify-between gap-2 px-5 pb-1 pt-1">
+      <View className="flex-row items-center gap-2">
+        <Icon aria-hidden color={colors.brandStrong} size={18} />
+        <Text accessibilityRole="header" className="font-sans-semibold text-base text-primary">
+          {section.title}
+        </Text>
+      </View>
+      {selectionMode ? (
+        <AppButton
+          label={`Seleccionar toda la sección ${section.title}`}
+          accessibilityRole="checkbox"
+          accessibilityState={{
+            checked: allSelected ? true : anySelected ? 'mixed' : false,
+          }}
+          variant="unstyled"
+          className="min-h-11 flex-row items-center gap-2 px-1"
+          onPress={() => onSelect(section.mode, !allSelected)}
+        >
+          <View
+            className={`h-[18px] w-[18px] items-center justify-center rounded border ${anySelected ? 'border-brand-strong bg-brand-strong' : 'border-border bg-surface'}`}
+          >
+            {allSelected ? (
+              <Check aria-hidden color={colors.onBrand} size={14} />
+            ) : anySelected ? (
+              <Minus aria-hidden color={colors.onBrand} size={14} />
+            ) : null}
+          </View>
+          <Text className="font-sans text-xs text-secondary">Seleccionar todo</Text>
+        </AppButton>
+      ) : null}
+    </View>
   );
 }

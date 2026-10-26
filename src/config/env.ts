@@ -45,7 +45,49 @@ function parseApiUrl(value: string | undefined, appEnvironment: AppEnvironment):
   return rawApiUrl.replace(/\/+$/, '');
 }
 
+/**
+ * Valida el origen público de la web usado para abrir enlaces legales.
+ * Es opcional: ausente devuelve `null` sin bloquear el arranque. Exige https en
+ * producción y permite http en desarrollo, igual que `EXPO_PUBLIC_API_URL`.
+ */
+export function parseWebsiteUrl(
+  value: string | undefined,
+  appEnvironment: AppEnvironment,
+): string | null {
+  const rawWebsiteUrl = value?.trim();
+
+  if (!rawWebsiteUrl) {
+    return null;
+  }
+
+  let parsedUrl: URL;
+
+  try {
+    parsedUrl = new URL(rawWebsiteUrl);
+  } catch {
+    throw new Error('EXPO_PUBLIC_WEBSITE_URL debe ser una URL absoluta válida.');
+  }
+
+  if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
+    throw new Error('EXPO_PUBLIC_WEBSITE_URL debe usar el protocolo http o https.');
+  }
+
+  if (parsedUrl.username || parsedUrl.password) {
+    throw new Error('EXPO_PUBLIC_WEBSITE_URL no debe incluir credenciales.');
+  }
+
+  if (appEnvironment === 'production' && parsedUrl.protocol !== 'https:') {
+    throw new Error('EXPO_PUBLIC_WEBSITE_URL debe usar https en production.');
+  }
+
+  return rawWebsiteUrl.replace(/\/+$/, '');
+}
+
 const appEnv = parseAppEnvironment(process.env.EXPO_PUBLIC_APP_ENV);
+
+if (!__DEV__ && appEnv !== 'production') {
+  throw new Error('Un build release requiere EXPO_PUBLIC_APP_ENV=production y una API HTTPS.');
+}
 
 export const env = Object.freeze({
   apiUrl: parseApiUrl(process.env.EXPO_PUBLIC_API_URL, appEnv),

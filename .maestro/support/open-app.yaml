@@ -1,0 +1,12 @@
+appId: ${APP_ID}
+---
+# Only through maestro-e2e.cjs after device identification and explicit opt-in.
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible: Connect
+    timeout: 30000
+- openLink: ${DEV_CLIENT_URL}
+- extendedWaitUntil:
+    visible: Omitir introducción y explorar catálogo
+    timeout: 120000

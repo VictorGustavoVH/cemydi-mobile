@@ -1,18 +1,24 @@
-import type { HomeBanner, HomeCategory, HomeProduct } from '../home-mocks';
+import type { HomeBanner, HomeCategory, HomeProduct } from '@/data/catalog-preview';
+import type { Product } from '@/services/products/product-schemas';
 
 export type HomeData = {
   banners: HomeBanner[];
   categories: HomeCategory[];
   products: HomeProduct[];
+  /**
+   * Productos crudos de la misma consulta. Inicio los deja listos para el
+   * detalle: abrir una ficha desde aquí no monta el skeleton ni reacomoda el
+   * contenido al llegar la respuesta. Las fuentes de muestra no los exponen.
+   */
+  rawProducts?: Product[];
 };
 
 /**
  * Contrato del servicio de Home.
  *
- * Por ahora la app usa homeService.mock. Cuando exista backend, crea
- * homeService.api.ts que implemente esta misma interfaz usando
- * src/services/http/client y cambia la importación en useHome.
+ * Productos públicos reales; banners y categorías editoriales siguen siendo locales.
+ * homeService.mock queda reservado para pruebas y vistas de muestra.
  */
 export interface HomeService {
-  getHome(): Promise<HomeData>;
+  getHome(signal?: AbortSignal): Promise<HomeData>;
 }

@@ -26,14 +26,19 @@ npm-debug.*
 yarn-debug.*
 yarn-error.*
 
-# macOS
+# macOS & IDEs
 .DS_Store
 *.pem
+.idea/
 
 # local env files
 .env
 .env.*
 !.env.example
+
+# Google credentials
+google-services.json
+GoogleService-Info.plist
 
 # typescript
 *.tsbuildinfo
@@ -41,3 +46,23 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Test reports and locally installed test tools
+coverage/
+test-results/
+.tools/
+
+# Cache local
+.cache/
+
+# Logs del emulador y Metro
+emu.log
+emu.err.log
+metro.log
+metro.err.log
+metro.critical.log
+
+# Native push/signing configuration is provisioned per environment.
+google-services.json
+GoogleService-Info.plist
+*.p8

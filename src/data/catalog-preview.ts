@@ -2,17 +2,25 @@ import type { ImageSourcePropType } from 'react-native';
 
 // Presentation fixtures only: these are not API contracts or real prices.
 export type CatalogMode = 'all' | 'purchase' | 'rental';
-export type HomeCategory = { id: string; label: string; image: ImageSourcePropType };
+export type HomeCategory = { id: string; label: string; image: ImageSourcePropType | undefined };
 export type HomeProduct = {
   id: string;
   name: string;
   categoryId: string;
-  image: ImageSourcePropType;
+  image: ImageSourcePropType | undefined;
+  /** Optional presentation metadata; never a presumed backend DTO field. */
+  imageBlurhash?: string;
   modes: Exclude<CatalogMode, 'all'>[];
   caption: string;
+  rating?: number;
+  reviewCount?: number;
   price: string;
   priceSuffix?: string;
   priceNote?: string;
+  originalPrice?: string;
+  discountPercent?: number;
+  unavailable?: boolean;
+  prescription?: boolean;
 };
 export type HomeBanner = {
   id: string;
@@ -21,10 +29,10 @@ export type HomeBanner = {
   image: ImageSourcePropType;
 };
 
-const wheelchair = require('../../assets/images/catalog/wheelchair.png');
-const hospitalBed = require('../../assets/images/catalog/hospital-bed.png');
-const kneeBrace = require('../../assets/images/catalog/knee-brace.png');
-const walker = require('../../assets/images/catalog/walker.png');
+const wheelchair = require('../../assets/images/catalog/wheelchair.webp');
+const hospitalBed = require('../../assets/images/catalog/hospital-bed.webp');
+const kneeBrace = require('../../assets/images/catalog/knee-brace.webp');
+const walker = require('../../assets/images/catalog/walker.webp');
 
 export const homeCategories: HomeCategory[] = [
   { id: 'mobility', label: 'Movilidad', image: wheelchair },
@@ -104,7 +112,7 @@ export const homeProducts: HomeProduct[] = [
     id: 'boot',
     name: 'Bota ortopédica',
     categoryId: 'supports',
-    image: require('../../assets/images/catalog/walker-boot.jpg'),
+    image: require('../../assets/images/catalog/walker-boot.webp'),
     modes: ['purchase'],
     caption: 'Compra',
     price: '$1,450',
@@ -113,7 +121,7 @@ export const homeProducts: HomeProduct[] = [
     id: 'oxygen',
     name: 'Concentrador de oxígeno',
     categoryId: 'rest',
-    image: require('../../assets/images/catalog/oxygen-concentrator.jpg'),
+    image: require('../../assets/images/catalog/oxygen-concentrator.webp'),
     modes: ['rental'],
     caption: 'Renta diaria',
     price: '$120',
@@ -123,7 +131,7 @@ export const homeProducts: HomeProduct[] = [
     id: 'crutches',
     name: 'Muletas ajustables',
     categoryId: 'mobility',
-    image: require('../../assets/images/catalog/crutches.jpg'),
+    image: require('../../assets/images/catalog/crutches.webp'),
     modes: ['purchase'],
     caption: 'Compra',
     price: '$780',

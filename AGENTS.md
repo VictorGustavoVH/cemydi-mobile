@@ -14,6 +14,7 @@ Expo 57, Expo Router, React Native 0.86, React 19, TypeScript estricto, NativeWi
 - Estructura o capas: `docs/ARCHITECTURE.md`.
 - Endpoints o datos: `docs/API_INTEGRATION.md`.
 - Sesión o rutas protegidas: `docs/AUTHENTICATION.md`.
+- Notificaciones y push: `docs/NOTIFICATIONS.md`.
 - UI: `docs/DESIGN_SYSTEM.md`.
 - Código nuevo: `docs/CONVENTIONS.md`.
 - Ramas, PRs o releases: `docs/GIT_WORKFLOW.md`.
@@ -41,7 +42,7 @@ Antes de implementar, busca una skill aplicable en `.agents/skills/` y lee su `S
 - Do not use `npm audit fix --force`.
 - Keep non-route code outside `src/app`.
 - No copies secretos ni valores reales de `.env`.
-- La autenticación móvil está bloqueada: no elijas cookies o tokens sin aprobación.
+- La autenticación móvil usa tokens explícitos aprobados: access en memoria y refresh en `expo-secure-store`; ver `docs/AUTHENTICATION.md`. No cambies el transporte sin aprobación.
 - No uses `#134e4c`; fondo principal `#FFFFFF`, marca `#258e8b`.
 - Iconografía obligatoria: usa exclusivamente `lucide-react-native` con importaciones directas por icono (ej. `import ArrowRight from 'lucide-react-native/icons/arrow-right'`), nunca desde el barrel general para evitar fallos de resolución en Metro. Prohibido usar caracteres tipográficos o flechas de texto para simular iconos. El color de los iconos nunca es fijo: debe adaptarse contextualmente según la situación y superficie (usando tokens semánticos de `src/theme/colors.ts`).
 - Verificación obligatoria de componentes: antes de crear cualquier componente nuevo o aplicar UI, verifica SIEMPRE los componentes existentes en `src/components/ui` y en features. Reutiliza componentes base (`AppButton`, `AppInput`, `AppScreen`, `LoadingState`, etc.) en vez de primitivas directas de React Native (`Pressable`, `TextInput`, etc.). Si un componente ya existe, revisa sus props e implementaciones para consumirlo o extenderlo. Si creas uno nuevo, verifica que no exista duplicado, define props tipadas explícitas, accesibilidad y estados (pressed, disabled, loading).
@@ -58,8 +59,10 @@ npm run typecheck
 npm run format:check
 ```
 
-`npm run format:check` pasa correctamente. Ejecuta tests cuando el proyecto tenga framework configurado.
+`npm run format:check` pasa correctamente. Ejecuta `npm test` para las suites unitarias y de integración.
 
 ## Done
 
 Una tarea está Done cuando cumple aceptación, contratos confirmados, validación aplicable, estados loading/empty/error/offline, accesibilidad, Android/iOS según riesgo y documentación actualizada. Compilar por sí solo no basta.
+
+Las decisiones permanentes de encabezados, reutilización, Skeleton/BlurHash, imágenes, teclado y rendimiento están en `docs/ARCHITECTURE.md`, `docs/DESIGN_SYSTEM.md` y `docs/CONVENTIONS.md`; consultar antes de añadir UI o fuentes de datos.
