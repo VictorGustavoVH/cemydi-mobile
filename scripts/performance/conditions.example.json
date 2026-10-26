@@ -1,0 +1,13 @@
+{
+  "network": "offline",
+  "data": "empty-offline",
+  "session": "guest",
+  "initialState": "background",
+  "battery": "50-79",
+  "charging": "no",
+  "thermal": "cool",
+  "brightness": "medium",
+  "animations": "default",
+  "cache": "empty",
+  "orientation": "portrait"
+}

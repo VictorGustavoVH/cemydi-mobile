@@ -224,7 +224,18 @@ En cada entorno repetir con fuente normal y aumentada, TalkBack/VoiceOver, texto
 
 ## Rendimiento manual
 
-Para evidencia propia, preparar una build Android debuggable/profileable mediante CNG. Expo Go sirve para observaciones exploratorias, pero mezcla el costo del contenedor de desarrollo.
+La Actividad 4 de carga HTTP local está documentada en
+[LOAD_TESTING.md](./LOAD_TESTING.md). `npm run test:load` verifica el arnés sin
+ejecutar el perfil completo; `npm run load:local` lo ejecuta manualmente contra
+una instancia aislada del fixture. Sus evidencias conservan historial en
+`test-results/load/` y no requieren dispositivo ni servicios reales.
+
+La metodología reproducible, los escenarios PERF-01 a PERF-05 y la CLI ADB están en
+[PERFORMANCE_TESTING.md](./PERFORMANCE_TESTING.md). Ejecutar `npm run test:performance`
+para verificar parsers/cálculos sin dispositivo. La medición principal requiere
+preview/release sin DEBUGGABLE ni Metro y autorización explícita para los recorridos.
+Profiler puede necesitar una build profileable; no reconstruir ni reemplazar APK sin
+autorización. Expo Go y Development Build solo sirven para observación exploratoria.
 
 1. Registrar build/commit, modelo, API, red y temperatura.
 2. Calentar dos minutos y medir CPU/memoria en reposo y al abrir catálogo.
