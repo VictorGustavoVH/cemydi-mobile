@@ -74,6 +74,10 @@
     "test:all": "jest --ci",
     "maestro": "node scripts/maestro.cjs",
     "test:e2e": "node scripts/maestro-e2e.cjs",
+    "performance": "node scripts/performance/cli.cjs",
+    "test:performance": "node --test scripts/performance/performance.test.cjs",
+    "load:local": "node scripts/load/cli.cjs",
+    "test:load": "node --test scripts/load/load.test.cjs",
     "doctor": "npx --yes expo-doctor",
     "prepare": "husky",
     "check": "npm run typecheck && npm run lint && npm run format:check && npm test"
