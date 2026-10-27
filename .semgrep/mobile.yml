@@ -1,0 +1,131 @@
+rules:
+  - id: cemydi.dynamic-eval
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: Ejecución dinámica de código; revisar el origen de la entrada y eliminar eval.
+    metadata:
+      category: security
+      cwe: ['CWE-95']
+      cemydi-risk: HIGH
+    pattern: eval(...)
+
+  - id: cemydi.dynamic-function
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: Construcción dinámica de funciones; revisar y sustituir por lógica estática.
+    metadata:
+      category: security
+      cwe: ['CWE-95']
+      cemydi-risk: HIGH
+    pattern-either:
+      - pattern: new Function(...)
+      - pattern: Function(...)
+
+  - id: cemydi.disabled-tls
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: La configuración desactiva la verificación de certificados TLS.
+    metadata:
+      category: security
+      cwe: ['CWE-295']
+      cemydi-risk: HIGH
+    pattern-either:
+      - pattern: process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'
+      - pattern: 'rejectUnauthorized: false'
+
+  - id: cemydi.shell-from-arguments
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: Entrada de la CLI llega a un intérprete de comandos; revisar inyección de comandos.
+    metadata:
+      category: security
+      cwe: ['CWE-78']
+      cemydi-risk: HIGH
+    mode: taint
+    pattern-sources:
+      - pattern: process.argv[$INDEX]
+    pattern-sinks:
+      - patterns:
+          - pattern: $EXEC($CMD, ...)
+          - metavariable-regex:
+              metavariable: $EXEC
+              regex: '^(exec|execSync|(?:child_process|childProcess)\.(?:exec|execSync))$'
+
+  - id: cemydi.shell-enabled-spawn
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: Ejecución de procesos con shell habilitado; revisar interpolación y usar argumentos separados.
+    metadata:
+      category: security
+      cwe: ['CWE-78']
+      cemydi-risk: HIGH
+    patterns:
+      - pattern: '$SPAWN(..., { ..., shell: true, ... }, ...)'
+      - metavariable-regex:
+          metavariable: $SPAWN
+          regex: '^(spawn|spawnSync|execFile|execFileSync|(?:child_process|childProcess)\.(?:spawn|spawnSync|execFile|execFileSync))$'
+
+  - id: cemydi.sensitive-async-storage
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: Una clave sensible se guarda en AsyncStorage; revisar uso de almacenamiento seguro aprobado.
+    metadata:
+      category: security
+      cwe: ['CWE-922']
+      cemydi-risk: HIGH
+    patterns:
+      - pattern: $STORAGE.setItem($KEY, ...)
+      - metavariable-regex:
+          metavariable: $STORAGE
+          regex: '^(AsyncStorage|asyncStorage)$'
+      - metavariable-regex:
+          metavariable: $KEY
+          regex: '(?i).*(token|password|secret|credential).*'
+
+  - id: cemydi.sensitive-logging
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: Se registra un campo sensible; confirmar y retirar credenciales de los logs.
+    metadata:
+      category: security
+      cwe: ['CWE-532']
+      cemydi-risk: MEDIUM
+    pattern-either:
+      - pattern: console.$METHOD(..., $OBJECT.accessToken, ...)
+      - pattern: console.$METHOD(..., $OBJECT.refreshToken, ...)
+      - pattern: console.$METHOD(..., $OBJECT.password, ...)
+      - pattern: console.$METHOD(..., $OBJECT.idToken, ...)
+
+  - id: cemydi.public-secret-variable
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: Una variable Expo pública parece contener un secreto; todo EXPO_PUBLIC forma parte del cliente.
+    metadata:
+      category: security
+      cwe: ['CWE-200']
+      cemydi-risk: HIGH
+    patterns:
+      - pattern: process.env.$KEY
+      - metavariable-regex:
+          metavariable: $KEY
+          regex: '^EXPO_PUBLIC_.*(SECRET|PASSWORD|PRIVATE_KEY|ACCESS_TOKEN|REFRESH_TOKEN)$'
+
+  - id: cemydi.webview-file-access
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: WebView permite acceso universal desde archivos; revisar exposición de recursos locales.
+    metadata:
+      category: security
+      cwe: ['CWE-200']
+      cemydi-risk: HIGH
+    pattern: <WebView ... allowUniversalAccessFromFileURLs={true} ... />
+
+  - id: cemydi.private-key-material
+    languages: [generic]
+    severity: ERROR
+    message: Posible material de clave privada en el código; requiere revisión sin publicar su contenido.
+    metadata:
+      category: security
+      cwe: ['CWE-798']
+      cemydi-risk: CRITICAL
+    pattern-regex: '-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----'

@@ -1,0 +1,12 @@
+# Solo dependencias, proyectos generados y artefactos. No se excluyen features ni tests.
+node_modules/
+.git/
+.expo/
+.tools/
+test-results/
+coverage/
+dist/
+web-build/
+android/
+ios/
+__pycache__/

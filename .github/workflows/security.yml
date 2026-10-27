@@ -1,0 +1,103 @@
+name: Security — SAST y DAST smoke (backend pendiente)
+
+on:
+  pull_request:
+    branches: [develop, main]
+    types: [opened, synchronize, reopened, ready_for_review, labeled]
+  workflow_dispatch:
+    inputs:
+      dast_smoke:
+        description: 'Ejecutar ZAP solo sobre fixture local; NO evalúa el backend CEMYDI'
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: read
+
+env:
+  SECURITY_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  sast:
+    name: SAST — Semgrep CE
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
+          package-manager-cache: false
+      - name: Setup Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.13'
+      - name: Instalar herramienta aislada y fijada
+        run: |
+          python -m venv .tools/security-semgrep
+          .tools/security-semgrep/bin/python -m pip install --disable-pip-version-check "semgrep==$(node -p "require('./scripts/security/tools.json').semgrep")"
+      - name: Probar política sin dependencias móviles
+        run: node --test scripts/security/security.test.cjs
+      - name: Probar reglas con Semgrep real
+        run: node scripts/security/sast.cjs --test-rules --semgrep .tools/security-semgrep/bin/semgrep
+      - name: Analizar código móvil y aplicar política
+        run: node scripts/security/sast.cjs --semgrep .tools/security-semgrep/bin/semgrep
+      - name: Conservar evidencia SAST
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: sast-${{ github.sha }}-${{ github.run_attempt }}
+          path: test-results/security/sast/
+          if-no-files-found: error
+          retention-days: 14
+
+  dast:
+    name: DAST smoke — fixture, backend SIN validar
+    # Alternativa manual pre-merge: solo el propietario puede activar el fixture
+    # en un PR del mismo repositorio, sin eventos privilegiados ni secretos.
+    if: >-
+      (github.event_name == 'workflow_dispatch' && inputs.dast_smoke) ||
+      (github.event_name == 'pull_request' && github.event.action == 'labeled' &&
+      github.event.label.name == 'seguridad:dast-fixture' &&
+      github.actor == github.repository_owner &&
+      github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
+          package-manager-cache: false
+      - name: Ejecutar ZAP Baseline sobre fixture propio
+        run: node scripts/security/dast-smoke.cjs
+      - name: Conservar evidencia DAST de fixture
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dast-FIXTURE-NO-BACKEND-${{ github.sha }}-${{ github.run_attempt }}
+          path: |
+            test-results/security/dast-smoke/zap.html
+            test-results/security/dast-smoke/zap.json
+            test-results/security/dast-smoke/zap.log
+            test-results/security/dast-smoke/policy.json
+            test-results/security/dast-smoke/fixture.context
+          if-no-files-found: error
+          retention-days: 14
