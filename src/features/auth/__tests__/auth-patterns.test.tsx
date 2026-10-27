@@ -27,10 +27,10 @@ function createStorage() {
 
 describe('Singleton modular de autenticación', () => {
   it('comparte la misma exportación entre consumidores y conserva su identidad al crear sesiones aisladas', async () => {
-    const firstConsumer = jest.requireActual<typeof import('../services/auth-session')>(
+    const firstConsumer = jest.requireActual<{ authSession: typeof authSession }>(
       '../services/auth-session',
     );
-    const secondConsumer = jest.requireActual<typeof import('../services/auth-session')>(
+    const secondConsumer = jest.requireActual<{ authSession: typeof authSession }>(
       '@/features/auth/services/auth-session',
     );
     const snapshot = authSession.getSnapshot();
