@@ -1,5 +1,6 @@
-import { screen } from '@testing-library/react-native';
+import { act, screen } from '@testing-library/react-native';
 import { render } from '../../../../tests/support/render-with-toast';
+import { installNetworkMock } from '../../../../tests/support/network-mock';
 import { FavoritesScreen } from '../FavoritesScreen';
 import { useFavorites } from '../hooks/useFavorites';
 import { useAuth } from '@/providers/auth-provider';
@@ -56,6 +57,44 @@ const mockProduct = {
 describe('FavoritesScreen', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    installNetworkMock();
+  });
+
+  it('no presenta favoritos vacíos como confirmados al iniciar sin conexión', async () => {
+    const network = installNetworkMock({ isInternetReachable: false });
+    mockAuth.mockReturnValue({ user: { id: 1, nombre: 'Cliente Demo' } });
+    mockFavorites.mockReturnValue({
+      products: [],
+      isLoading: false,
+      isError: false,
+      refetch: jest.fn(),
+      isFetching: false,
+    });
+
+    await render(<FavoritesScreen />);
+    expect(screen.getByText('Sin conexión')).toBeTruthy();
+    expect(screen.queryByText('No tienes productos guardados')).toBeNull();
+
+    await act(() => network.emit({ isInternetReachable: true }));
+    expect(screen.queryByText('Sin conexión')).toBeNull();
+    expect(screen.getByText('No tienes productos guardados')).toBeTruthy();
+  });
+
+  it('conserva los favoritos cargados y avisa al perder conexión', async () => {
+    const network = installNetworkMock();
+    mockAuth.mockReturnValue({ user: { id: 1, nombre: 'Cliente Demo' } });
+    mockFavorites.mockReturnValue({
+      products: [mockProduct],
+      isLoading: false,
+      isError: false,
+      refetch: jest.fn(),
+      isFetching: false,
+    });
+
+    await render(<FavoritesScreen />);
+    await act(() => network.emit({ isInternetReachable: false }));
+    expect(screen.getByText('Sin conexión')).toBeTruthy();
+    expect(screen.getByText('Silla de Ruedas Estándar')).toBeTruthy();
   });
 
   it('muestra el estado de inicio de sesión si el usuario no está autenticado', async () => {

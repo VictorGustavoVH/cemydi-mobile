@@ -10,6 +10,7 @@ import { AppScreen } from '@/components/ui/AppScreen';
 import { BackButton } from '@/components/ui/BackButton';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorState } from '@/components/ui/ErrorState';
+import { OfflineState } from '@/components/ui/OfflineState';
 import { ProductCard } from '@/components/ui/ProductCard';
 import { ProductGridSkeleton } from '@/components/ui/ProductGridSkeleton';
 import { useAuth } from '@/providers/auth-provider';
@@ -17,6 +18,7 @@ import { useProductOffers } from '@/hooks/useProductOffers';
 import { useProductRatings, type ProductRatingState } from '@/hooks/useProductRatings';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { useRouteCallback } from '@/hooks/useRouteCallback';
+import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import { toProductCard } from '@/services/products/product-adapter';
 import { prefetchProductDetail } from '@/services/products/product-cache';
 import type { HomeProduct } from '@/data/catalog-preview';
@@ -52,6 +54,7 @@ export function FavoritesScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const { isOnline } = useNetworkStatus();
   const { width, fontScale } = useWindowDimensions();
   const columns = width < 350 || fontScale > 1.3 ? 1 : 2;
   const itemWidth = columns === 1 ? width - 32 : (width - 44) / 2;
@@ -136,6 +139,8 @@ export function FavoritesScreen() {
           actionLabel="Iniciar sesión"
           onAction={() => router.push('/login')}
         />
+      ) : isOnline === false && products.length === 0 ? (
+        <OfflineState description="Conéctate para consultar tus productos guardados." />
       ) : isLoading ? (
         <View className="flex-1 p-4">
           <ProductGridSkeleton columns={columns} />
@@ -160,6 +165,11 @@ export function FavoritesScreen() {
         />
       ) : (
         <View className="flex-1 bg-background">
+          {isOnline === false ? (
+            <View className="shrink-0">
+              <OfflineState description="Mostramos los favoritos cargados. Actualizaremos la lista al recuperar la conexión." />
+            </View>
+          ) : null}
           {products.length > 4 ? (
             <View className="bg-background px-4 py-2">
               <AppInput
