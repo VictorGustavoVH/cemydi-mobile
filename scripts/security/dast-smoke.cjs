@@ -42,7 +42,7 @@ function createSmokeFixture() {
 }
 
 function contextXml() {
-  return '<?xml version="1.0" encoding="UTF-8"?><configuration><context><name>cemydi-fixture-only</name><desc>No evalúa NestJS</desc><inscope>true</inscope><incregex>http://127\\.0\\.0\\.1:4199/(?:|health|fixture|robots\\.txt|sitemap\\.xml)</incregex></context></configuration>';
+  return '<?xml version="1.0" encoding="UTF-8"?><configuration><context><name>cemydi-fixture-only</name><desc>No evalúa NestJS</desc><inscope>true</inscope><incregexes>^http://127\\.0\\.0\\.1:4199/(?:|health|fixture|robots\\.txt|sitemap\\.xml)$</incregexes></context></configuration>';
 }
 
 function baselineArgs(
@@ -128,6 +128,10 @@ async function main() {
       child.on('error', reject);
       child.on('close', (exitCode) => resolve(exitCode));
     });
+    if (![0, 1, 2].includes(code))
+      throw new Error(
+        'ZAP Baseline no completó el escaneo: salida ' + code + '. Consultar zap.log.',
+      );
     const report = checkZap(JSON.parse(readFileSync(path.join(output, 'zap.json'), 'utf8')), code);
     report.revision = {
       checkout: process.env.GITHUB_SHA ?? null,

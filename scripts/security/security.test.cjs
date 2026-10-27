@@ -123,6 +123,22 @@ test('la verificación de reglas exige resultados reales exactos y detecta falso
   assert.throws(() => verifyRuleFixtures(source, { ...report, errors: [{ type: 'ParseError' }] }));
 });
 
+test('el contexto usa el campo incregexes de ZAP y delimita origen y rutas completas', () => {
+  const xml = contextXml();
+  const include = xml.match(/<incregexes>([^<]+)<\/incregexes>/);
+  assert.ok(include, 'ZAP importa context.incregexes; incregex no define el alcance.');
+  const allowed = new RegExp(include[1]);
+  for (const route of ['', 'health', 'fixture', 'robots.txt', 'sitemap.xml'])
+    assert.ok(allowed.test(tools.fixtureTarget + route));
+  for (const url of [
+    'https://example.invalid/',
+    'http://127.0.0.1:4000/',
+    tools.fixtureTarget + 'auth',
+    tools.fixtureTarget + 'fixture?redirect=external',
+  ])
+    assert.equal(allowed.test(url), false);
+});
+
 test('el fixture escucha en loopback, solo admite lecturas y no ofrece redirecciones o autenticación', async () => {
   const server = createSmokeFixture();
   server.listen(0, '127.0.0.1');

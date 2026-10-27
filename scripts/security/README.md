@@ -24,8 +24,9 @@ su propio fixture en `http://127.0.0.1:4199/`, creado dentro del job. Para incor
 el backend real se necesita autorización expresa, infraestructura aislada y una
 revisión del alcance; no basta con cambiar una variable de entorno.
 
-GitHub requiere que el workflow esté en la rama predeterminada para el dispatch
-manual. Antes de integrarlo, el propietario del repositorio puede activar el smoke
+La interfaz de GitHub para dispatch normalmente requiere el workflow en la rama
+predeterminada. En este repositorio se pudo ejecutar por API/CLI usando el ID del
+workflow después de registrarlo con el PR, sin merge. Como alternativa, el propietario puede activar el smoke
 añadiendo la etiqueta seguridad:dast-fixture a un PR del mismo repositorio. El job
 solo se activa para ese evento labeled, actor propietario y origen interno; una
 etiqueta en un fork o aplicada por otro actor no lo habilita. Al cambiar el commit,
