@@ -165,5 +165,4 @@ El flujo vigente es `feature/* → develop → main`:
 
 Antes de abrir un Pull Request ejecuta `npm run check` y `npx --yes expo-doctor`. Incluye evidencia para cambios visuales, confirma contratos contra el backend y actualiza documentación cuando cambie una decisión, arquitectura o contrato.
 
-
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/VictorGustavoVH/cemydi-mobile)
