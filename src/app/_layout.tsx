@@ -61,6 +61,8 @@ export default function RootLayout() {
                   <View style={{ flex: 1, backgroundColor: colors.background }}>
                     <Stack
                       screenOptions={{
+                        // Cada pantalla monta su propio encabezado; el Stack no debe añadir otro.
+                        headerShown: false,
                         // Avoid Android native transitions leaving screen content partially transparent.
                         animation: Platform.OS === 'android' ? 'none' : 'default',
                         contentStyle: { backgroundColor: colors.background },

@@ -246,14 +246,6 @@ export function CartPreviewScreen() {
           No pudimos confirmar la actualización. Consulta el carrito antes de repetirla.
         </Text>
       ) : null}
-      {connected && cart ? (
-        <AppButton
-          label="Actualizar carrito"
-          variant="ghost"
-          disabled={busy || !online || query.isFetching}
-          onPress={onRefresh}
-        />
-      ) : null}
       {connected && cart && query.isError ? (
         <Text accessibilityLiveRegion="polite" className="px-5 font-sans text-sm text-danger">
           No pudimos actualizar el carrito. {getFriendlyErrorMessage(query.error)}
