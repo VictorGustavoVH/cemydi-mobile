@@ -1,0 +1,41 @@
+// Casos sintéticos: se materializan temporalmente para probar las reglas; no se ejecutan.
+// ruleid: cemydi.dynamic-eval
+eval(input);
+// ok: cemydi.dynamic-eval
+JSON.parse(input);
+// ruleid: cemydi.dynamic-function
+new Function(input);
+// ok: cemydi.dynamic-function
+const staticFunction = () => input;
+// ruleid: cemydi.disabled-tls
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+// ok: cemydi.disabled-tls
+const safeTls = { rejectUnauthorized: true };
+const { exec, spawn } = require('node:child_process');
+// ruleid: cemydi.shell-from-arguments
+exec(process.argv[2]);
+// ok: cemydi.shell-from-arguments
+exec('git status');
+// ruleid: cemydi.shell-enabled-spawn
+spawn('git', args, { shell: true });
+// ok: cemydi.shell-enabled-spawn
+spawn('git', args, { shell: false });
+// ruleid: cemydi.sensitive-async-storage
+AsyncStorage.setItem('refreshToken', input);
+// ok: cemydi.sensitive-async-storage
+AsyncStorage.setItem('theme', input);
+// ruleid: cemydi.sensitive-logging
+console.log(session.accessToken);
+// ok: cemydi.sensitive-logging
+console.log('Sesión restaurada');
+// ruleid: cemydi.public-secret-variable
+const exposed = process.env.EXPO_PUBLIC_API_SECRET;
+// ok: cemydi.public-secret-variable
+const publicUrl = process.env.EXPO_PUBLIC_API_URL;
+// ruleid: cemydi.webview-file-access
+const unsafeWebView = <WebView allowUniversalAccessFromFileURLs={true} />;
+// ok: cemydi.webview-file-access
+const safeWebView = <WebView allowUniversalAccessFromFileURLs={false} />;
+// Marcador sintético incompleto: no contiene una clave privada.
+// ruleid: cemydi.private-key-material
+const fakeKeyMarker = '-----BEGIN PRIVATE KEY-----';
