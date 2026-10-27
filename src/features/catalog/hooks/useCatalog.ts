@@ -1,19 +1,18 @@
 import { useMemo } from 'react';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import type { Product } from '@/services/products/product-schemas';
-import {
-  normalizeProductFilters,
-  productService,
-  type ProductFilters,
-} from '@/services/products/product-service';
+import { productRepository, type ProductRepository } from '@/services/products/product-repository';
+import { normalizeProductFilters, type ProductFilters } from '@/services/products/product-service';
 
-export function useCatalog(filters: ProductFilters) {
+export function useCatalog(
+  filters: ProductFilters,
+  repository: ProductRepository = productRepository,
+) {
   const normalized = normalizeProductFilters(filters);
   const query = useInfiniteQuery({
     queryKey: ['products', 'list', normalized],
     initialPageParam: 1,
-    queryFn: ({ pageParam, signal }) =>
-      productService.list(normalized, pageParam, undefined, signal),
+    queryFn: ({ pageParam, signal }) => repository.list(normalized, pageParam, undefined, signal),
     getNextPageParam: (lastPage, _pages, lastPageParam) =>
       lastPage.pagination.hasNext && lastPage.pagination.page >= lastPageParam
         ? lastPage.pagination.page + 1
