@@ -1,6 +1,6 @@
 import type { QueryClient } from '@tanstack/react-query';
 import type { Product } from './product-schemas';
-import { productService } from './product-service';
+import { productRepository } from './product-repository';
 
 /**
  * Clave canónica del detalle público. La comparten la consulta del detalle y
@@ -42,7 +42,7 @@ export function prefetchProductDetail(queryClient: QueryClient, productId: strin
   if (queryClient.getQueryState(key)?.data !== undefined) return;
   void queryClient.prefetchQuery({
     queryKey: key,
-    queryFn: ({ signal }) => productService.detail(String(productId), signal),
+    queryFn: ({ signal }) => productRepository.detail(String(productId), signal),
     staleTime: 30_000,
   });
 }

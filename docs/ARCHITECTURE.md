@@ -208,6 +208,47 @@ Query keys principales:
 
 Estos patrones se aplican donde reducen acoplamiento observable. No se crean interfaces, repositorios ni capas vacías por anticipación.
 
+### Repository de productos — Actividad 4
+
+`src/services/products/product-repository.ts` define `ProductRepository` para
+`list`, `detail` y `recommendations`. `createProductRepository(source)` acepta una
+fuente sustituible; la instancia `productRepository` usa `productService` en producción.
+Conserva filtros, resultados, errores y `AbortSignal`. El servicio existente mantiene
+HTTP, serialización y validación Zod; el repositorio no añade transporte ni reglas
+de negocio. Promociones y reseñas permanecen en sus servicios actuales.
+
+Lo consumen `useCatalog`, `homeService.api`, `ConnectedProductDetailScreen`,
+`CatalogSearch` y `prefetchProductDetail`. `useCatalog(filters, repository)` permite
+inyectar un repositorio falso sin HTTP. Las query keys, los envelopes de caché,
+la paginación y las políticas de TanStack Query permanecen iguales. La dependencia
+inyectada debe ser estable durante el uso del hook; sustituirla no cambia la query key.
+
+```mermaid
+flowchart TD
+  View[Screen o componente] --> Query[Hook o query de TanStack Query]
+  Query --> Repository[ProductRepository]
+  Prefetch[prefetchProductDetail] --> Repository
+  Home[homeService.api] --> Repository
+  Repository --> Service[productService]
+  Service --> Validation[Schemas Zod existentes]
+  Service --> HTTP[Cliente HTTP compartido]
+  HTTP --> API[Backend NestJS]
+  Test[Repositorio falso en pruebas] -.-> Query
+```
+
+La arquitectura sigue organizada por features y capas, con aproximación a MVVM
+mediante hooks. Detalle y sugerencias aún contienen queries dentro de componentes;
+no existe una separación completa de dominio y casos de uso propia de Clean Architecture.
+El Repository es una frontera de lectura acotada, no una migración global.
+Los patrones existentes de sesión no cambian: `authSession` es una instancia
+compartida por módulo, `createAuthService` es una función factory y la sesión
+publica cambios mediante `subscribe`/`getSnapshot`, consumidos con `useSyncExternalStore`.
+
+Implementación técnica de Repository para la Actividad 4:
+Víctor Gustavo Valdivia Hernández. Las pruebas unitarias del repositorio comprueban
+delegación y errores; la prueba de `useCatalog` demuestra sustitución y cancelación.
+Las suites existentes cubren los recorridos de Home, catálogo, sugerencias y detalle.
+
 ## Reglas de dependencia
 
 1. `src/app` puede importar features, componentes y providers; el resto no debe depender de rutas.

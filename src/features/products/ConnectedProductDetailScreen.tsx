@@ -16,7 +16,7 @@ import { getFriendlyErrorMessage, isApiError } from '@/services/http/api-error';
 import { productDetailKey } from '@/services/products/product-cache';
 import { toProductCard, toProductDetail } from '@/services/products/product-adapter';
 import type { Product, ProductList } from '@/services/products/product-schemas';
-import { productService } from '@/services/products/product-service';
+import { productRepository } from '@/services/products/product-repository';
 
 import { ProductDetailScreen } from './ProductDetailScreen';
 import { ProductDetailHeader } from './components/ProductDetailHeader';
@@ -223,7 +223,7 @@ export function ConnectedProductDetailScreen({
   // DETALLES DEL PRODUCTO
   const query = useQuery({
     queryKey: productDetailKey(productId),
-    queryFn: ({ signal }) => productService.detail(productId, signal),
+    queryFn: ({ signal }) => productRepository.detail(productId, signal),
     enabled: Boolean(productId),
     staleTime: 30_000,
     initialData: () => cachedProduct && { product: cachedProduct.product },
@@ -239,7 +239,7 @@ export function ConnectedProductDetailScreen({
   // RECOMENDACIONES
   const recommendations = useQuery({
     queryKey: ['products', 'recommendations', productId],
-    queryFn: ({ signal }) => productService.recommendations(productId, signal),
+    queryFn: ({ signal }) => productRepository.recommendations(productId, signal),
     enabled: Boolean(productId),
     staleTime: 30_000,
   });

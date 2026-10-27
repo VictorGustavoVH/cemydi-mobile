@@ -18,7 +18,8 @@ import { useDebounce } from '@/hooks/useDebounce';
 import { useRecentSearches } from '@/hooks/useRecentSearches';
 import { useVoiceSearch } from '@/hooks/useVoiceSearch';
 import { formatProductMoney } from '@/services/products/product-adapter';
-import { emptyProductFilters, productService } from '@/services/products/product-service';
+import { emptyProductFilters } from '@/services/products/product-service';
+import { productRepository } from '@/services/products/product-repository';
 import { colors } from '@/theme';
 
 type CatalogSearchProps = {
@@ -77,7 +78,7 @@ export function CatalogSearch({
   const suggestionsQuery = useQuery({
     queryKey: ['product-suggestions', debouncedQuery],
     queryFn: ({ signal }) =>
-      productService.list({ ...emptyProductFilters, search: debouncedQuery }, 1, 10, signal),
+      productRepository.list({ ...emptyProductFilters, search: debouncedQuery }, 1, 10, signal),
     enabled: isFocused && debouncedQuery.length > 0,
     staleTime: 60_000,
   });
