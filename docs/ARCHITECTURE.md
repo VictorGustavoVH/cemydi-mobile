@@ -1,5 +1,8 @@
 # Arquitectura de CEMYDI Mobile
 
+La evidencia de Singleton modular, Factory y Observer de sesión para la Actividad 4
+está en [ARCHITECTURE_PATTERNS.md](./ARCHITECTURE_PATTERNS.md).
+
 ## Estructura actual
 
 ```text
