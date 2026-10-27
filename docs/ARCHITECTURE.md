@@ -222,7 +222,7 @@ Estos patrones se aplican donde reducen acoplamiento observable. No se crean int
 ## Decisiones de UX y rendimiento vigentes
 
 - El Stack raíz desactiva las transiciones nativas en Android (`animation: 'none'`) como mitigación del contenido desvanecido o blanco al navegar; iOS conserva su transición predeterminada. El contenedor y las escenas usan `colors.background`. No añadir fades por ruta en Android sin validar en dispositivo físico. La causa exacta del fallo reportado sigue pendiente de reproducción nativa.
-- No se requiere un `AppHeader` global. Cada pantalla conserva su encabezado; `BackButton` y otras piezas se comparten cuando tienen una responsabilidad común.
+- No se requiere un `AppHeader` global. Cada pantalla conserva su encabezado; `BackButton` y otras piezas se comparten cuando tienen una responsabilidad común. El Stack raíz usa `headerShown: false` como valor predeterminado para que ninguna ruta añada un segundo encabezado nativo sobre el de la pantalla.
 - `CatalogImage`, `ProductCard`, `AppBottomBar` y `AppSheet` viven en UI compartida. Los imports apuntan a la implementación real, sin reexports de features.
 - `GlobalBottomBar` se monta como tabBar del grupo `(tabs)` y aparece en Inicio, Catálogo, Carrito y Perfil. Los detalles y subrutas no duplican la barra. Los cambios de pestaña usan `navigate` y conservan estado.
 - `CatalogPreviewProvider` conserva estado de sesión y acciones estables. Las tarjetas memoizadas consumen el contexto de acciones, por lo que cambiar otra selección o cantidad no fuerza su actualización.

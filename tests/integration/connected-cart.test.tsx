@@ -6,7 +6,8 @@ import {
   useQueryClient,
   type QueryClient,
 } from '@tanstack/react-query';
-import { CART_SYNC_INTERVAL_MS } from '@/providers/cart-provider';
+import { CART_SYNC_INTERVAL_MS, useCart } from '@/providers/cart-provider';
+import { AppButton } from '@/components/ui/AppButton';
 import { render } from '../support/render-with-toast';
 import { AUTH_ACCOUNT, installAuthApiMock } from '../support/auth-api-mock';
 import {
@@ -54,12 +55,18 @@ function ConnectedCart({ detail = false }: { detail?: boolean }) {
     <CartPreviewScreen />
   );
 }
-const show = () =>
+const show = ({ refresher = false }: { refresher?: boolean } = {}) =>
   render(
     <CatalogPreviewProvider>
       <ConnectedCart />
+      {refresher ? <CartRefresher /> : null}
     </CatalogPreviewProvider>,
   );
+/** Simula el gesto de pull-to-refresh, que es la única recarga manual del carrito. */
+function CartRefresher() {
+  const { refreshCart } = useCart();
+  return <AppButton label="Refrescar carrito de prueba" onPress={() => void refreshCart()} />;
+}
 function GuestProduct() {
   const { addItem } = useCatalogPreview();
   useEffect(() => {
@@ -261,7 +268,7 @@ describe('Carrito conectado', () => {
     jest
       .spyOn(cartService, 'update')
       .mockRejectedValueOnce(new ApiError('Sin respuesta', { kind: 'network' }));
-    await show();
+    await show({ refresher: true });
     await screen.findByText('Total: $1,000.00 MXN');
     await fireEvent.press(screen.getByLabelText('Aumentar cantidad de Silla de ruedas, compra'));
     expect(
@@ -270,8 +277,7 @@ describe('Carrito conectado', () => {
       ),
     ).toBeTruthy();
     expect(screen.getByLabelText('Aumentar cantidad de Silla de ruedas, compra')).toBeDisabled();
-    await waitFor(() => expect(screen.getByLabelText('Actualizar carrito')).toBeEnabled());
-    await fireEvent.press(screen.getByLabelText('Actualizar carrito'));
+    await fireEvent.press(screen.getByLabelText('Refrescar carrito de prueba'));
     await waitFor(() =>
       expect(screen.getByLabelText('Aumentar cantidad de Silla de ruedas, compra')).toBeEnabled(),
     );
