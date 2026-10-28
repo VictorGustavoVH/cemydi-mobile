@@ -29,7 +29,7 @@ describe('Contratos públicos del catálogo', () => {
     });
     await expect(productService.reviews('1')).rejects.toMatchObject({ kind: 'parse' });
   });
-  it('envía filtros confirmados y 24 productos por página, sin credenciales', async () => {
+  it('envía filtros confirmados y 10 productos por página, sin credenciales', async () => {
     const request = jest.spyOn(httpClient, 'request').mockResolvedValue(productPage());
     await productService.list(
       {
@@ -47,7 +47,7 @@ describe('Contratos públicos del catálogo', () => {
     expect(url.pathname).toBe('/products');
     expect(Object.fromEntries(url.searchParams)).toEqual({
       page: '2',
-      pageSize: '24',
+      pageSize: '10',
       sort: 'reciente',
       search: 'silla',
       marcas: 'A',

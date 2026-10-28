@@ -40,7 +40,7 @@ describe('Catálogo móvil público', () => {
       expect(productService.list).toHaveBeenCalledWith(
         expect.objectContaining({ search: 'andadera', tipos: ['MIXTO', 'RENTA'] }),
         1,
-        undefined,
+        10,
         expect.any(AbortSignal),
       ),
     );
@@ -51,51 +51,10 @@ describe('Catálogo móvil público', () => {
       expect(productService.list).toHaveBeenCalledWith(
         expect.objectContaining({ search: 'otra búsqueda' }),
         1,
-        undefined,
+        10,
         expect.any(AbortSignal),
       ),
     );
-  });
-
-  it('carga 24, acumula la siguiente página y abre el detalle real', async () => {
-    const list = jest
-      .spyOn(productService, 'list')
-      .mockImplementation(async (_filters, page) => productPage(page));
-    await render(<CatalogScreen />);
-    await screen.findByRole('button', { name: /^Producto 1\./ });
-    expect(screen.queryByText(/\d+ de \d+ productos/)).toBeNull();
-    expect(screen.queryByText('Productos de compra y renta')).toBeNull();
-    expect(screen.queryByText('Más libertad.\nMás movimiento.')).toBeNull();
-    await fireEvent(screen.getByLabelText('Productos del catálogo'), 'endReached');
-    await screen.findByText('Has visto todos los productos');
-    expect(list.mock.calls.map((call) => call[1])).toEqual([1, 2]);
-    expect(screen.queryByLabelText('Ver más productos')).toBeNull();
-    await fireEvent.press(screen.getByRole('button', { name: /Producto 1\..*Ver producto/ }));
-    await fireEvent.press(screen.getByRole('button', { name: /Producto 1\..*Ver producto/ }));
-    await fireEvent.press(screen.getByRole('button', { name: /Producto 2\..*Ver producto/ }));
-    expect(mockPush).toHaveBeenCalledTimes(2);
-    expect(mockPush).toHaveBeenCalledWith({
-      pathname: '/producto/[id]',
-      params: { id: '1', mode: undefined },
-    });
-  });
-
-  it('conserva los productos cargados ante error de carga automática y permite reintentar', async () => {
-    const list = jest
-      .spyOn(productService, 'list')
-      .mockResolvedValueOnce(productPage())
-      .mockRejectedValueOnce(new Error('Falló la página'))
-      .mockResolvedValueOnce(productPage(2));
-    await render(<CatalogScreen />);
-    await screen.findByRole('button', { name: /^Producto 1\./ });
-    await fireEvent(screen.getByLabelText('Productos del catálogo'), 'endReached');
-    await screen.findByText('No pudimos cargar más productos. Los anteriores siguen disponibles.');
-    expect(screen.getByRole('button', { name: /^Producto 1\./ })).toBeTruthy();
-    await fireEvent(screen.getByLabelText('Productos del catálogo'), 'endReached');
-    expect(list).toHaveBeenCalledTimes(2);
-    await fireEvent.press(screen.getByRole('button', { name: 'Reintentar' }));
-    await screen.findByText('Has visto todos los productos');
-    expect(list).toHaveBeenCalledTimes(3);
   });
 
   it('aplica cada selección de inmediato, conserva cambios al cerrar y reinicia la paginación', async () => {
@@ -104,8 +63,8 @@ describe('Catálogo móvil público', () => {
       .mockImplementation(async (_filters, page) => productPage(page));
     await render(<CatalogScreen />);
     await screen.findByRole('button', { name: /^Producto 1\./ });
-    await fireEvent(screen.getByLabelText('Productos del catálogo'), 'endReached');
-    await screen.findByText('Has visto todos los productos');
+    await fireEvent.press(screen.getByRole('button', { name: 'Página siguiente' }));
+    await screen.findByRole('button', { name: /^Producto 25\./ });
     await fireEvent.press(screen.getByLabelText('Filtrar catálogo'));
     const applyButton = screen.getByRole('button', { name: 'Aplicar filtros' });
     let ancestor = applyButton.parent;
@@ -253,42 +212,6 @@ describe('Catálogo móvil público', () => {
     }
   });
 
-  it('busca en el backend y vuelve a la primera página', async () => {
-    const list = jest
-      .spyOn(productService, 'list')
-      .mockImplementation(async (_filters, page) => productPage(page));
-    await render(<CatalogScreen />);
-    await screen.findByRole('button', { name: /^Producto 1\./ });
-    await fireEvent(screen.getByLabelText('Productos del catálogo'), 'endReached');
-    await screen.findByText('Has visto todos los productos');
-    await fireEvent.changeText(screen.getByLabelText('Buscar equipo ortopédico'), 'silla');
-    await waitFor(() => expect(list).toHaveBeenCalledTimes(3));
-    expect(list.mock.calls[2][0].search).toBe('silla');
-    expect(list.mock.calls[2][1]).toBe(1);
-    await screen.findByRole('button', { name: /^Producto 1\./ });
-  });
-
-  it('no repite una petición al llegar al final mientras la página está pendiente', async () => {
-    let resolve!: (page: ReturnType<typeof productPage>) => void;
-    const list = jest
-      .spyOn(productService, 'list')
-      .mockResolvedValueOnce(productPage())
-      .mockReturnValueOnce(
-        new Promise((done) => {
-          resolve = done;
-        }),
-      );
-    await render(<CatalogScreen />);
-    await screen.findByRole('button', { name: /^Producto 1\./ });
-    const listView = screen.getByLabelText('Productos del catálogo');
-    await fireEvent(listView, 'endReached');
-    await fireEvent(listView, 'endReached');
-    expect(list).toHaveBeenCalledTimes(2);
-    expect(await screen.findByText('Cargando más productos…')).toBeTruthy();
-    await act(() => resolve(productPage(2)));
-    await screen.findByText('Has visto todos los productos');
-  });
-
   it('mantiene el scroll del catálogo quieto durante arrastre e inercia de sugerencias', async () => {
     jest
       .spyOn(productService, 'list')
@@ -366,5 +289,27 @@ describe('Catálogo móvil público', () => {
     expect(list.props.maintainVisibleContentPosition).toBeUndefined();
     await fireEvent.scroll(list, { nativeEvent: { contentOffset: { y: 320 } } });
     expect(list.props.maintainVisibleContentPosition).toBeUndefined();
+  });
+
+  it('muestra diez productos, cambia de página y reinicia al buscar', async () => {
+    const list = jest
+      .spyOn(productService, 'list')
+      .mockImplementation(async (_filters, page, pageSize) => productPage(page, 21, pageSize));
+    await render(<CatalogScreen />);
+    await screen.findByRole('button', { name: /^Producto 1\./ });
+    expect(screen.getByText('1 / 3')).toBeTruthy();
+    expect(screen.getByText('1–10 de 21 resultados')).toBeTruthy();
+    await fireEvent.press(screen.getByRole('button', { name: 'Página siguiente' }));
+    await screen.findByRole('button', { name: /^Producto 11\./ });
+    expect(list).toHaveBeenLastCalledWith(expect.anything(), 2, 10, expect.any(AbortSignal));
+    await fireEvent.changeText(screen.getByLabelText('Buscar equipo ortopédico'), 'silla');
+    await waitFor(() =>
+      expect(list).toHaveBeenLastCalledWith(
+        expect.objectContaining({ search: 'silla' }),
+        1,
+        10,
+        expect.any(AbortSignal),
+      ),
+    );
   });
 });

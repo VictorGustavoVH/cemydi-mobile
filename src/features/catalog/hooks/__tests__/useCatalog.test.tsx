@@ -17,7 +17,7 @@ it('sustituye el repositorio de producción y cancela su señal al desmontar', a
     recommendations: async () => ({ recommendations: [] }),
   };
   const filters = { ...emptyProductFilters, search: '  silla  ' };
-  const view = await renderHook(() => useCatalog(filters, repository), {
+  const view = await renderHook(() => useCatalog(filters, 1, repository), {
     wrapper: QueryTestProvider,
   });
 
@@ -25,7 +25,7 @@ it('sustituye el repositorio de producción y cancela su señal al desmontar', a
   expect(list).toHaveBeenCalledWith(
     normalizeProductFilters(filters),
     1,
-    undefined,
+    10,
     expect.any(AbortSignal),
   );
   expect(view.result.current.products).toEqual(page.products);
