@@ -199,16 +199,19 @@ export function ConnectedProductDetailScreen({
   const queryClient = useQueryClient();
   const cachedProduct = useMemo(() => {
     let newest: { product: Product; updatedAt: number } | undefined;
-    const lists = queryClient.getQueriesData<InfiniteData<ProductList>>({
+    const lists = queryClient.getQueriesData<InfiniteData<ProductList> | ProductList>({
       queryKey: ['products', 'list'],
     });
     const recommendations = queryClient.getQueriesData<{ recommendations: Product[] }>({
       queryKey: ['products', 'recommendations'],
     });
     for (const [key, data] of lists) {
-      const product = data?.pages
-        .flatMap((page) => page.products)
-        .find((item) => String(item.id) === productId);
+      const products = !data
+        ? []
+        : 'pages' in data
+          ? data.pages.flatMap((page) => page.products)
+          : data.products;
+      const product = products.find((item) => String(item.id) === productId);
       const updatedAt = queryClient.getQueryState(key)?.dataUpdatedAt ?? 0;
       if (product && (!newest || updatedAt > newest.updatedAt)) newest = { product, updatedAt };
     }
