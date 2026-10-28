@@ -3,6 +3,7 @@ import { FlatList, Keyboard, Text, View, useWindowDimensions } from 'react-nativ
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { AppButton } from '@/components/ui/AppButton';
+import { AppPagination } from '@/components/ui/AppPagination';
 import { AppRefreshControl } from '@/components/ui/AppRefreshControl';
 import { AppScreen } from '@/components/ui/AppScreen';
 import { BackButton } from '@/components/ui/BackButton';
@@ -10,7 +11,6 @@ import { CatalogSearch } from '@/components/ui/CatalogSearch';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { OfflineState } from '@/components/ui/OfflineState';
-import { LoadingState } from '@/components/ui/LoadingState';
 import { ProductCard } from '@/components/ui/ProductCard';
 import { ProductGridSkeleton } from '@/components/ui/ProductGridSkeleton';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
@@ -21,7 +21,11 @@ import { useRouteCallback } from '@/hooks/useRouteCallback';
 import { useToastScroll } from '@/hooks/useToast';
 import { toProductCard } from '@/services/products/product-adapter';
 import { prefetchProductDetail, seedProductDetail } from '@/services/products/product-cache';
-import { emptyProductFilters, type ProductFilters } from '@/services/products/product-service';
+import {
+  CATALOG_PAGE_SIZE,
+  emptyProductFilters,
+  type ProductFilters,
+} from '@/services/products/product-service';
 import type { HomeProduct } from '@/data/catalog-preview';
 import { getFriendlyErrorMessage } from '@/services/http/api-error';
 import { useCatalog } from './hooks/useCatalog';
@@ -78,6 +82,7 @@ export function CatalogScreen() {
           : [],
   }));
   const [sheetOpen, setSheetOpen] = useState(params.filters === '1');
+  const [page, setPage] = useState(1);
   const [suggestionsInteracting, setSuggestionsInteracting] = useState(false);
   const [searchDismissSignal, setSearchDismissSignal] = useState(0);
   const incoming = JSON.stringify([
@@ -92,6 +97,7 @@ export function CatalogScreen() {
     useCallback(() => {
       if (lastIncoming.current === incoming) return;
       lastIncoming.current = incoming;
+      setPage(1);
       setSearch(params.search?.slice(0, 120) ?? '');
       setFilters({
         ...emptyProductFilters,
@@ -107,7 +113,7 @@ export function CatalogScreen() {
       setSheetOpen(params.filters === '1');
     }, [incoming, params.search, params.clasificacion, params.mode, params.filters]),
   );
-  const query = useCatalog(filters);
+  const query = useCatalog(filters, page);
   const offers = useProductOffers();
 
   const refresh = useCallback(
@@ -117,10 +123,13 @@ export function CatalogScreen() {
   const { refreshing, onRefresh } = usePullToRefresh(refresh);
   useEffect(() => {
     const timeout = setTimeout(
-      () =>
-        setFilters((current) =>
-          current.search === search.trim() ? current : { ...current, search: search.trim() },
-        ),
+      () => {
+        setPage(1);
+        setFilters((current) => {
+          if (current.search === search.trim()) return current;
+          return { ...current, search: search.trim() };
+        });
+      },
       search.trim() === '' ? 0 : 350,
     );
     return () => clearTimeout(timeout);
@@ -180,6 +189,7 @@ export function CatalogScreen() {
     [openProduct, ratings, width, columns],
   );
   const clear = () => {
+    setPage(1);
     setSearch('');
     setFilters(emptyProductFilters);
   };
@@ -193,6 +203,7 @@ export function CatalogScreen() {
   const updateFilters = (next: ProductFilters) => {
     setSearchDismissSignal((signal) => signal + 1);
     Keyboard.dismiss();
+    setPage(1);
     setFilters({ ...next, search: search.trim() });
   };
   return (
@@ -216,18 +227,6 @@ export function CatalogScreen() {
         nestedScrollEnabled
         keyboardDismissMode="on-drag"
         onScroll={onToastScroll}
-        onEndReached={() => {
-          if (
-            query.hasNextPage &&
-            !query.isFetching &&
-            !query.isFetchNextPageError &&
-            isOnline !== false &&
-            filters.search === search.trim()
-          ) {
-            void query.fetchNextPage({ cancelRefetch: false });
-          }
-        }}
-        onEndReachedThreshold={0.5}
         scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
         refreshControl={<AppRefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
@@ -251,11 +250,13 @@ export function CatalogScreen() {
               value={search}
               onChange={setSearch}
               onClear={() => {
+                setPage(1);
                 setFilters((current) => ({ ...current, search: '' }));
               }}
               onSelectProduct={openProduct}
               onSubmit={(term) => {
                 Keyboard.dismiss();
+                setPage(1);
                 setFilters((current) => ({ ...current, search: term }));
               }}
             />
@@ -326,18 +327,14 @@ export function CatalogScreen() {
         ListFooterComponent={
           query.data ? (
             <View className="gap-3 px-5 pt-6">
-              {query.isFetchNextPageError ? (
-                <ErrorState
-                  description="No pudimos cargar más productos. Los anteriores siguen disponibles."
-                  onRetry={() => void query.fetchNextPage({ cancelRefetch: false })}
+              {query.pagination && products.length ? (
+                <AppPagination
+                  page={page}
+                  total={query.pagination.total}
+                  pageSize={CATALOG_PAGE_SIZE}
+                  disabled={query.isFetching || isOnline === false}
+                  onPageChange={setPage}
                 />
-              ) : null}
-              {query.isFetchingNextPage ? (
-                <LoadingState label="Cargando más productos…" />
-              ) : !query.hasNextPage && products.length ? (
-                <Text className="text-center font-sans text-sm text-secondary">
-                  Has visto todos los productos
-                </Text>
               ) : null}
             </View>
           ) : null
