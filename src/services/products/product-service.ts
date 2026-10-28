@@ -9,7 +9,7 @@ import {
   productReviewsSchema,
 } from './product-schemas';
 
-export const CATALOG_PAGE_SIZE = 24;
+export const CATALOG_PAGE_SIZE = 10;
 export const HOME_PRODUCT_LIMIT = 6;
 export const catalogSortOptions = [
   { value: 'reciente', label: 'Más recientes' },
