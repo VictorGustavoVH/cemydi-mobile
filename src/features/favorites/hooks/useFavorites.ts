@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useIsMutating, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/providers/auth-provider';
+import { useOptionalCatalogPreview } from '@/providers/catalog-preview-provider';
 import { useToast } from '@/hooks/useToast';
 import { useAccountAccess } from '@/hooks/useAccountAccess';
 import { seedProductDetail } from '@/services/products/product-cache';
@@ -8,7 +9,8 @@ import { favoriteService } from '../services/favorite-service';
 import type { FavoritesListResponse, FavoriteIdsResponse } from '../services/favorite-schemas';
 
 export function useFavorites() {
-  const { user } = useAuth();
+  const { user, getSession, getSessionVersion } = useAuth();
+  const guest = useOptionalCatalogPreview();
   const queryClient = useQueryClient();
   const toast = useToast();
   const { requestAccess } = useAccountAccess();
@@ -16,6 +18,12 @@ export function useFavorites() {
   const userKey = user?.id ?? 0;
   const listKey = useMemo(() => ['favorites', userKey] as const, [userKey]);
   const idsKey = useMemo(() => ['favorites', 'ids', userKey] as const, [userKey]);
+  const mutationKey = useMemo(() => ['favorites', 'toggle', userKey] as const, [userKey]);
+  const pendingToggles = useIsMutating({ mutationKey });
+  const toggleLock = useRef(false);
+  const sessionVersion = getSessionVersion();
+  const isCurrent = () =>
+    getSession().user?.id === userKey && getSessionVersion() === sessionVersion;
 
   const favoritesQuery = useQuery({
     queryKey: listKey,
@@ -32,14 +40,18 @@ export function useFavorites() {
   });
 
   const favoritesData = favoritesQuery.data;
+  const products = useMemo(
+    () => (favoritesData?.products ?? []).filter((product) => product.activo === true),
+    [favoritesData],
+  );
   const favoritesUpdatedAt = favoritesQuery.dataUpdatedAt;
   // Los favoritos ya recibidos son productos completos: dejan la caché del
   // detalle lista para que abrirlo desde aquí no monte el skeleton.
   useEffect(() => {
-    for (const product of favoritesData?.products ?? []) {
+    for (const product of products) {
       seedProductDetail(queryClient, product, favoritesUpdatedAt);
     }
-  }, [favoritesData, favoritesUpdatedAt, queryClient]);
+  }, [products, favoritesUpdatedAt, queryClient]);
 
   const favoriteIds = useMemo(() => {
     if (!user) return new Set<number>();
@@ -61,17 +73,25 @@ export function useFavorites() {
   );
 
   const toggleMutation = useMutation({
-    mutationFn: (productId: number) => favoriteService.toggle(productId),
+    mutationKey,
+    mutationFn: (productId: number) => {
+      if (!isCurrent()) throw new Error('La sesión cambió.');
+      return favoriteService.toggle(productId);
+    },
     onMutate: async (productId) => {
       await queryClient.cancelQueries({ queryKey: idsKey });
       await queryClient.cancelQueries({ queryKey: listKey });
 
-      const prevIds = queryClient.getQueryData<FavoriteIdsResponse>(idsKey);
+      if (!isCurrent()) return;
+
       const prevList = queryClient.getQueryData<FavoritesListResponse>(listKey);
+      const prevIds =
+        queryClient.getQueryData<FavoriteIdsResponse>(idsKey) ??
+        (prevList ? { favoriteIds: prevList.favoriteIds } : undefined);
 
       // Optimistic update of IDs
       queryClient.setQueryData<FavoriteIdsResponse>(idsKey, (current) => {
-        const existing = current?.favoriteIds ?? [];
+        const existing = current?.favoriteIds ?? prevIds?.favoriteIds ?? [];
         const next = existing.includes(productId)
           ? existing.filter((id) => id !== productId)
           : [...existing, productId];
@@ -96,6 +116,7 @@ export function useFavorites() {
       return { prevIds, prevList };
     },
     onError: (_err, _productId, context) => {
+      if (!isCurrent()) return;
       if (context?.prevIds) {
         queryClient.setQueryData(idsKey, context.prevIds);
       }
@@ -104,12 +125,37 @@ export function useFavorites() {
       }
       toast.error('No se pudo actualizar tu lista de favoritos.');
     },
-    onSuccess: (data) => {
-      void queryClient.invalidateQueries({ queryKey: idsKey });
-      void queryClient.invalidateQueries({ queryKey: listKey });
+    onSuccess: (data, productId) => {
+      if (!isCurrent()) return;
+      // An explicit account choice supersedes any pending selection made as a guest.
+      guest?.removeFavorite(String(productId));
+      queryClient.setQueryData<FavoriteIdsResponse>(idsKey, (current) => {
+        const ids = current?.favoriteIds ?? [];
+        return {
+          favoriteIds: data.favorited
+            ? Array.from(new Set([...ids, productId]))
+            : ids.filter((id) => id !== productId),
+        };
+      });
       toast.info(data.favorited ? 'Guardado en tus favoritos.' : 'Eliminado de tus favoritos.');
     },
+    onSettled: async () => {
+      try {
+        if (isCurrent())
+          await Promise.all([
+            queryClient.invalidateQueries({ queryKey: idsKey }),
+            queryClient.invalidateQueries({ queryKey: listKey }),
+          ]);
+      } finally {
+        toggleLock.current = false;
+      }
+    },
   });
+
+  const idsReady = Boolean(
+    user &&
+    ((idsQuery.data && !idsQuery.isError) || (favoritesQuery.data && !favoritesQuery.isError)),
+  );
 
   const toggleFavorite = useCallback(
     (productId: number | string) => {
@@ -118,16 +164,18 @@ export function useFavorites() {
         return;
       }
       const id = Number(productId);
-      if (Number.isFinite(id) && id > 0) {
+      if (!idsReady || toggleLock.current || queryClient.isMutating({ mutationKey }) > 0) return;
+      if (Number.isSafeInteger(id) && id > 0) {
+        toggleLock.current = true;
         toggleMutation.mutate(id);
       }
     },
-    [user, requestAccess, toggleMutation],
+    [user, requestAccess, toggleMutation, idsReady, queryClient, mutationKey],
   );
 
   return {
-    products: favoritesQuery.data?.products ?? [],
-    total: favoritesQuery.data?.total ?? 0,
+    products,
+    total: products.length,
     favoriteIds,
     isFavorite,
     toggleFavorite,
@@ -136,6 +184,8 @@ export function useFavorites() {
     isError: favoritesQuery.isError,
     error: favoritesQuery.error,
     refetch: favoritesQuery.refetch,
-    isPendingToggle: toggleMutation.isPending,
+    isPendingToggle: pendingToggles > 0,
+    idsReady,
+    isResolvingIds: Boolean(user && !idsReady && (idsQuery.isPending || favoritesQuery.isPending)),
   };
 }

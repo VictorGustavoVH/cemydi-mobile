@@ -1,4 +1,4 @@
-import { act, screen } from '@testing-library/react-native';
+import { act, fireEvent, screen } from '@testing-library/react-native';
 import { render } from '../../../../tests/support/render-with-toast';
 import { installNetworkMock } from '../../../../tests/support/network-mock';
 import { FavoritesScreen } from '../FavoritesScreen';
@@ -58,6 +58,22 @@ describe('FavoritesScreen', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     installNetworkMock();
+  });
+  it('limita también en estado el texto pegado del filtro local a cien caracteres', async () => {
+    mockAuth.mockReturnValue({ user: { id: 1, nombre: 'Cliente Demo' } });
+    mockFavorites.mockReturnValue({
+      products: Array.from({ length: 5 }, (_, index) => ({ ...mockProduct, id: index + 1 })),
+      isLoading: false,
+      isError: false,
+      refetch: jest.fn(),
+      isFetching: false,
+    });
+    await render(<FavoritesScreen />);
+    const input = screen.getByLabelText('Buscar en mis favoritos');
+    expect(input).toHaveProp('maxLength', 100);
+    await fireEvent.changeText(input, 'x'.repeat(10000));
+    expect(screen.getByLabelText('Buscar en mis favoritos')).toHaveProp('value', 'x'.repeat(100));
+    expect(screen.getByText('Sin resultados')).toBeTruthy();
   });
 
   it('no presenta favoritos vacíos como confirmados al iniciar sin conexión', async () => {

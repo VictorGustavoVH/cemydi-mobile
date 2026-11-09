@@ -11,7 +11,7 @@ export type RequestAccessOptions = {
 export function useAccountAccess() {
   const router = useRouter();
   const toast = useToast();
-  const { user, status, retrySession, setAuthDestination } = useAuth();
+  const { user, status, retrySession } = useAuth();
   const requestAccess = useCallback(
     (destination: AuthDestination, options?: RequestAccessOptions) => {
       if (user) return true;
@@ -24,7 +24,6 @@ export function useAccountAccess() {
         void retrySession();
         return false;
       }
-      setAuthDestination(destination);
       const shouldShowToast = options?.showToast ?? destination !== '/perfil';
       if (shouldShowToast) {
         toast.info('Inicia sesión para continuar');
@@ -32,7 +31,7 @@ export function useAccountAccess() {
       router.push('/login');
       return false;
     },
-    [user, status, retrySession, setAuthDestination, toast, router],
+    [user, status, retrySession, toast, router],
   );
   return { user, requestAccess };
 }
