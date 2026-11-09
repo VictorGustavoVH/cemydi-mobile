@@ -19,14 +19,21 @@ const mockRouter = {
   canGoBack: () => true,
   navigate: jest.fn(),
   setParams: jest.fn(),
-  canDismiss: () => false,
+  canDismiss: jest.fn(() => false),
   dismiss: jest.fn(),
 };
+let mockStack = ['login'];
 jest.mock('expo-router', () => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { useEffect } = require('react');
   return {
     useRouter: () => mockRouter,
+    useNavigation: () => ({
+      getState: () => ({
+        index: mockStack.length - 1,
+        routes: mockStack.map((name) => ({ name })),
+      }),
+    }),
     usePathname: () => '/perfil',
     useLocalSearchParams: () => ({}),
     useFocusEffect: (callback: () => void | (() => void)) => useEffect(callback, [callback]),
@@ -47,10 +54,36 @@ function SeedCart() {
 
 describe('Acceso como invitado', () => {
   beforeEach(() => {
+    mockRouter.canDismiss.mockReturnValue(false);
+    mockStack = ['login'];
     installNetworkMock();
     installAuthApiMock();
     installHomePreviewApiMock();
     installCartApiMock();
+  });
+
+  it('cancelar login después de tocar Perfil regresa al origen y no muestra una pantalla privada', async () => {
+    const view = await render(
+      <CatalogPreviewProvider>
+        <HomeScreen />
+      </CatalogPreviewProvider>,
+    );
+    await screen.findByText('Para tu bienestar');
+    await fireEvent.press(screen.getAllByLabelText('Perfil')[0]);
+    expect(mockRouter.push).toHaveBeenCalledWith('/login');
+    mockStack = ['(tabs)', 'login'];
+    mockRouter.canDismiss.mockReturnValue(true);
+    await view.rerender(
+      <CatalogPreviewProvider>
+        <LoginScreen />
+      </CatalogPreviewProvider>,
+    );
+    await fireEvent.press(screen.getByLabelText('Volver'));
+    expect(mockRouter.dismiss).toHaveBeenCalledWith(1);
+    expect(mockRouter.navigate).not.toHaveBeenCalledWith('/perfil');
+    expect(mockRouter.replace).not.toHaveBeenCalledWith('/perfil');
+    expect(screen.queryByText('Mi perfil')).toBeNull();
+    expect(screen.queryByText('Volviendo al inicio…')).toBeNull();
   });
 
   it('permite explorar el catálogo y solicita sesión al abrir Perfil', async () => {
@@ -84,7 +117,7 @@ describe('Acceso como invitado', () => {
     await fireEvent.changeText(screen.getByLabelText('Correo electrónico'), 'cliente@cemydi.test');
     await fireEvent.changeText(screen.getByLabelText('Contraseña'), DEFAULT_ACCOUNT.password);
     await fireEvent.press(screen.getByLabelText('Iniciar sesión'));
-    await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/carrito'));
+    await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith('/inicio'));
     await view.rerender(
       <CatalogPreviewProvider>
         <CartPreviewScreen />

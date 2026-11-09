@@ -29,16 +29,32 @@ export function jsonResponse(data: unknown, status = 200) {
 // Stateful fake server, only installed explicitly by auth integration tests.
 export function installAuthApiMock() {
   const accounts = new Map([[AUTH_ACCOUNT.correo, { ...AUTH_ACCOUNT }]]);
+  let currentUser = {
+    ...AUTH_USER,
+    nombre: String(AUTH_USER.nombre),
+    correo: String(AUTH_USER.correo),
+  };
   jest.mocked(fetch).mockImplementation(async (input, init) => {
     const path = new URL(String(input)).pathname;
     const body = JSON.parse(String(init?.body ?? '{}')) as Record<string, string>;
+    if (path === '/users/me') {
+      const complete = currentUser.correo === AUTH_ACCOUNT.correo;
+      return jsonResponse({
+        user: {
+          ...currentUser,
+          telefono: complete ? '5550001234' : null,
+          direccion: complete ? 'Domicilio de prueba' : null,
+        },
+      });
+    }
     if (path === '/auth/mobile/login') {
       const account = accounts.get(body.correo);
       if (!account || body.password !== account.password)
         return jsonResponse({ message: 'Credenciales invalidas' }, 401);
+      currentUser = { ...AUTH_USER, nombre: account.nombre, correo: account.correo };
       return jsonResponse({
         ...AUTH_SESSION,
-        user: { ...AUTH_USER, nombre: account.nombre, correo: account.correo },
+        user: currentUser,
       });
     }
     if (path === '/auth/register') {

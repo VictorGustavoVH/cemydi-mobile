@@ -62,7 +62,7 @@ export function NewPasswordScreen() {
             onChangeText={field.onChange}
             onBlur={field.onBlur}
             error={fieldState.error?.message}
-            valid={fieldState.isDirty && passwordSchema.safeParse(field.value).success}
+            valid={passwordSchema.safeParse(field.value).success}
             returnKeyType="next"
             onSubmitEditing={() => setFocus('confirmPassword')}
             editable={!pending}
@@ -85,11 +85,7 @@ export function NewPasswordScreen() {
             onChangeText={field.onChange}
             onBlur={field.onBlur}
             error={fieldState.error?.message}
-            valid={
-              fieldState.isDirty &&
-              field.value === password &&
-              passwordSchema.safeParse(field.value).success
-            }
+            valid={field.value === password && passwordSchema.safeParse(field.value).success}
             editable={!pending}
             placeholder="Repite tu nueva contraseña"
             autoComplete="new-password"

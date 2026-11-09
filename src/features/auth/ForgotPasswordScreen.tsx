@@ -47,7 +47,7 @@ export function ForgotPasswordScreen() {
             onChangeText={field.onChange}
             onBlur={field.onBlur}
             error={fieldState.error?.message}
-            valid={fieldState.isDirty && emailSchema.safeParse(field.value).success}
+            valid={emailSchema.safeParse(field.value).success}
             editable={!pending}
             placeholder="tu@correo.com"
             keyboardType="email-address"
