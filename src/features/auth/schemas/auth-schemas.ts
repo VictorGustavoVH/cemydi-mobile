@@ -49,11 +49,7 @@ export const registerSchema = z
       .trim()
       .min(1, 'Ingresa tu nombre completo')
       .min(3, 'El nombre debe tener al menos 3 caracteres')
-      .max(100, 'Máximo 100 caracteres')
-      .regex(
-        /^[\p{L}\p{M}]+(?:[ '\-][\p{L}\p{M}]+)*$/u,
-        'Revisa que tu nombre no contenga números ni símbolos especiales',
-      ),
+      .max(100, 'Máximo 100 caracteres'),
     correo: emailSchema,
     ...passwordFields,
     acceptedTerms: z

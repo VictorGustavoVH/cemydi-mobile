@@ -40,7 +40,7 @@ export class CompromisedDeviceError extends UserFacingError {
     );
   }
 }
-
+// Factory Permite crear objetos o servicios de manera organizada.
 export function createAuthSession(
   storage: CredentialStorage,
   isCompromisedDevice: () => Promise<boolean> = async () => false,
@@ -56,6 +56,7 @@ export function createAuthSession(
   let closingRotation: Promise<void> | null = null;
   let rotatedDuringLogout: string | null = null;
   let explicitLogout = false;
+  // Observer Permite notificar a otros componentes cuando cambia alguna información.
   let storageTask = Promise.resolve();
   const listeners = new Set<() => void>();
   const publish = (next: SessionState) => {
@@ -70,6 +71,14 @@ export function createAuthSession(
   async function requireTrustedDevice() {
     if (await isCompromisedDevice()) {
       throw new CompromisedDeviceError();
+    }
+  }
+  async function revokeRefreshToken(token: string) {
+    try {
+      await authPost('/auth/mobile/logout', { refreshToken: token }, authMessageSchema, false);
+      return true;
+    } catch {
+      return false;
     }
   }
   async function clear(reason?: 'expired') {
@@ -141,6 +150,69 @@ export function createAuthSession(
     });
     return refreshTask;
   }
+  async function logout(): Promise<{ remoteStatus: 'revoked' | 'pending' | 'failed' }> {
+    if (logoutTask) return logoutTask;
+    const token = refreshToken;
+    const rotation = refreshTask;
+    closingRotation = rotation;
+    explicitLogout = true;
+    revision += 1;
+    accessToken = null;
+    refreshToken = null;
+    persistent = false;
+    publish({ user: null, status: 'guest', error: null });
+    logoutTask = (async () => {
+      let storedToken: string | null = null;
+      try {
+        storedToken = await storage.get();
+      } catch {
+        // A failed read cannot prevent an attempted removal.
+      }
+      try {
+        await writeStorage(storage.remove);
+        if (await storage.get()) {
+          throw new Error('La credencial sigue almacenada.');
+        }
+      } catch (error) {
+        try {
+          await writeStorage(() => storage.set(LOGGED_OUT_MARKER));
+          if ((await storage.get()) !== LOGGED_OUT_MARKER) throw error;
+        } catch {
+          const failure = new LogoutStorageError();
+          publish({ user: null, status: 'error', error: failure });
+          throw failure;
+        }
+      }
+      const revoke = (async () => {
+        await rotation?.catch(() => undefined);
+        closingRotation = null;
+        const tokens = new Set(
+          [token, storedToken, rotatedDuringLogout].filter(
+            (value): value is string => value !== null,
+          ),
+        );
+        rotatedDuringLogout = null;
+        let failed = false;
+        for (const value of tokens) {
+          if (value === LOGGED_OUT_MARKER) continue;
+          if (!(await revokeRefreshToken(value))) failed = true;
+        }
+        return failed ? ('failed' as const) : ('revoked' as const);
+      })();
+      let timeout: ReturnType<typeof setTimeout> | undefined;
+      const status = await Promise.race([
+        revoke,
+        new Promise<'pending'>((resolve) => {
+          timeout = setTimeout(() => resolve('pending'), 1_500);
+        }),
+      ]);
+      if (timeout) clearTimeout(timeout);
+      return { remoteStatus: status };
+    })().finally(() => {
+      logoutTask = null;
+    });
+    return logoutTask;
+  }
   return {
     subscribe(listener: () => void) {
       listeners.add(listener);
@@ -199,13 +271,13 @@ export function createAuthSession(
       if (logoutTask) await logoutTask;
       await refreshTask?.catch(() => undefined);
       const expected = ++revision;
-      const result = await authPost('/auth/mobile/google', { idToken }, mobileSessionSchema);
+      const result = await authPost('/auth/mobile/google', { idToken }, mobileSessionSchema, false);
       await acceptLogin(result, remember, expected);
     },
     async revalidate() {
       if (state.status === 'loading') return;
       await requireTrustedDevice().catch(async (error) => {
-        await this.logout();
+        await logout();
         publish({ user: null, status: 'error', error });
         throw error;
       });
@@ -218,78 +290,16 @@ export function createAuthSession(
       const data = await httpClient.request('/users/me', { authenticated: true });
       const result = currentUserSchema.safeParse(data);
       if (!result.success) throw new ApiError('Perfil inválido.', { kind: 'parse' });
-      if (expected !== revision || expectedProfile !== profileRevision) return;
-      if (!result.data.user) await clear();
-      else publish({ user: result.data.user, status: 'authenticated', error: null });
+      if (expected !== revision) return;
+      // A profile edit cannot override the server's decision to deactivate an account.
+      if (!result.data.user || !result.data.user.activo) {
+        await clear('expired');
+        return;
+      }
+      if (expectedProfile !== profileRevision) return;
+      publish({ user: result.data.user, status: 'authenticated', error: null });
     },
-    async logout() {
-      if (logoutTask) return logoutTask;
-      const token = refreshToken;
-      const rotation = refreshTask;
-      closingRotation = rotation;
-      explicitLogout = true;
-      revision += 1;
-      accessToken = null;
-      refreshToken = null;
-      persistent = false;
-      publish({ user: null, status: 'guest', error: null });
-      logoutTask = (async () => {
-        let storedToken: string | null = null;
-        try {
-          storedToken = await storage.get();
-        } catch {
-          // A failed read cannot prevent an attempted removal.
-        }
-        try {
-          await writeStorage(storage.remove);
-          if (await storage.get()) {
-            throw new Error('La credencial sigue almacenada.');
-          }
-        } catch (error) {
-          try {
-            await writeStorage(() => storage.set(LOGGED_OUT_MARKER));
-            if ((await storage.get()) !== LOGGED_OUT_MARKER) throw error;
-          } catch {
-            const failure = new LogoutStorageError();
-            publish({ user: null, status: 'error', error: failure });
-            throw failure;
-          }
-        }
-        const revoke = (async () => {
-          await rotation?.catch(() => undefined);
-          closingRotation = null;
-          const tokens = new Set([token, storedToken, rotatedDuringLogout].filter(Boolean));
-          rotatedDuringLogout = null;
-          let failed = false;
-          for (const value of tokens) {
-            if (value === LOGGED_OUT_MARKER) continue;
-            try {
-              await authPost(
-                '/auth/mobile/logout',
-                { refreshToken: value },
-                authMessageSchema,
-                false,
-              );
-            } catch {
-              failed = true;
-            }
-          }
-          return failed ? ('failed' as const) : ('revoked' as const);
-        })();
-        let timeout: ReturnType<typeof setTimeout> | undefined;
-        const status = await Promise.race([
-          revoke,
-          new Promise<'pending'>((resolve) => {
-            timeout = setTimeout(() => resolve('pending'), 1_500);
-          }),
-        ]);
-        if (timeout) clearTimeout(timeout);
-        return { remoteStatus: status };
-      })().finally(() => {
-        logoutTask = null;
-      });
-      return logoutTask;
-    },
+    logout,
   };
 
   async function acceptLogin(
@@ -298,22 +308,14 @@ export function createAuthSession(
     expected: number,
   ) {
     const discardCancelledLogin = async () => {
-      await authPost(
-        '/auth/mobile/logout',
-        { refreshToken: result.refreshToken },
-        authMessageSchema,
-      ).catch(() => undefined);
+      await revokeRefreshToken(result.refreshToken);
       throw new UserFacingError('El inicio de sesión fue cancelado.');
     };
     if (expected !== revision) return discardCancelledLogin();
     try {
       await writeStorage(() => (remember ? storage.set(result.refreshToken) : storage.remove()));
     } catch (error) {
-      await authPost(
-        '/auth/mobile/logout',
-        { refreshToken: result.refreshToken },
-        authMessageSchema,
-      ).catch(() => undefined);
+      await revokeRefreshToken(result.refreshToken);
       throw error;
     }
     if (expected !== revision) return discardCancelledLogin();
@@ -324,7 +326,7 @@ export function createAuthSession(
     publish({ user: result.user, status: 'authenticated', error: null });
   }
 }
-
+//Singleton Permite compartir una misma instancia entre distintas partes de la aplicación.
 export const authSession = createAuthSession(
   {
     get: () => SecureStore.getItemAsync(STORAGE_KEY, STORAGE_OPTIONS),

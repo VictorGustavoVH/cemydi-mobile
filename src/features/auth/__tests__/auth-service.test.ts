@@ -16,6 +16,43 @@ function setup() {
 }
 describe('Contratos públicos de autenticación', () => {
   beforeEach(() => installAuthApiMock());
+  it('una respuesta tardía no reactiva una recuperación cancelada', async () => {
+    const service = setup();
+    let finish!: (response: Response) => void;
+    jest.mocked(fetch).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const pending = service.requestRecovery(AUTH_ACCOUNT.correo);
+    service.cancelChallenge();
+    finish(jsonResponse({ message: 'Enviado' }));
+    await expect(pending).rejects.toThrow('cancelada');
+    await expect(service.verify('00000000')).rejects.toThrow('Primero solicita');
+  });
+  it('una recuperación tardía no cierra una sesión iniciada después', async () => {
+    const session = createAuthSession({
+      get: async () => null,
+      set: async () => undefined,
+      remove: async () => undefined,
+    });
+    const service = createAuthService(session);
+    await service.requestRecovery(AUTH_ACCOUNT.correo);
+    await service.verify('00000000');
+    let finish!: (response: Response) => void;
+    jest.mocked(fetch).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const pending = service.resetPassword('NuevaPassword1!');
+    await session.login(AUTH_ACCOUNT.correo, AUTH_ACCOUNT.password, false);
+    finish(jsonResponse({ message: 'Actualizada' }));
+    await expect(pending).rejects.toThrow('cancelada');
+    expect(session.getSnapshot().status).toBe('authenticated');
+  });
   it('registro envía exclusivamente los campos del DTO y verificación no inicia sesión', async () => {
     const service = setup();
     const challenge = await service.register({ ...AUTH_ACCOUNT, correo: ' CLIENTE@cemydi.test ' });

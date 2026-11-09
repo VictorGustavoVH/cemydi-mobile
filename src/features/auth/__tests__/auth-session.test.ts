@@ -40,6 +40,62 @@ async function login(session: ReturnType<typeof createAuthSession>, remember = t
 }
 
 describe('Sesión móvil y cliente autenticado', () => {
+  it.each([null, { ...AUTH_USER, activo: false }])(
+    'expira y elimina las credenciales al revalidar una identidad ausente o inactiva: %j',
+    async (user) => {
+      const { session, storage, saved } = setup();
+      await login(session);
+      const version = session.getVersion();
+      jest.mocked(fetch).mockResolvedValueOnce(jsonResponse({ user }));
+      await session.revalidate();
+      expect(session.getSnapshot()).toEqual({ user: null, status: 'expired', error: null });
+      expect(session.getAccessToken()).toBeNull();
+      expect(saved()).toBeNull();
+      expect(storage.remove).toHaveBeenCalledTimes(1);
+      expect(session.getVersion()).toBeGreaterThan(version);
+      await session.refresh();
+      expect(fetch).toHaveBeenCalledTimes(2);
+    },
+  );
+  it('una edición de perfil no oculta la desactivación informada por el servidor', async () => {
+    const { session, saved } = setup();
+    await login(session);
+    const response = deferred<Response>();
+    jest.mocked(fetch).mockReturnValueOnce(response.promise);
+    const pending = session.revalidate();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    session.updateUser({ ...AUTH_USER, nombre: 'Nombre actualizado' }, session.getVersion());
+    response.resolve(jsonResponse({ user: { ...AUTH_USER, activo: false } }));
+    await pending;
+    expect(session.getSnapshot().status).toBe('expired');
+    expect(session.getAccessToken()).toBeNull();
+    expect(saved()).toBeNull();
+  });
+  it('una revalidación inactiva de una sesión anterior no cierra la sesión nueva', async () => {
+    const { session, saved } = setup();
+    await login(session);
+    const response = deferred<Response>();
+    jest.mocked(fetch).mockReturnValueOnce(response.promise);
+    const pending = session.revalidate();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await session.clear();
+    await login(session);
+    response.resolve(jsonResponse({ user: { ...AUTH_USER, activo: false } }));
+    await expect(pending).rejects.toMatchObject({ kind: 'abort' });
+    expect(session.getSnapshot().status).toBe('authenticated');
+    expect(saved()).toBe(AUTH_SESSION.refreshToken);
+  });
+  it('conserva una sesión activa al revalidar y no cambia credenciales ante un fallo de red', async () => {
+    const { session, saved } = setup();
+    await login(session);
+    jest.mocked(fetch).mockResolvedValueOnce(jsonResponse({ user: AUTH_USER }));
+    await session.revalidate();
+    jest.mocked(fetch).mockRejectedValueOnce(new TypeError('Network request failed'));
+    await expect(session.revalidate()).rejects.toMatchObject({ kind: 'network' });
+    expect(session.getSnapshot()).toMatchObject({ status: 'authenticated', user: AUTH_USER });
+    expect(session.getAccessToken()).toBe(AUTH_SESSION.accessToken);
+    expect(saved()).toBe(AUTH_SESSION.refreshToken);
+  });
   it('rechaza Google en un dispositivo comprometido sin enviar el ID token', async () => {
     const { session, storage } = setup(null, async () => true);
     await expect(session.loginWithGoogle('google-id-token', true)).rejects.toThrow(
