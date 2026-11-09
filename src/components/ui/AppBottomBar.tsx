@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useState } from 'react';
+import { memo, useCallback, useEffect } from 'react';
 import { Text, View } from 'react-native';
 import Animated, {
   useAnimatedStyle,
@@ -103,11 +103,11 @@ const TabItem = memo(function TabItem({
       }}
       variant="unstyled"
     >
-      <View className="items-center gap-1">
-        <Animated.View style={pressStyle} className="items-center gap-1">
+      <View className="w-full items-center gap-1">
+        <Animated.View style={pressStyle} className="w-full items-center gap-1">
           <View className="items-center">
-            <View className="relative px-3 py-1">
-              <Animated.View style={iconStyle}>
+            <View className="relative">
+              <Animated.View style={iconStyle} className="p-1">
                 <Icon
                   aria-hidden
                   color={selected ? colors.brandStrong : colors.textSecondary}
@@ -118,9 +118,12 @@ const TabItem = memo(function TabItem({
                 <View
                   pointerEvents="none"
                   accessible={false}
-                  className="absolute -top-1 right-0 min-w-5 items-center rounded-full border-2 border-background bg-brand-strong px-1"
+                  className="absolute -right-2 -top-1 min-h-[18px] min-w-[18px] items-center justify-center rounded-full border-[1.5px] border-background bg-brand-strong px-1"
                 >
-                  <Text className="font-sans-bold text-[10px] text-on-brand">
+                  <Text
+                    style={{ includeFontPadding: false }}
+                    className="font-sans-bold text-[10px] leading-tight text-on-brand"
+                  >
                     {badgeCount > 99 ? '99+' : badgeCount}
                   </Text>
                 </View>
@@ -128,7 +131,7 @@ const TabItem = memo(function TabItem({
             </View>
           </View>
           <Text
-            className={`text-[11px] ${selected ? 'font-sans-semibold text-brand-strong' : 'font-sans text-secondary'}`}
+            className={`max-w-full shrink text-center text-sm ${selected ? 'font-sans-semibold text-brand-strong' : 'font-sans text-secondary'}`}
           >
             {label}
           </Text>
@@ -145,12 +148,10 @@ export function AppBottomBar({
   onCart,
   onProfile,
   cartCount = 0,
-  selectedTab,
+  selectedTab = 'home',
 }: AppBottomBarProps) {
-  const [active, setActive] = useState<TabKey>('home');
   const selectTab = useCallback(
     (key: TabKey) => {
-      if (key === 'home' || key === 'explore') setActive(key);
       const actions = { home: onHome, explore: onExplore, cart: onCart, profile: onProfile };
       actions[key]();
     },
@@ -164,7 +165,7 @@ export function AppBottomBar({
           tabKey={key}
           label={label}
           icon={icon}
-          selected={(selectedTab ?? active) === key}
+          selected={selectedTab === key}
           badgeCount={key === 'cart' ? cartCount : 0}
           onPress={selectTab}
         />

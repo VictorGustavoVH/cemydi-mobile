@@ -1,5 +1,11 @@
 import { cleanup } from '@testing-library/react-native';
 
+jest.mock('@react-native-community/datetimepicker', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { View } = require('react-native');
+  return { __esModule: true, default: View };
+});
+
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 // Every network test must explicitly provide its own response.
@@ -68,10 +74,11 @@ jest.mock('react-native-reanimated', () => {
     cancelAnimation: jest.fn(),
     withRepeat: (value: unknown) => value,
     Easing: { linear: (value: number) => value, bezier: () => (value: number) => value },
-    ReduceMotion: { Never: 'never' },
+    ReduceMotion: { Never: 'never', System: 'system' },
     LinearTransition: { duration: () => undefined },
     FadeIn: { duration: () => undefined },
     FadeOut: { duration: () => undefined },
+    withDelay: (_delay: number, value: unknown) => value,
     withTiming: (value: unknown) => value,
     withSpring: (value: unknown) => value,
   };

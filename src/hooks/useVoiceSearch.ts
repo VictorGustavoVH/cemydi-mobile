@@ -83,6 +83,7 @@ export function useVoiceSearch(onChange: (value: string) => void) {
     if (pending.current || owned.current) return;
     setError(null);
     if (!speech) {
+      setError('El reconocimiento de voz no está disponible en este dispositivo.');
       return;
     }
     pending.current = true;

@@ -1,5 +1,5 @@
 import { useEffect, type ReactNode } from 'react';
-import { View } from 'react-native';
+import { View, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, {
   cancelAnimation,
   useAnimatedStyle,
@@ -10,7 +10,7 @@ import Animated, {
 } from 'react-native-reanimated';
 
 type SkeletonProps = { children: ReactNode; label?: string };
-type SkeletonBlockProps = { className: string };
+type SkeletonBlockProps = { className: string; style?: StyleProp<ViewStyle> };
 
 /** One animation and one accessible announcement for a whole loading structure. */
 export function Skeleton({ children, label = 'Cargando contenido…' }: SkeletonProps) {
@@ -39,6 +39,6 @@ export function Skeleton({ children, label = 'Cargando contenido…' }: Skeleton
   );
 }
 
-export function SkeletonBlock({ className }: SkeletonBlockProps) {
-  return <View className={`rounded-lg bg-border/40 ${className}`} />;
+export function SkeletonBlock({ className, style }: SkeletonBlockProps) {
+  return <View className={`rounded-lg bg-border/40 ${className}`} style={style} />;
 }

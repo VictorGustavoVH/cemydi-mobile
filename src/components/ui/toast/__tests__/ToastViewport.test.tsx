@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
+import { PanResponder } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ToastContext } from '@/hooks/useToast';
 import { createToastStore } from '../toast-store';
@@ -121,6 +122,85 @@ it('adapts when scrolled state changes', async () => {
     store.api.setScrolled(false);
   });
   expect(screen.getByText('Notificación informativa')).toBeTruthy();
+  await view.unmount();
+  store.dispose();
+});
+
+it('permite deslizar el toast a la derecha para descartarlo', async () => {
+  const panSpy = jest.spyOn(PanResponder, 'create');
+  const store = createToastStore();
+  store.api.info('Aviso deslizable');
+  const view = await render(
+    <SafeAreaProvider initialMetrics={metrics}>
+      <ToastContext.Provider value={store}>
+        <ToastViewport />
+      </ToastContext.Provider>
+    </SafeAreaProvider>,
+  );
+  expect(screen.getByTestId('animated-toast')).toBeTruthy();
+  const panConfig = panSpy.mock.calls[panSpy.mock.calls.length - 1][0];
+
+  expect(panConfig.onMoveShouldSetPanResponder?.({} as never, { dx: 120, dy: 0 } as never)).toBe(
+    true,
+  );
+  expect(panConfig.onMoveShouldSetPanResponder?.({} as never, { dx: 2, dy: 20 } as never)).toBe(
+    false,
+  );
+
+  await act(async () => {
+    panConfig.onPanResponderRelease?.({} as never, { dx: 120, dy: 0, vx: 0.8 } as never);
+  });
+  expect(store.getSnapshot()?.closing).toBe(true);
+
+  panSpy.mockRestore();
+  await view.unmount();
+  store.dispose();
+});
+
+it('deslizar hacia la izquierda también descarta el toast', async () => {
+  const panSpy = jest.spyOn(PanResponder, 'create');
+  const store = createToastStore();
+  store.api.info('Aviso deslizable izquierda');
+  const view = await render(
+    <SafeAreaProvider initialMetrics={metrics}>
+      <ToastContext.Provider value={store}>
+        <ToastViewport />
+      </ToastContext.Provider>
+    </SafeAreaProvider>,
+  );
+  expect(screen.getByTestId('animated-toast')).toBeTruthy();
+  const panConfig = panSpy.mock.calls[panSpy.mock.calls.length - 1][0];
+
+  await act(async () => {
+    panConfig.onPanResponderRelease?.({} as never, { dx: -100, dy: 0, vx: -0.7 } as never);
+  });
+  expect(store.getSnapshot()?.closing).toBe(true);
+
+  panSpy.mockRestore();
+  await view.unmount();
+  store.dispose();
+});
+
+it('un desplazamiento leve no descarta el toast', async () => {
+  const panSpy = jest.spyOn(PanResponder, 'create');
+  const store = createToastStore();
+  store.api.info('Aviso no descartado');
+  const view = await render(
+    <SafeAreaProvider initialMetrics={metrics}>
+      <ToastContext.Provider value={store}>
+        <ToastViewport />
+      </ToastContext.Provider>
+    </SafeAreaProvider>,
+  );
+  expect(screen.getByTestId('animated-toast')).toBeTruthy();
+  const panConfig = panSpy.mock.calls[panSpy.mock.calls.length - 1][0];
+
+  await act(async () => {
+    panConfig.onPanResponderRelease?.({} as never, { dx: 15, dy: 0, vx: 0.1 } as never);
+  });
+  expect(store.getSnapshot()?.closing).toBe(false);
+
+  panSpy.mockRestore();
   await view.unmount();
   store.dispose();
 });

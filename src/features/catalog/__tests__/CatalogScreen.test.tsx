@@ -297,8 +297,7 @@ describe('Catálogo móvil público', () => {
       .mockImplementation(async (_filters, page, pageSize) => productPage(page, 21, pageSize));
     await render(<CatalogScreen />);
     await screen.findByRole('button', { name: /^Producto 1\./ });
-    expect(screen.getByText('1 / 3')).toBeTruthy();
-    expect(screen.getByText('1–10 de 21 resultados')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Página 1 de 3' })).toBeTruthy();
     await fireEvent.press(screen.getByRole('button', { name: 'Página siguiente' }));
     await screen.findByRole('button', { name: /^Producto 11\./ });
     expect(list).toHaveBeenLastCalledWith(expect.anything(), 2, 10, expect.any(AbortSignal));

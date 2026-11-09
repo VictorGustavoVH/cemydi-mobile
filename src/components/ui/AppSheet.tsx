@@ -13,21 +13,43 @@ type AppSheetProps = {
   onClose: () => void;
   children: ReactNode;
   headerContent?: ReactNode;
+  presentation?: 'sheet' | 'dialog';
+  closeDisabled?: boolean;
 };
-export function AppSheet({ title, visible, onClose, children, headerContent }: AppSheetProps) {
+export function AppSheet({
+  title,
+  visible,
+  onClose,
+  children,
+  headerContent,
+  presentation = 'sheet',
+  closeDisabled = false,
+}: AppSheetProps) {
+  const dialog = presentation === 'dialog';
   const blurTarget = useRef<View | null>(null);
   return (
-    <Modal animationType="none" onRequestClose={onClose} transparent visible={visible}>
+    <Modal
+      animationType="none"
+      onRequestClose={() => {
+        if (!closeDisabled) onClose();
+      }}
+      transparent
+      visible={visible}
+    >
       <BlurTargetView ref={blurTarget} style={{ flex: 1 }}>
-        <SafeAreaView className="flex-1 justify-end bg-primary/30" edges={['top', 'left', 'right']}>
+        <SafeAreaView
+          className={`flex-1 bg-primary/30 ${dialog ? 'justify-center px-5' : 'justify-end'}`}
+          edges={dialog ? ['top', 'bottom', 'left', 'right'] : ['top', 'left', 'right']}
+        >
           <KeyboardAvoidingView
-            className="flex-1 justify-end"
+            className={`flex-1 ${dialog ? 'items-center justify-center' : 'justify-end'}`}
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           >
             <SafeAreaView
               accessibilityViewIsModal
-              className="max-h-[90%] rounded-t-3xl bg-background"
-              edges={['bottom']}
+              className={`max-h-[90%] bg-background ${dialog ? 'w-full rounded-3xl' : 'rounded-t-3xl'}`}
+              style={dialog ? { maxWidth: 420 } : undefined}
+              edges={dialog ? [] : ['bottom']}
             >
               <View className="flex-row items-center justify-between gap-4 px-5 pt-4">
                 <Text
@@ -41,6 +63,7 @@ export function AppSheet({ title, visible, onClose, children, headerContent }: A
                   hideLabel
                   label="Cerrar"
                   onPress={onClose}
+                  disabled={closeDisabled}
                   variant="ghost"
                   leftIcon={<X aria-hidden color={colors.textSecondary} size={22} />}
                 />

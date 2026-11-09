@@ -5,8 +5,37 @@ import { EmptyState } from '../EmptyState';
 import { ErrorState } from '../ErrorState';
 import { LoadingState } from '../LoadingState';
 import { OfflineState } from '../OfflineState';
+import { Text } from 'react-native';
 
 describe('Controles y feedback compartidos', () => {
+  it('reemplaza ambos iconos por un solo indicador durante el envío', async () => {
+    const view = await render(
+      <AppButton
+        label="Guardar"
+        leftIcon={<Text>Izquierdo</Text>}
+        rightIcon={<Text>Derecho</Text>}
+      />,
+    );
+    expect(screen.getByText('Izquierdo')).toBeTruthy();
+    await view.rerender(
+      <AppButton
+        label="Guardar"
+        loading
+        leftIcon={<Text>Izquierdo</Text>}
+        rightIcon={<Text>Derecho</Text>}
+      />,
+    );
+    expect(screen.queryByText('Izquierdo')).toBeNull();
+    expect(screen.queryByText('Derecho')).toBeNull();
+    expect(screen.getByText('Guardar')).toBeTruthy();
+  });
+
+  it('respeta el escalado del dispositivo y un límite explícito del consumidor', async () => {
+    const view = await render(<AppInput label="Nombre" />);
+    expect(screen.getByLabelText('Nombre').props.maxFontSizeMultiplier).toBeUndefined();
+    await view.rerender(<AppInput label="Nombre" maxFontSizeMultiplier={2} />);
+    expect(screen.getByLabelText('Nombre')).toHaveProp('maxFontSizeMultiplier', 2);
+  });
   it('ejecuta la acción y la bloquea durante loading o disabled conservando el nombre', async () => {
     const onPress = jest.fn();
     const view = await render(<AppButton label="Guardar" onPress={onPress} />);

@@ -1,6 +1,6 @@
-import { ActivityIndicator, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 
-import { colors } from '@/theme';
+import { AppSpinner } from './AppSpinner';
 
 type LoadingStateProps = {
   label?: string;
@@ -22,12 +22,10 @@ export function LoadingState({
           : 'flex-1 items-center justify-center gap-3 p-6'
       }
     >
-      <ActivityIndicator
-        accessibilityLabel={label}
-        color={colors.brandStrong}
-        size={compact ? 'small' : 'large'}
-      />
-      {!hideLabel && <Text className="text-center text-base text-secondary">{label}</Text>}
+      <AppSpinner label={label} size={compact ? 22 : 40} />
+      {!hideLabel && (
+        <Text className="text-center font-sans-medium text-sm text-secondary">{label}</Text>
+      )}
     </View>
   );
 }

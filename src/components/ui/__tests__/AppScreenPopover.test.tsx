@@ -5,7 +5,15 @@ import { render } from '../../../../tests/support/render-with-toast';
 import { AppScreen, useScreenOverlay } from '../AppScreen';
 import { AppScreenPopover } from '../AppScreenPopover';
 
-function SearchFixture({ visible = true }: { visible?: boolean }) {
+function SearchFixture({
+  visible = true,
+  preferredWidth,
+  align,
+}: {
+  visible?: boolean;
+  preferredWidth?: number;
+  align?: 'start' | 'end';
+}) {
   const anchor = useRef<View>(null);
   const viewport = useScreenOverlay()?.viewport;
   useEffect(() => {
@@ -35,7 +43,7 @@ function SearchFixture({ visible = true }: { visible?: boolean }) {
         <Text>Buscador</Text>
       </View>
       {visible ? (
-        <AppScreenPopover anchor={anchor}>
+        <AppScreenPopover anchor={anchor} preferredWidth={preferredWidth} align={align}>
           <ScrollView accessibilityLabel="Sugerencias">
             <Text>Producto</Text>
           </ScrollView>
@@ -46,6 +54,22 @@ function SearchFixture({ visible = true }: { visible?: boolean }) {
 }
 
 describe('Desplegable anclado a AppScreen', () => {
+  it.each([
+    [240, 130, 240],
+    [480, 8, 374],
+  ])(
+    'alinea a la derecha el ancho %s y lo limita al viewport',
+    async (preferredWidth, left, width) => {
+      jest.spyOn(Keyboard, 'metrics').mockReturnValue(undefined);
+      await render(
+        <AppScreen>
+          <SearchFixture preferredWidth={preferredWidth} align="end" />
+        </AppScreen>,
+      );
+      await fireEvent(screen.getByTestId('screen-overlay-host'), 'layout');
+      expect(screen.getByLabelText('Sugerencias').parent).toHaveStyle({ left, width, opacity: 1 });
+    },
+  );
   it('dibuja debajo del input, fuera de la lista y dentro del espacio sobre el teclado', async () => {
     jest.replaceProperty(Platform, 'OS', 'ios');
     jest
@@ -59,13 +83,17 @@ describe('Desplegable anclado a AppScreen', () => {
     await fireEvent(screen.getByTestId('screen-overlay-host'), 'layout');
     const suggestions = screen.getByLabelText('Sugerencias');
     let ancestor = suggestions.parent;
-    let position: unknown;
     while (ancestor) {
       expect(ancestor.type).not.toBe('RCTScrollView');
-      if (ancestor.props.style?.position === 'absolute') position = ancestor.props.style;
       ancestor = ancestor.parent;
     }
-    expect(position).toMatchObject({ left: 20, top: 148, width: 350, maxHeight: 300, opacity: 1 });
+    expect(suggestions.parent).toHaveStyle({
+      left: 20,
+      top: 148,
+      width: 350,
+      maxHeight: 300,
+      opacity: 1,
+    });
     expect(screen.container.queryAll((node) => node.type.includes('Modal'))).toHaveLength(0);
   });
 

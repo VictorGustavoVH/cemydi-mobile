@@ -70,10 +70,33 @@ No se conectaron endpoints ni se asumió reversibilidad del backend. Antes de us
 
 Normal: mínimo 58, radio 18, icono 22 dentro de 24, mensaje 13. Deshacer: mínimo 48, radio 15, contador único 30 con radio SVG 12, mensaje 12.3, acción 12. Fondo blanco 72%, borde blanco 95%, sombra ligera. La acción usa brandStrong para legibilidad y área táctil ampliada. El ancho se adapta a safe areas y se limita a 480; texto admite escalado y varias líneas. No hay cierre extra ni icono de éxito junto al contador.
 
-Entrada 300 ms con opacidad, desplazamiento -10 y escala .96; salida 220 ms. Icono/texto hacen fade al cambiar de estado, conservando el contenedor. La intensidad de blur queda fija. BlurTargetView precede al overlay para capturar el contenido dinámico en Android. AppSheet registra su propio ToastViewport. Para otros Modal nativos, añadir `ToastViewport modal` dentro del modal, después del contenido y con un blurTarget local; el zIndex raíz no atraviesa ventanas nativas. No hay soporte implícito para modales externos sin ese host.
+Entrada de 280 ms con desplazamiento de 12 puntos y escala .98 a 1; opacidad de entrada de 160 ms. Salida de 180 ms y desvanecimiento de 150 ms. Icono/texto hacen fade al cambiar de estado, conservando el contenedor. La intensidad de blur queda fija. BlurTargetView precede al overlay para capturar el contenido dinámico en Android. AppSheet registra su propio ToastViewport. Para otros Modal nativos, añadir `ToastViewport modal` dentro del modal, después del contenido y con un blurTarget local; el zIndex raíz no atraviesa ventanas nativas. No hay soporte implícito para modales externos sin ese host.
 
 Expo documenta diferencias de intensidad y costo de blur: Android anterior a API 31 usa RenderScript, más costoso que RenderNode. Se conserva blur real mediante dimezisBlurView; comparar en un Android antiguo. La sombra usa shadow* en iOS y elevation en Android, por lo que no será idéntica píxel a píxel. Referencia técnica: [Expo BlurView SDK 57](https://docs.expo.dev/versions/v57.0.0/sdk/blur-view/).
 
 Verificación visual pendiente en Android/iOS reales: safe area con notch, 320–430 dp, fuente 200%, VoiceOver/TalkBack, modal, background durante contador, deshacer en el límite, interrupción de animaciones y blur sobre contenido en movimiento. Las pruebas Jest cubren lógica, no fluidez ni apariencia nativa. Este entorno Windows no proporciona simulador iOS; ADB ejecutado fuera del sandbox no encontró dispositivos conectados.
 
 Validación automática: lint, typecheck y format:check correctos; 16 suites/92 tests aprobados, incluyendo concurrencia, expiración, desmontaje, restauración exitosa/fallida y host único en modal. Exportaciones Android e iOS con Metro y Hermes correctas. Jest y Hermes requirieron ejecución fuera del sandbox por permisos de sus archivos temporales. La exportación de JavaScript no equivale a prueba visual ni a build nativa instalada.
+
+## Continuidad de movimiento — 2 de noviembre de 2026
+
+El contenedor se conserva al reemplazar un aviso por otro en la misma posición;
+icono y texto hacen transición al cambiar su revisión, sin reiniciar toda la entrada.
+Una actualización durante la salida cancela las animaciones anteriores desde su
+posición actual. El cierre mantiene la comprobación de id/revisión del store para
+que una salida antigua no elimine un aviso nuevo. La curva principal es
+`Easing.bezier(0.23, 1, 0.32, 1)` y solo se animan transform/opacity en el hilo UI.
+El cambio por scroll dura 180 ms. Las animaciones se cancelan al desmontar.
+
+Movimiento reducido elimina desplazamiento y escala, incluido el ajuste por
+scroll; conserva fades de 100 ms. Loading reutiliza AppSpinner, que se pausa en
+segundo plano. No cambian tiempos de lectura, contador de Deshacer ni reglas de
+expiración. La suavidad percibida requiere prueba en Android/iOS físicos.
+
+## Gesto de descarte por deslizamiento (Swipe to dismiss)
+
+- Se soporta descarte horizontal deslizando a la derecha o a la izquierda sobre la superficie del toast (`AnimatedToast.tsx`).
+- Activación de PanResponder: se activa cuando el desplazamiento horizontal supera 10 puntos (`Math.abs(dx) > 10`) y el movimiento horizontal predomina sobre el vertical (`Math.abs(dx) > Math.abs(dy)`), permitiendo interacción nativa con botones internos (Deshacer, Cerrar) mediante `onStartShouldSetPanResponder: () => false`.
+- Feedback interactivo: mientras se desliza, la opacidad disminuye dinámicamente hasta 0.4 conforme aumenta el desplazamiento horizontal.
+- Umbral de descarte: si al soltar el desplazamiento supera 80 puntos (`|dx| > 80`) o la velocidad supera 0.5 puntos/ms (`|vx| > 0.5`), el toast vibra de forma háptica ligera (`Haptics.impactAsync`), se proyecta fuera de la pantalla en la dirección del gesto (`targetX = ±400`) y llama a `onDismiss(id)`.
+- Retorno elástico (spring): si el gesto se suelta sin alcanzar el umbral, el toast regresa suavemente a la posición central mediante `withSpring(0)`.

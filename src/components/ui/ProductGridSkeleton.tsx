@@ -1,12 +1,20 @@
-import { View } from 'react-native';
+import { View, useWindowDimensions } from 'react-native';
 import { Skeleton, SkeletonBlock } from './Skeleton';
 
 type ProductGridSkeletonProps = {
   columns: number;
   count?: number;
+  showDiscount?: boolean;
+  showPrescription?: boolean;
 };
 
-export function ProductGridSkeleton({ columns, count = 6 }: ProductGridSkeletonProps) {
+export function ProductGridSkeleton({
+  columns,
+  count = 6,
+  showDiscount = false,
+  showPrescription = false,
+}: ProductGridSkeletonProps) {
+  const { fontScale } = useWindowDimensions();
   const safeColumns = Math.max(1, Math.floor(columns) || 1);
   const totalRows = Math.ceil(count / safeColumns);
 
@@ -25,20 +33,19 @@ export function ProductGridSkeleton({ columns, count = 6 }: ProductGridSkeletonP
               return (
                 <View
                   key={column}
-                  className="flex-1 overflow-hidden rounded-xl border border-[#e7edef] bg-white"
+                  className="flex-1 overflow-hidden rounded-xl border border-border-subtle bg-surface"
                 >
-                  {/* IMAGEN CUADRADA */}
+                  {/* ETIQUETAS DE VENTA / RENTA */}
+                  <View className="flex-row flex-wrap gap-1 p-2">
+                    <SkeletonBlock className="w-12 rounded" style={{ height: 20 * fontScale }} />
+                    <SkeletonBlock className="w-12 rounded" style={{ height: 20 * fontScale }} />
+                  </View>
+                  {/* IMAGEN 3:2 */}
                   <View
-                    className="relative w-full border-b border-[#edf2f3] bg-[#fbfcfc]"
-                    style={{ aspectRatio: 1 }}
+                    className="relative w-full bg-surface-muted"
+                    style={{ aspectRatio: 3 / 2, maxHeight: 160 }}
                   >
                     <SkeletonBlock className="h-full w-full rounded-none" />
-
-                    {/* ETIQUETAS DE VENTA / RENTA */}
-                    <View className="absolute left-2 top-2 flex-row gap-1">
-                      <SkeletonBlock className="h-5 w-12 rounded" />
-                      <SkeletonBlock className="h-5 w-12 rounded" />
-                    </View>
                   </View>
 
                   {/* INFORMACIÓN DEL PRODUCTO */}
@@ -46,31 +53,53 @@ export function ProductGridSkeleton({ columns, count = 6 }: ProductGridSkeletonP
                     {/* CAPTION Y CALIFICACIÓN */}
                     <View className="mb-2 flex-row items-center justify-between gap-2">
                       <View className="min-w-0 flex-1">
-                        <SkeletonBlock className="h-3 w-3/4 rounded" />
+                        <SkeletonBlock
+                          className="w-3/4 rounded"
+                          style={{ height: 16 * fontScale }}
+                        />
                       </View>
-
-                      <View className="flex-row items-center gap-1">
-                        <SkeletonBlock className="h-3 w-3 rounded" />
-                        <SkeletonBlock className="h-3 w-6 rounded" />
+                      <View className="flex-row items-center justify-end gap-1">
+                        <SkeletonBlock className="w-3 rounded" style={{ height: 16 * fontScale }} />
+                        <SkeletonBlock className="w-6 rounded" style={{ height: 16 * fontScale }} />
                       </View>
                     </View>
 
                     {/* NOMBRE DEL PRODUCTO */}
                     <View className="gap-2">
-                      <SkeletonBlock className="h-4 w-full rounded" />
-                      <SkeletonBlock className="h-4 w-4/5 rounded" />
+                      <SkeletonBlock
+                        className="w-full rounded"
+                        style={{ height: 16 * fontScale }}
+                      />
+                      <SkeletonBlock className="w-4/5 rounded" style={{ height: 16 * fontScale }} />
                     </View>
 
                     {/* PRECIO */}
                     <View className="mt-3 gap-2">
                       {/* TIPO DE PRECIO */}
-                      <SkeletonBlock className="h-3 w-2/3 rounded" />
+                      <SkeletonBlock className="w-2/3 rounded" style={{ height: 16 * fontScale }} />
 
+                      {showDiscount ? (
+                        <SkeletonBlock
+                          className="w-1/2 rounded"
+                          style={{ height: 16 * fontScale }}
+                        />
+                      ) : null}
                       {/* PRECIO ACTUAL */}
-                      <SkeletonBlock className="h-6 w-3/4 rounded" />
+                      <SkeletonBlock className="w-3/4 rounded" style={{ height: 24 * fontScale }} />
 
                       {/* DESCUENTO OPCIONAL */}
-                      <SkeletonBlock className="h-4 w-12 rounded-full" />
+                      {showDiscount ? (
+                        <SkeletonBlock
+                          className="w-12 rounded-full"
+                          style={{ height: 20 * fontScale }}
+                        />
+                      ) : null}
+                      {showPrescription ? (
+                        <SkeletonBlock
+                          className="w-4/5 rounded"
+                          style={{ height: 20 * fontScale }}
+                        />
+                      ) : null}
                     </View>
                   </View>
                 </View>

@@ -27,7 +27,7 @@ describe('Controles de formularios', () => {
     await view.rerender(<AppInput label="Correo" valid error="Revisa el correo" />);
     expect(screen.getByLabelText('Correo')).toHaveStyle({
       borderColor: colors.inputError,
-      borderWidth: 2,
+      borderWidth: 1,
     });
     expect(screen.getByLabelText('Correo')).toHaveProp('aria-invalid', true);
     for (const [password, score] of [

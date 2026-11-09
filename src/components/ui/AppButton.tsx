@@ -1,7 +1,8 @@
 import { type ReactNode } from 'react';
-import { ActivityIndicator, Pressable, Text, type PressableProps } from 'react-native';
+import { Pressable, Text, type PressableProps } from 'react-native';
 
 import { colors } from '@/theme';
+import { AppSpinner } from './AppSpinner';
 
 type AppButtonVariant = 'destructive' | 'ghost' | 'outline' | 'primary' | 'secondary' | 'unstyled';
 
@@ -21,16 +22,16 @@ const containerClasses: Record<AppButtonVariant, string> = {
   unstyled: 'active:opacity-70',
   destructive: 'bg-danger active:opacity-90 active:scale-[0.98]',
   ghost: 'bg-transparent active:bg-surface-muted active:scale-[0.98]',
-  outline: 'border border-brand bg-transparent active:bg-surface-muted active:scale-[0.98]',
-  primary: 'bg-brand active:bg-brand-pressed active:scale-[0.98]',
+  outline: 'border border-brand-strong bg-transparent active:bg-surface-muted active:scale-[0.98]',
+  primary: 'bg-brand-strong active:bg-brand-pressed active:scale-[0.98]',
   secondary: 'bg-surface-muted active:opacity-80 active:scale-[0.98]',
 };
 
 const labelClasses: Record<AppButtonVariant, string> = {
   unstyled: 'text-primary',
   destructive: 'text-on-danger',
-  ghost: 'text-brand',
-  outline: 'text-brand',
+  ghost: 'text-brand-strong',
+  outline: 'text-brand-strong',
   primary: 'text-on-brand',
   secondary: 'text-primary',
 };
@@ -38,8 +39,8 @@ const labelClasses: Record<AppButtonVariant, string> = {
 const indicatorColors: Record<AppButtonVariant, string> = {
   unstyled: colors.textPrimary,
   destructive: colors.onDanger,
-  ghost: colors.brand,
-  outline: colors.brand,
+  ghost: colors.brandStrong,
+  outline: colors.brandStrong,
   primary: colors.onBrand,
   secondary: colors.textPrimary,
 };
@@ -74,8 +75,8 @@ export function AppButton({
       className={`${isUnstyled ? '' : 'flex-row items-center justify-center gap-2'} ${isUnstyled ? '' : 'px-4 py-3'} ${hasCustomHeight || isUnstyled ? '' : 'min-h-11'} ${hasCustomRounding || isUnstyled ? '' : 'rounded-xl'} ${containerClasses[variant]} ${isDisabled ? 'opacity-50' : ''} ${className}`}
       disabled={isDisabled}
     >
-      {loading ? <ActivityIndicator color={indicatorColors[variant]} size="small" /> : null}
-      {leftIcon ? leftIcon : null}
+      {loading ? <AppSpinner color={indicatorColors[variant]} size={18} decorative /> : null}
+      {!loading ? leftIcon : null}
       {children ??
         (hideLabel ? null : (
           <Text
@@ -84,7 +85,7 @@ export function AppButton({
             {label}
           </Text>
         ))}
-      {rightIcon ? rightIcon : null}
+      {!loading ? rightIcon : null}
     </Pressable>
   );
 }
