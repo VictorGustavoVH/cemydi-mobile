@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="500" viewBox="0 0 1024 500">
+  <rect width="1024" height="500" fill="#258e8b"/>
+  <g fill="none" stroke="#ffffff" stroke-opacity=".14" stroke-width="2">
+    <circle cx="1030" cy="250" r="170"/>
+    <circle cx="1030" cy="250" r="230"/>
+    <circle cx="1030" cy="250" r="290"/>
+  </g>
+  <g fill="#ffffff" font-family="Segoe UI, sans-serif">
+    <text x="96" y="109" font-size="24" font-weight="600">Ortopedia CEMYDI</text>
+    <text x="96" y="224" font-size="56" font-weight="600">Encuentra lo que necesitas</text>
+    <text x="96" y="291" font-size="56" font-weight="600">para tu cuidado</text>
+    <text x="96" y="380" font-size="26">Catálogo y solicitudes de renta</text>
+  </g>
+</svg>
