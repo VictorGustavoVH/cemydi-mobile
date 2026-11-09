@@ -1,15 +1,22 @@
 import { Linking, Text, View } from 'react-native';
 import Phone from 'lucide-react-native/icons/phone';
 import Mail from 'lucide-react-native/icons/mail';
+import MapPin from 'lucide-react-native/icons/map-pin';
+import Navigation from 'lucide-react-native/icons/navigation';
 import { AppButton } from '@/components/ui/AppButton';
-import { useToast } from '@/hooks/useToast';
+import { AccountSection } from '@/components/account/AccountSection';
+import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import { colors } from '@/theme';
-import { ProfileLayout } from './components/ProfileLayout';
+import { FacebookIcon, WhatsAppIcon } from './components/SocialBrandIcon';
+import { SUPPORT_CONTACTS, SUPPORT_LOCATIONS } from './support-content';
+import { useToast } from '@/hooks/useToast';
+import { AccountMenuItem } from '@/components/account/AccountMenuItem';
+import { FrequentlyAskedQuestions } from '@/components/support/FrequentlyAskedQuestions';
+import { AccountLayout } from '@/components/account/AccountLayout';
 
-// Same public channels published in cemydi-frontend/src/components/layout/Footer.tsx.
-export const SUPPORT_CONTACTS = { phone: '7896880251', email: 'contacto@cemydi.com' } as const;
 export function HelpScreen() {
   const toast = useToast();
+  const { isOnline } = useNetworkStatus();
   async function open(url: string) {
     try {
       await Linking.openURL(url);
@@ -20,69 +27,106 @@ export function HelpScreen() {
     }
   }
   return (
-    <ProfileLayout title="Ayuda y contacto" publicAccess>
-      <View className="gap-7 px-5 pb-8">
-        <View className="gap-2">
-          <Text accessibilityRole="header" className="font-sans-semibold text-xl text-primary">
-            Estamos para ayudarte
-          </Text>
-          <Text className="font-sans text-base leading-6 text-secondary">
-            Consulta tus dudas sobre productos y solicitudes de renta con CEMYDI.
-          </Text>
-        </View>
+    <AccountLayout title="Ayuda y contacto" publicAccess>
+      <View className="gap-7 px-5 pb-8 pt-5">
         <View className="gap-3">
-          <Text selectable className="font-sans text-base text-primary">
-            {SUPPORT_CONTACTS.phone}
+          <Text
+            accessibilityRole="header"
+            className="font-sans-semibold text-2xl leading-8 text-primary"
+          >
+            ¿En qué podemos ayudarte?
           </Text>
-          <AppButton
-            label="Llamar a CEMYDI"
-            variant="secondary"
+          <Text className="font-sans text-sm leading-6 text-secondary">
+            Habla con nuestro equipo o visítanos en Huejutla.
+          </Text>
+        </View>
+        <AccountSection title="Atención al cliente">
+          <AccountMenuItem
+            title="Escribir por WhatsApp"
+            description="Consulta productos y rentas"
+            icon={WhatsAppIcon}
+            iconTone="brandStrong"
+            appearance="divided"
+            disabled={isOnline === false}
+            onPress={() => void open(SUPPORT_CONTACTS.whatsapp)}
+          />
+          <AccountMenuItem
+            title="Llamar a CEMYDI"
+            description={SUPPORT_CONTACTS.displayPhone}
+            selectableDescription
+            appearance="divided"
+            iconTone="textSecondary"
+            icon={Phone}
             onPress={() => void open(`tel:${SUPPORT_CONTACTS.phone}`)}
-            leftIcon={<Phone aria-hidden color={colors.brandStrong} size={20} />}
           />
-          <Text selectable className="font-sans text-base text-primary">
-            {SUPPORT_CONTACTS.email}
-          </Text>
-          <AppButton
-            label="Escribir a CEMYDI"
-            variant="secondary"
+          <AccountMenuItem
+            title="Escribir a CEMYDI"
+            description={SUPPORT_CONTACTS.email}
+            selectableDescription
+            appearance="divided"
+            iconTone="textSecondary"
+            icon={Mail}
             onPress={() => void open(`mailto:${SUPPORT_CONTACTS.email}`)}
-            leftIcon={<Mail aria-hidden color={colors.brandStrong} size={20} />}
           />
+        </AccountSection>
+        <View className="border-t border-border/50 pt-6">
+          <AccountSection title="Redes sociales">
+            <AccountMenuItem
+              title="Facebook de CEMYDI"
+              description="Ortopedia CEMYDI"
+              icon={FacebookIcon}
+              iconTone="textSecondary"
+              disabled={isOnline === false}
+              onPress={() => void open(SUPPORT_CONTACTS.facebook)}
+            />
+          </AccountSection>
         </View>
-        <View className="gap-4">
-          <Text accessibilityRole="header" className="font-sans-semibold text-lg text-primary">
-            Preguntas frecuentes
+        <View className="border-t border-border/50 pt-6">
+          <AccountSection title="Nuestras ubicaciones" description={SUPPORT_LOCATIONS[0].hours}>
+            {SUPPORT_LOCATIONS.map((location) => (
+              <View key={location.name} className="flex-row gap-3 border-b border-border/50 py-5">
+                <MapPin aria-hidden size={22} color={colors.brandStrong} />
+                <View className="min-w-0 flex-1 gap-3">
+                  <View className="gap-2">
+                    <Text
+                      accessibilityRole="header"
+                      className="font-sans-semibold text-lg text-primary"
+                    >
+                      {location.name}
+                    </Text>
+                    <Text selectable className="font-sans text-sm leading-6 text-secondary">
+                      {location.address}
+                    </Text>
+                  </View>
+                  <AppButton
+                    label="Cómo llegar"
+                    accessibilityLabel={`Cómo llegar a ${location.name}`}
+                    accessibilityRole="link"
+                    variant="ghost"
+                    className="self-start"
+                    disabled={isOnline === false}
+                    onPress={() => void open(location.mapUrl)}
+                    leftIcon={<Navigation aria-hidden size={18} color={colors.brandStrong} />}
+                  />
+                </View>
+              </View>
+            ))}
+            <Text className="font-sans text-sm leading-5 text-secondary">
+              Confirma por teléfono el horario antes de visitarnos en días festivos.
+            </Text>
+          </AccountSection>
+        </View>
+        {isOnline === false ? (
+          <Text
+            accessibilityLiveRegion="polite"
+            className="font-sans text-sm leading-6 text-secondary"
+          >
+            Sin conexión. Las direcciones y teléfonos siguen disponibles; conéctate para abrir
+            WhatsApp, Facebook o los mapas.
           </Text>
-          <View className="gap-2">
-            <Text className="font-sans-semibold text-base text-primary">
-              ¿Dónde consulto mis rentas?
-            </Text>
-            <Text className="font-sans text-base leading-6 text-secondary">
-              En Perfil, abre Mis rentas para consultar el estado y detalle de las solicitudes de tu
-              cuenta.
-            </Text>
-          </View>
-          <View className="gap-2">
-            <Text className="font-sans-semibold text-base text-primary">
-              ¿Cómo cambio mis datos?
-            </Text>
-            <Text className="font-sans text-base leading-6 text-secondary">
-              Abre Datos personales, edita tu información y pulsa Guardar cambios. El correo
-              guardado se utiliza para iniciar sesión.
-            </Text>
-          </View>
-          <View className="gap-2">
-            <Text className="font-sans-semibold text-base text-primary">
-              ¿Olvidaste tu contraseña?
-            </Text>
-            <Text className="font-sans text-base leading-6 text-secondary">
-              En la pantalla de inicio de sesión, selecciona Olvidé mi contraseña para recuperar el
-              acceso con un código enviado a tu correo.
-            </Text>
-          </View>
-        </View>
+        ) : null}
+        <FrequentlyAskedQuestions />
       </View>
-    </ProfileLayout>
+    </AccountLayout>
   );
 }

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Linking, Text, View } from 'react-native';
+import { Animated, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import Settings from 'lucide-react-native/icons/settings';
 import BadgeCheck from 'lucide-react-native/icons/badge-check';
@@ -15,29 +15,45 @@ import Bell from 'lucide-react-native/icons/bell';
 import MessageSquare from 'lucide-react-native/icons/message-square';
 import CircleHelp from 'lucide-react-native/icons/circle-question-mark';
 import FileText from 'lucide-react-native/icons/file-text';
-import { env, parseWebsiteUrl } from '@/config/env';
 import { AppButton } from '@/components/ui/AppButton';
 import { AppSheet } from '@/components/ui/AppSheet';
 import { useAuth } from '@/providers/auth-provider';
-import { useAuthAction } from '@/features/auth/hooks/useAuthAction';
+import { useAuthAction } from '@/features/auth';
 import { useToast } from '@/hooks/useToast';
-import { useFavorites } from '@/features/favorites/hooks/useFavorites';
+import { useFavorites } from '@/features/favorites';
 import { useRouteCallback } from '@/hooks/useRouteCallback';
 import { colors } from '@/theme';
-import { ProfileLayout } from './components/ProfileLayout';
+import { AccountLayout } from '@/components/account/AccountLayout';
 import { ProfileDataState } from './components/ProfileDataState';
-import { ProfileMenuItem } from './components/ProfileMenuItem';
+import { AccountMenuItem } from '@/components/account/AccountMenuItem';
 import { useProfile } from './useProfile';
+import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 
 export function ProfileScreen() {
   const router = useRouter();
   const profile = useProfile();
+  const refreshEnabled = profile.status === 'authenticated' && profile.isOnline !== false;
+  const { refreshing, onRefresh } = usePullToRefresh(profile.query.refetch, {
+    enabled: refreshEnabled,
+  });
   const favorites = useFavorites();
   const user = profile.query.data ?? profile.user;
   const { logoutDetailed } = useAuth();
   const toast = useToast();
   const { execute, pending } = useAuthAction();
   const [confirmLogout, setConfirmLogout] = useState(false);
+  const [dialogAnim] = useState(() => new Animated.Value(0));
+
+  const openLogoutDialog = () => {
+    dialogAnim.setValue(0);
+    setConfirmLogout(true);
+    Animated.timing(dialogAnim, {
+      toValue: 1,
+      duration: 220,
+      useNativeDriver: true,
+    }).start();
+  };
+
   const edit = useRouteCallback(
     () => router.push('/perfil/editar'),
     () => '/perfil/editar',
@@ -46,43 +62,42 @@ export function ProfileScreen() {
     () => router.push('/perfil/seguridad'),
     () => '/perfil/seguridad',
   );
-  async function openLegal(path: string) {
-    try {
-      const origin = parseWebsiteUrl(process.env.EXPO_PUBLIC_WEBSITE_URL, env.appEnv);
-      if (!origin) {
-        toast.error('No se pudo abrir la página. Intenta más tarde.');
-        return;
-      }
-      await Linking.openURL(new URL(path, origin).toString());
-    } catch {
-      toast.error('No se pudo abrir la página. Intenta más tarde.');
-    }
-  }
+
   const initials =
     user?.nombre
-      .trim()
+      ?.trim()
       .split(/\s+/)
       .filter(Boolean)
       .slice(0, 2)
       .map((part) => Array.from(part)[0])
       .join('')
       .toLocaleUpperCase('es-MX') || 'CM';
+
+  const isProfileIncomplete =
+    !profile.query.isLoading &&
+    Boolean(profile.query.data) &&
+    (!profile.query.data?.telefono?.trim() || !profile.query.data?.direccion?.trim());
+
   return (
-    <ProfileLayout
+    <AccountLayout
       title="Mi perfil"
       main
+      refreshing={refreshing}
+      onRefresh={onRefresh}
+      refreshEnabled={refreshEnabled}
       action={
         <AppButton
-          label="Editar perfil"
+          label="Abrir ajustes de notificaciones"
           hideLabel
           variant="ghost"
           className="h-11 w-11 px-0 py-0"
-          onPress={edit}
-          leftIcon={<Settings aria-hidden size={22} color={colors.brandStrong} />}
+          onPress={() => router.push('/perfil/notificaciones/preferencias')}
+          leftIcon={<Settings aria-hidden size={22} color={colors.iconOnSurface} />}
         />
       }
     >
-      <View className="mx-5 mb-6 gap-5 py-5">
+      {/* Cabecera limpia de Cuenta CEMYDI */}
+      <View className="border-b border-border px-5 pb-6 pt-5">
         <View className="flex-row items-center gap-4">
           <View
             accessible={false}
@@ -102,23 +117,14 @@ export function ProfileScreen() {
             </Text>
           </View>
         </View>
-        {user?.emailVerified ? (
-          <View className="flex-row items-center gap-2">
-            <BadgeCheck aria-hidden color={colors.brandStrong} size={18} />
-            <Text className="flex-1 font-sans-medium text-sm text-brand-strong">
-              Correo verificado
-            </Text>
-          </View>
-        ) : null}
-        {!profile.query.isLoading &&
-        profile.query.data &&
-        (!profile.query.data.telefono?.trim() || !profile.query.data.direccion?.trim()) ? (
-          <View className="flex-row items-center justify-between gap-3 py-2">
-            <View className="flex-1 pr-3">
-              <Text className="font-sans-semibold text-xs text-brand-strong">
+
+        {isProfileIncomplete ? (
+          <View className="mt-5 flex-row items-center justify-between gap-3 border-l-2 border-brand-strong py-1 pl-3.5">
+            <View className="flex-1 pr-2">
+              <Text className="font-sans-semibold text-xs uppercase tracking-wider text-brand-strong">
                 Completa tu perfil
               </Text>
-              <Text className="font-sans text-[11px] leading-4 text-secondary">
+              <Text className="mt-0.5 font-sans text-sm leading-5 text-secondary">
                 Agrega tu teléfono y dirección para agilizar tus solicitudes.
               </Text>
             </View>
@@ -126,58 +132,79 @@ export function ProfileScreen() {
           </View>
         ) : null}
       </View>
-      <ProfileDataState profile={profile}>
-        <View className="gap-6 px-5 pb-6">
-          <View className="gap-3">
-            <Text
-              accessibilityRole="header"
-              className="font-sans-semibold text-sm uppercase tracking-wider text-secondary"
-            >
-              Tu información
-            </Text>
+
+      <ProfileDataState profile={profile} fallbackToSession>
+        <View className="px-5 pt-6">
+          {/* Sección 1: Cuenta (con indicador de Correo verificado en el encabezado) */}
+          <View className="pb-6">
+            <View className="mb-2 flex-row items-center justify-between">
+              <Text
+                accessibilityRole="header"
+                className="font-sans-bold text-xs uppercase tracking-widest text-secondary"
+              >
+                Tu información
+              </Text>
+              {user?.emailVerified ? (
+                <View className="flex-row items-center gap-1.5">
+                  <BadgeCheck aria-hidden color={colors.brandStrong} size={15} />
+                  <Text className="font-sans-medium text-xs text-brand-strong">
+                    Correo verificado
+                  </Text>
+                </View>
+              ) : null}
+            </View>
             <View>
-              <ProfileMenuItem
+              <AccountMenuItem
                 title="Datos personales"
                 description="Nombre, correo y teléfono"
                 icon={UserRound}
+                iconTone="brandStrong"
                 onPress={edit}
               />
-              <ProfileMenuItem
+              <AccountMenuItem
                 title="Dirección de contacto"
-                description={profile.query.data?.direccion || 'Agrega tu dirección'}
+                description="Consulta y actualiza tu dirección de contacto"
                 icon={MapPin}
+                iconTone="brandStrong"
                 onPress={edit}
               />
-              <ProfileMenuItem
-                title="Contraseña y acceso"
-                description="Cambia tu contraseña"
+              <AccountMenuItem
+                title="Seguridad de la cuenta"
+                description="Administra tu contraseña y tu cuenta"
                 icon={ShieldCheck}
+                iconTone="success"
                 onPress={security}
                 last
               />
             </View>
           </View>
-          <View className="gap-3">
-            <Text
-              accessibilityRole="header"
-              className="font-sans-semibold text-sm uppercase tracking-wider text-secondary"
-            >
-              Tus productos
-            </Text>
+
+          {/* Sección 2: Actividad y catálogo */}
+          <View className="border-t border-border py-6">
+            <View className="mb-2 flex-row items-center justify-between">
+              <Text
+                accessibilityRole="header"
+                className="font-sans-bold text-xs uppercase tracking-widest text-secondary"
+              >
+                Tus productos
+              </Text>
+            </View>
             <View>
-              <ProfileMenuItem
+              <AccountMenuItem
                 title="Mis rentas"
                 description="Estado, detalle y seguimiento de solicitudes"
                 icon={CalendarDays}
+                iconTone="brandStrong"
                 onPress={() => router.push('/perfil/rentas')}
               />
-              <ProfileMenuItem
+              <AccountMenuItem
                 title="Notificaciones"
-                description="Avisos, ofertas y preferencias sincronizadas"
+                description="Avisos de tu cuenta y ofertas"
                 icon={Bell}
+                iconTone="accentOrange"
                 onPress={() => router.push('/perfil/notificaciones')}
               />
-              <ProfileMenuItem
+              <AccountMenuItem
                 title="Mis favoritos"
                 description={
                   favorites.total > 0
@@ -185,107 +212,153 @@ export function ProfileScreen() {
                     : 'Tus productos guardados'
                 }
                 icon={Heart}
+                iconTone="accentRose"
                 onPress={() => router.push('/favoritos')}
               />
-              <ProfileMenuItem
+              <AccountMenuItem
                 title="Mi carrito"
                 description="Productos guardados en tu cuenta"
                 icon={ShoppingBag}
+                iconTone="info"
                 onPress={() => router.navigate('/carrito')}
               />
-              <ProfileMenuItem
+              <AccountMenuItem
                 title="Mis reseñas"
                 description="Tus opiniones y su estado de revisión"
                 icon={MessageSquare}
+                iconTone="accentIndigo"
                 onPress={() => router.push('/perfil/resenas')}
               />
-              <ProfileMenuItem
+              <AccountMenuItem
                 title="Explorar catálogo"
                 description="Equipos para tu bienestar"
                 icon={Search}
+                iconTone="brandStrong"
                 onPress={() => router.navigate('/catalogo')}
                 last
               />
             </View>
           </View>
-          <View className="gap-3">
-            <Text
-              accessibilityRole="header"
-              className="font-sans-semibold text-sm uppercase tracking-wider text-secondary"
-            >
-              Ayuda e información
-            </Text>
+
+          {/* Sección 3: Soporte y legales */}
+          <View className="border-t border-border py-6">
+            <View className="mb-2 flex-row items-center justify-between">
+              <Text
+                accessibilityRole="header"
+                className="font-sans-bold text-xs uppercase tracking-widest text-secondary"
+              >
+                Ayuda e información
+              </Text>
+            </View>
             <View>
-              <ProfileMenuItem
+              <AccountMenuItem
                 title="Ayuda y contacto"
                 description="Preguntas frecuentes y atención CEMYDI"
                 icon={CircleHelp}
+                iconTone="info"
                 onPress={() => router.push('/perfil/ayuda')}
               />
-              <ProfileMenuItem
+              <AccountMenuItem
                 title="Política de privacidad"
                 description="Consulta el tratamiento de tus datos"
                 icon={ShieldCheck}
-                onPress={() => void openLegal('/politicas-de-privacidad')}
+                iconTone="textSecondary"
+                onPress={() => router.push('/perfil/legal/politicas-de-privacidad')}
               />
-              <ProfileMenuItem
+              <AccountMenuItem
                 title="Términos y condiciones"
                 description="Información publicada por CEMYDI"
                 icon={FileText}
-                onPress={() => void openLegal('/terminos-y-condiciones')}
+                iconTone="textSecondary"
+                onPress={() => router.push('/perfil/legal/terminos-y-condiciones')}
+                last
               />
             </View>
           </View>
         </View>
       </ProfileDataState>
-      <View className="px-5 pb-8">
+
+      {/* Acción de cierre de sesión */}
+      <View className="border-t border-border px-5 pb-10 pt-6">
         <AppButton
           label="Cerrar sesión"
           variant="secondary"
           disabled={pending}
-          onPress={() => setConfirmLogout(true)}
+          loading={pending}
+          onPress={openLogoutDialog}
           leftIcon={<LogOut aria-hidden color={colors.textSecondary} size={20} />}
         />
       </View>
+
       <AppSheet
         visible={confirmLogout}
+        presentation="dialog"
         title="¿Cerrar sesión?"
+        closeDisabled={pending}
         onClose={() => {
           if (!pending) setConfirmLogout(false);
         }}
       >
-        <Text className="font-sans text-base leading-6 text-secondary">
-          Tu carrito y tus datos guardados seguirán en tu cuenta cuando vuelvas.
-        </Text>
-        <AppButton
-          label="Confirmar cierre de sesión"
-          variant="destructive"
-          loading={pending}
-          onPress={() => {
-            let remoteStatus: 'revoked' | 'pending' | 'failed' = 'revoked';
-            void execute(
-              async () => {
-                remoteStatus = (await logoutDetailed()).remoteStatus;
+        <Animated.View
+          className="gap-4"
+          style={{
+            opacity: dialogAnim,
+            transform: [
+              {
+                translateY: dialogAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [8, 0],
+                }),
               },
-              'Sesión cerrada en este dispositivo',
-              () => {
-                setConfirmLogout(false);
-                router.navigate('/inicio');
-                if (remoteStatus === 'failed')
-                  toast.info('No pudimos revocar la sesión en el servidor.');
-                if (remoteStatus === 'pending')
-                  toast.info('La revocación en el servidor sigue pendiente.');
-              },
-            );
+            ],
           }}
-        />
-        <AppButton
-          label="Seguir en mi cuenta"
-          variant="ghost"
-          disabled={pending}
-          onPress={() => setConfirmLogout(false)}
-        />
+        >
+          <Text className="font-sans text-sm leading-5 text-secondary">
+            Tus productos guardados y el historial de tu cuenta estarán disponibles cuando vuelvas a
+            ingresar.
+          </Text>
+
+          <View className="flex-row items-center gap-2.5 pt-4">
+            <View className="flex-1">
+              <AppButton
+                label="Cancelar"
+                variant="secondary"
+                disabled={pending}
+                onPress={() => setConfirmLogout(false)}
+              />
+            </View>
+            <View className="flex-1">
+              <AppButton
+                label="Salir"
+                variant="destructive"
+                loading={pending}
+                onPress={() => {
+                  let remoteStatus: 'revoked' | 'pending' | 'failed' = 'revoked';
+                  let pushStatus: 'cleared' | 'pending' | 'failed' | undefined;
+                  void execute(
+                    async () => {
+                      const result = await logoutDetailed();
+                      remoteStatus = result.remoteStatus;
+                      pushStatus = result.pushStatus;
+                    },
+                    'Sesión cerrada en este dispositivo',
+                    () => {
+                      setConfirmLogout(false);
+                      router.navigate('/inicio');
+                      if (remoteStatus === 'failed')
+                        toast.info('No pudimos revocar la sesión en el servidor.');
+                      if (remoteStatus === 'pending')
+                        toast.info('La revocación en el servidor sigue pendiente.');
+                      if (remoteStatus === 'revoked' && pushStatus === 'failed')
+                        toast.info('No pudimos borrar el registro local de notificaciones.');
+                    },
+                  );
+                }}
+              />
+            </View>
+          </View>
+        </Animated.View>
       </AppSheet>
-    </ProfileLayout>
+    </AccountLayout>
   );
 }

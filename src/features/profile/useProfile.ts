@@ -1,11 +1,15 @@
 import { useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/providers/auth-provider';
-import { authUserSchema } from '@/features/auth/schemas/auth-api-schemas';
+import { authUserSchema } from '@/features/auth';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import { UserFacingError } from '@/services/http/api-error';
 import { profileService } from './profile-service';
 import type { UpdateProfilePayload } from './profile-schemas';
+
+// Conserva el último perfil al navegar para poder mostrar el menú y los datos
+// disponibles sin conexión. AuthProvider limpia la caché al cambiar de cuenta.
+const PROFILE_GC_TIME_MS = 5 * 60_000;
 
 export const profileKey = (id: number | undefined) => ['profile', id] as const;
 export function useProfile() {
@@ -27,7 +31,7 @@ export function useProfile() {
     staleTime: 30_000,
     refetchOnMount: 'always',
     refetchOnWindowFocus: 'always',
-    gcTime: 0,
+    gcTime: PROFILE_GC_TIME_MS,
     retry: false,
   });
   async function save(payload: UpdateProfilePayload) {

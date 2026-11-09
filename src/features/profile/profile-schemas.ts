@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { authUserSchema } from '@/features/auth/schemas/auth-api-schemas';
+import { authUserSchema } from '@/features/auth';
 
 export const profileUserSchema = authUserSchema.extend({
   telefono: z.string().nullable(),
