@@ -1,5 +1,5 @@
-import { memo, useCallback, useMemo, useState } from 'react';
-import { FlatList, Text, View, useWindowDimensions } from 'react-native';
+import { useCallback, useMemo, useState } from 'react';
+import { FlatList, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import Search from 'lucide-react-native/icons/search';
@@ -11,11 +11,12 @@ import { BackButton } from '@/components/ui/BackButton';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { OfflineState } from '@/components/ui/OfflineState';
-import { ProductCard } from '@/components/ui/ProductCard';
+import { ProductGridItem, ProductGridSeparator } from '@/components/ui/ProductGridItem';
+import { useProductGridMetrics } from '@/hooks/useProductGridMetrics';
 import { ProductGridSkeleton } from '@/components/ui/ProductGridSkeleton';
 import { useAuth } from '@/providers/auth-provider';
 import { useProductOffers } from '@/hooks/useProductOffers';
-import { useProductRatings, type ProductRatingState } from '@/hooks/useProductRatings';
+import { useProductRatings } from '@/hooks/useProductRatings';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { useRouteCallback } from '@/hooks/useRouteCallback';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
@@ -27,39 +28,17 @@ import { getFriendlyErrorMessage } from '@/services/http/api-error';
 import { useFavorites } from './hooks/useFavorites';
 
 const productKey = (item: HomeProduct) => item.id;
-
-function ProductSeparator() {
-  return <View className="h-4" />;
-}
-
-const FavoriteGridItem = memo(function FavoriteGridItem({
-  product,
-  ratingState,
-  onOpen,
-  width,
-}: {
-  product: HomeProduct;
-  ratingState?: ProductRatingState;
-  onOpen: (id: string) => void;
-  width: number;
-}) {
-  return (
-    <View style={{ width }}>
-      <ProductCard product={product} ratingState={ratingState} onPress={() => onOpen(product.id)} />
-    </View>
-  );
-});
+const FAVORITES_SEARCH_MAX_LENGTH = 100;
 
 export function FavoritesScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const { isOnline } = useNetworkStatus();
-  const { width, fontScale } = useWindowDimensions();
-  const columns = width < 350 || fontScale > 1.3 ? 1 : 2;
-  const itemWidth = columns === 1 ? width - 32 : (width - 44) / 2;
+  const grid = useProductGridMetrics();
+  const { columns } = grid;
 
-  const { products, isLoading, isError, error, refetch, isFetching } = useFavorites();
+  const { products, isLoading, isError, error, refetch } = useFavorites();
   const offers = useProductOffers();
   const [search, setSearch] = useState('');
 
@@ -67,7 +46,8 @@ export function FavoritesScreen() {
     () => Promise.allSettled([refetch(), offers.refetch()]),
     [refetch, offers],
   );
-  const { refreshing, onRefresh } = usePullToRefresh(refresh);
+  const refreshEnabled = isOnline !== false;
+  const { refreshing, onRefresh } = usePullToRefresh(refresh, { enabled: refreshEnabled });
 
   const homeProducts = useMemo(() => {
     return products.map((prod) => toProductCard(prod, offers.data?.promotions));
@@ -101,14 +81,15 @@ export function FavoritesScreen() {
 
   const renderItem = useCallback(
     ({ item }: { item: HomeProduct }) => (
-      <FavoriteGridItem
+      <ProductGridItem
         product={item}
         ratingState={ratings[item.id]}
         onOpen={handleOpenProduct}
-        width={itemWidth}
+        width={grid.itemWidth}
+        marginHorizontal={grid.itemMargin}
       />
     ),
-    [handleOpenProduct, itemWidth, ratings],
+    [handleOpenProduct, ratings, grid.itemWidth, grid.itemMargin],
   );
 
   return (
@@ -135,14 +116,14 @@ export function FavoritesScreen() {
       {!user ? (
         <EmptyState
           title="Inicia sesión para guardar favoritos"
-          description="Tus productos guardados se sincronizarán con tu cuenta CEMYDI en todos tus dispositivos."
+          description="Guarda tus productos y consúltalos desde tu cuenta."
           actionLabel="Iniciar sesión"
           onAction={() => router.push('/login')}
         />
       ) : isOnline === false && products.length === 0 ? (
         <OfflineState description="Conéctate para consultar tus productos guardados." />
       ) : isLoading ? (
-        <View className="flex-1 p-4">
+        <View className="flex-1 pt-4">
           <ProductGridSkeleton columns={columns} />
         </View>
       ) : isError ? (
@@ -159,7 +140,7 @@ export function FavoritesScreen() {
       ) : products.length === 0 ? (
         <EmptyState
           title="No tienes productos guardados"
-          description="Usa el botón de corazón en el detalle del producto para crear tu lista de artículos y revisarlos más adelante."
+          description="Toca el corazón de un producto para guardarlo aquí."
           actionLabel="Explorar catálogo"
           onAction={() => router.navigate('/catalogo')}
         />
@@ -171,12 +152,13 @@ export function FavoritesScreen() {
             </View>
           ) : null}
           {products.length > 4 ? (
-            <View className="bg-background px-4 py-2">
+            <View className="bg-background px-5 py-2">
               <AppInput
                 label="Buscar en mis favoritos"
                 placeholder="Buscar por nombre o marca..."
                 value={search}
-                onChangeText={setSearch}
+                maxLength={FAVORITES_SEARCH_MAX_LENGTH}
+                onChangeText={(text) => setSearch(text.slice(0, FAVORITES_SEARCH_MAX_LENGTH))}
                 leadingIcon={<Search aria-hidden size={18} color={colors.textSecondary} />}
               />
             </View>
@@ -191,20 +173,24 @@ export function FavoritesScreen() {
             />
           ) : (
             <FlatList
+              onLayout={grid.onLayout}
               key={columns}
               data={filteredProducts}
               keyExtractor={productKey}
               renderItem={renderItem}
               numColumns={columns}
-              columnWrapperStyle={columns > 1 ? { gap: 12 } : undefined}
+              columnWrapperStyle={grid.columnWrapperStyle}
               contentContainerStyle={{
-                paddingHorizontal: 16,
                 paddingTop: 16,
                 paddingBottom: 32,
               }}
-              ItemSeparatorComponent={ProductSeparator}
+              ItemSeparatorComponent={ProductGridSeparator}
               refreshControl={
-                <AppRefreshControl refreshing={refreshing || isFetching} onRefresh={onRefresh} />
+                <AppRefreshControl
+                  refreshing={refreshing}
+                  onRefresh={onRefresh}
+                  enabled={refreshEnabled}
+                />
               }
             />
           )}

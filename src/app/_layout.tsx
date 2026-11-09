@@ -18,6 +18,7 @@ import { ToastProvider } from '@/providers/toast-provider';
 import { AuthProvider } from '@/providers/auth-provider';
 import { CartProvider } from '@/providers/cart-provider';
 import { NotificationLifecycle } from '@/features/notifications/NotificationLifecycle';
+import { FavoritesLifecycle } from '@/features/favorites';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { colors } from '@/theme';
 
@@ -58,6 +59,7 @@ export default function RootLayout() {
               <AuthProvider>
                 <CartProvider>
                   <NotificationLifecycle />
+                  <FavoritesLifecycle />
                   <View style={{ flex: 1, backgroundColor: colors.background }}>
                     <Stack
                       screenOptions={{
