@@ -50,6 +50,23 @@ module.exports = (config) => {
           contents.replace(wrapper.anchor, `${wrapper.anchor}${newline}${addition}`),
         );
       }
+      const wrapperPropertiesFile = path.join(
+        mod.modRequest.platformProjectRoot,
+        'gradle',
+        'wrapper',
+        'gradle-wrapper.properties',
+      );
+      try {
+        let propContent = await readFile(wrapperPropertiesFile, 'utf8');
+        if (/^networkTimeout=/m.test(propContent)) {
+          propContent = propContent.replace(/^networkTimeout=\d+/m, 'networkTimeout=120000');
+        } else {
+          propContent += `${propContent.endsWith('\n') ? '' : '\n'}networkTimeout=120000\n`;
+        }
+        await writeFile(wrapperPropertiesFile, propContent);
+      } catch {
+        // Ignorar si el wrapper no existe en este entorno
+      }
       return mod;
     },
   ]);
