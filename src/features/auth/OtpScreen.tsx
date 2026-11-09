@@ -38,7 +38,7 @@ export function OtpScreen() {
     );
     return () => clearTimeout(timer);
   }, [verified, reducedMotion, router, setChallenge]);
-  if (!challenge) return <Redirect href="/forgot-password" />;
+  if (!challenge) return <Redirect href="/login" />;
   const isRegistration = challenge.purpose === 'registration';
   const submit = handleSubmit((values) => {
     if (locked) return;

@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { fireEvent, screen } from '@testing-library/react-native';
+import { act, fireEvent, screen } from '@testing-library/react-native';
+import { AppState } from 'react-native';
 import { render } from '../../../../tests/support/render-with-toast';
 import { PasswordField } from '@/components/ui/PasswordField';
 import { AppInput } from '@/components/ui/AppInput';
@@ -8,6 +9,18 @@ import { PasswordStrength } from '../components/PasswordStrength';
 import { OtpInput } from '../components/OtpInput';
 
 describe('Controles de formularios', () => {
+  it('vuelve a ocultar la contraseña y cierra la ayuda al pasar a segundo plano', async () => {
+    const listener = jest.spyOn(AppState, 'addEventListener');
+    await render(<PasswordField label="Contraseña" value="Password12!" />);
+    await fireEvent.press(screen.getByLabelText('Mostrar contraseña'));
+    await fireEvent.press(screen.getByLabelText('Requisitos de contraseña'));
+    expect(screen.getByLabelText('Contraseña')).toHaveProp('secureTextEntry', false);
+    await act(async () => {
+      listener.mock.calls.forEach(([, callback]) => callback('background'));
+    });
+    expect(screen.getByLabelText('Contraseña')).toHaveProp('secureTextEntry', true);
+    expect(screen.queryByText(/Usa entre 10 y 72/)).toBeNull();
+  });
   it('abre los requisitos desde el icono del label y mantiene independiente el ojo', async () => {
     await render(<PasswordField label="Contraseña" value="Password12!" valid />);
     expect(screen.queryByText(/Usa entre 10 y 72/)).toBeNull();

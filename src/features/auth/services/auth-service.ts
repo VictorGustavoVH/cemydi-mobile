@@ -16,6 +16,9 @@ export function createAuthService(session = authSession) {
   let challenge: AuthChallenge | null = null;
   let recoveryCode: string | null = null;
   let revision = 0;
+  function assertCurrent(expected: number) {
+    if (expected !== revision) throw new UserFacingError('La solicitud fue cancelada.');
+  }
   const begin = (correo: string, purpose: AuthChallenge['purpose']) => {
     recoveryCode = null;
     challenge = {
@@ -34,7 +37,7 @@ export function createAuthService(session = authSession) {
     login: session.login,
     loginWithGoogle: session.loginWithGoogle,
     async register(input: { nombre: string; correo: string; password: string }) {
-      ++revision;
+      const expected = ++revision;
       await authPost(
         '/auth/register',
         {
@@ -44,30 +47,35 @@ export function createAuthService(session = authSession) {
         },
         authMessageSchema,
       );
+      assertCurrent(expected);
       return begin(input.correo, 'registration');
     },
     async requestRecovery(correo: string) {
-      ++revision;
+      const expected = ++revision;
       await authPost(
         '/auth/password-reset/request',
         { correo: correo.trim().toLowerCase() },
         authMessageSchema,
       );
+      assertCurrent(expected);
       return begin(correo, 'recovery');
     },
     async requestVerification(correo: string) {
-      ++revision;
+      const expected = ++revision;
       await authPost(
         '/auth/email-verification/send',
         { correo: correo.trim().toLowerCase() },
         authMessageSchema,
       );
+      assertCurrent(expected);
       return begin(correo, 'registration');
     },
     async resend() {
       const active = current();
       if (Date.now() < active.resendAt)
         throw new UserFacingError('Espera antes de solicitar otro código.');
+      const expected = ++revision;
+      recoveryCode = null;
       await authPost(
         active.purpose === 'registration'
           ? '/auth/email-verification/send'
@@ -75,7 +83,7 @@ export function createAuthService(session = authSession) {
         { correo: active.correo },
         authMessageSchema,
       );
-      ++revision;
+      assertCurrent(expected);
       return begin(active.correo, active.purpose);
     },
     async verify(codigo: string) {
@@ -103,6 +111,8 @@ export function createAuthService(session = authSession) {
     },
     async resetPassword(newPassword: string) {
       const active = current();
+      const expected = revision;
+      const sessionVersion = session.getVersion();
       if (active.purpose !== 'recovery' || !active.verified || !recoveryCode) {
         throw new UserFacingError('Primero verifica el código de recuperación.');
       }
@@ -115,6 +125,12 @@ export function createAuthService(session = authSession) {
         { correo: active.correo, codigo: recoveryCode, newPassword },
         authMessageSchema,
       );
+      assertCurrent(expected);
+      if (sessionVersion !== session.getVersion()) {
+        challenge = null;
+        recoveryCode = null;
+        throw new UserFacingError('La solicitud fue cancelada porque cambió la sesión.');
+      }
       recoveryCode = null;
       challenge = null;
       await session.clear();

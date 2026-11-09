@@ -11,12 +11,15 @@ import { useAuth } from '@/providers/auth-provider';
 import { useToast } from '@/hooks/useToast';
 import { colors } from '@/theme';
 import { AuthLayout } from './components/AuthLayout';
+import { AuthHeaderMenu } from './components/AuthHeaderMenu';
 import { AuthCheckbox } from './components/AuthCheckbox';
 import { AuthTerms } from './components/AuthTerms';
 import { GoogleAuthButton } from './components/GoogleAuthButton';
 import { PasswordField } from '@/components/ui/PasswordField';
 import { PasswordStrength } from './components/PasswordStrength';
 import { useAuthAction } from './hooks/useAuthAction';
+import { useAuthRedirect } from './hooks/useAuthRedirect';
+import { LoadingState } from '@/components/ui/LoadingState';
 import {
   emailSchema,
   passwordSchema,
@@ -29,11 +32,13 @@ export function RegisterScreen() {
   const toast = useToast();
   const { service, setChallenge, registrationDraft, setRegistrationDraft } = useAuth();
   const { execute, pending } = useAuthAction();
+  const authenticated = useAuthRedirect(pending);
   const {
     control,
     handleSubmit,
     trigger,
     setFocus,
+    getValues,
     formState: { touchedFields },
   } = useForm<RegisterValues>({
     resolver: zodResolver(registerSchema),
@@ -66,8 +71,29 @@ export function RegisterScreen() {
     },
   );
 
+  async function verifyAccount() {
+    if (!(await trigger('correo', { shouldFocus: true }))) return;
+    await execute(
+      async () => setChallenge(await service.requestVerification(getValues('correo'))),
+      'Si la cuenta requiere verificación, recibirás un código',
+      () => router.replace('/otp'),
+    );
+  }
+
+  if (authenticated) return <LoadingState label="Continuando…" />;
   return (
-    <AuthLayout title="Crea tu cuenta" description="Estamos aquí para acompañarte." backTo="/login">
+    <AuthLayout
+      title="Crea tu cuenta"
+      description="Estamos aquí para acompañarte."
+      backTo="/login"
+      headerAction={
+        <AuthHeaderMenu
+          disabled={pending}
+          onVerify={() => void verifyAccount()}
+          onHelp={() => router.push('/perfil/ayuda')}
+        />
+      }
+    >
       <Controller
         control={control}
         name="nombre"
@@ -79,7 +105,7 @@ export function RegisterScreen() {
             onChangeText={field.onChange}
             onBlur={field.onBlur}
             error={fieldState.error?.message}
-            valid={fieldState.isDirty && registerSchema.shape.nombre.safeParse(field.value).success}
+            valid={registerSchema.shape.nombre.safeParse(field.value).success}
             returnKeyType="next"
             onSubmitEditing={() => setFocus('correo')}
             editable={!pending}
@@ -103,7 +129,7 @@ export function RegisterScreen() {
             onChangeText={field.onChange}
             onBlur={field.onBlur}
             error={fieldState.error?.message}
-            valid={fieldState.isDirty && emailSchema.safeParse(field.value).success}
+            valid={emailSchema.safeParse(field.value).success}
             returnKeyType="next"
             onSubmitEditing={() => setFocus('password')}
             editable={!pending}
@@ -129,7 +155,7 @@ export function RegisterScreen() {
             onChangeText={field.onChange}
             onBlur={field.onBlur}
             error={fieldState.error?.message}
-            valid={fieldState.isDirty && passwordSchema.safeParse(field.value).success}
+            valid={passwordSchema.safeParse(field.value).success}
             returnKeyType="next"
             onSubmitEditing={() => setFocus('confirmPassword')}
             editable={!pending}
@@ -152,11 +178,7 @@ export function RegisterScreen() {
             onChangeText={field.onChange}
             onBlur={field.onBlur}
             error={fieldState.error?.message}
-            valid={
-              fieldState.isDirty &&
-              field.value === password &&
-              passwordSchema.safeParse(field.value).success
-            }
+            valid={field.value === password && passwordSchema.safeParse(field.value).success}
             returnKeyType="done"
             onSubmitEditing={() => void submit()}
             editable={!pending}

@@ -5,6 +5,7 @@ import { BackButton } from '@/components/ui/BackButton';
 import { AppScreen } from '@/components/ui/AppScreen';
 import { CatalogImage } from '@/components/ui/CatalogImage';
 import { AuthIllustration, type AuthIllustrationKind } from './AuthIllustration';
+import { CredentialScreenProtection } from '@/components/security/CredentialScreenProtection';
 
 type AuthLayoutProps = {
   title: string;
@@ -13,6 +14,7 @@ type AuthLayoutProps = {
   illustration?: AuthIllustrationKind;
   backTo?: Href;
   onBack?: () => void;
+  headerAction?: ReactNode;
 };
 
 export function AuthLayout({
@@ -22,12 +24,13 @@ export function AuthLayout({
   illustration,
   backTo,
   onBack,
+  headerAction,
 }: AuthLayoutProps) {
   const router = useRouter();
-  return (
+  const content = (
     <AppScreen scroll edges={['top', 'bottom', 'left', 'right']} contentClassName="px-5 pb-6">
       <View className="w-full flex-1">
-        <View className="min-h-12 flex-row items-center pt-1">
+        <View className="min-h-12 flex-row items-center justify-between pt-1">
           {onBack || backTo ? (
             <BackButton
               onPress={
@@ -37,7 +40,10 @@ export function AuthLayout({
                 })
               }
             />
-          ) : null}
+          ) : (
+            <View className="w-11" />
+          )}
+          {headerAction}
         </View>
         <View className="gap-3 pb-5 pt-2">
           {illustration ? (
@@ -64,4 +70,5 @@ export function AuthLayout({
       </View>
     </AppScreen>
   );
+  return <CredentialScreenProtection>{content}</CredentialScreenProtection>;
 }

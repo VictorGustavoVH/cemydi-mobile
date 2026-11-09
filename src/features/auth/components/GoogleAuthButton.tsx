@@ -1,17 +1,16 @@
 import { useRef, useState } from 'react';
 import { Platform, Text, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
-import { useRouter } from 'expo-router';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { AppButton } from '@/components/ui/AppButton';
 import { useToast } from '@/hooks/useToast';
 import { useAuth } from '@/providers/auth-provider';
-import { getFriendlyErrorMessage, UserFacingError } from '@/services/http/api-error';
-import { returnToAuthDestination } from '../return-to-auth-destination';
+import { UserFacingError } from '@/services/http/api-error';
+import { getGoogleAuthErrorMessage } from '../google-auth-error';
 
 export function GoogleAuthButton({
   disabled = false,
-  remember = true,
+  remember = false,
 }: {
   disabled?: boolean;
   remember?: boolean;
@@ -25,9 +24,7 @@ export function GoogleAuthButton({
       <GoogleButtonView
         disabled={disabled}
         onPress={() =>
-          toast.info(
-            'Abre la app CEMYDI instalada para continuar con Google. Expo Go no admite esta función.',
-          )
+          toast.info('Para continuar con Google, abre la app CEMYDI instalada en tu teléfono.')
         }
       />
     );
@@ -41,7 +38,11 @@ export function GoogleAuthButton({
     return (
       <GoogleButtonView
         disabled={disabled}
-        onPress={() => toast.error('Google aún no está configurado en esta versión de la app.')}
+        onPress={() =>
+          toast.error(
+            'El acceso con Google no está disponible en esta versión. Puedes usar tu correo y contraseña.',
+          )
+        }
       />
     );
   }
@@ -55,7 +56,7 @@ export function GoogleAuthButton({
   );
 }
 
-function ConfiguredGoogleAuthButton({
+export function ConfiguredGoogleAuthButton({
   disabled,
   remember,
   webClientId,
@@ -67,8 +68,7 @@ function ConfiguredGoogleAuthButton({
   iosClientId?: string;
 }) {
   const toast = useToast();
-  const router = useRouter();
-  const { service, authDestination, setAuthDestination } = useAuth();
+  const { service } = useAuth();
   const locked = useRef(false);
   const [loading, setLoading] = useState(false);
 
@@ -77,36 +77,39 @@ function ConfiguredGoogleAuthButton({
     locked.current = true;
     setLoading(true);
     try {
+      // Initialize the native hybrid object only when the user requests Google sign-in.
+      const google: typeof import('react-native-nitro-google-signin') =
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        require('react-native-nitro-google-signin');
       const {
         GoogleOneTapSignIn,
         isCancelledResponse,
         isNoSavedCredentialFoundResponse,
         isSuccessResponse,
-      } = await import('react-native-nitro-google-signin');
+      } = google;
       GoogleOneTapSignIn.configure({ webClientId, iosClientId });
       if (Platform.OS === 'android') await GoogleOneTapSignIn.checkPlayServices();
-      let response = await GoogleOneTapSignIn.signIn();
+      const explicit = Platform.OS === 'android';
+      // This is a direct user gesture, not silent session restoration.
+      let response = explicit
+        ? await GoogleOneTapSignIn.presentExplicitSignIn()
+        : await GoogleOneTapSignIn.signIn();
       if (isNoSavedCredentialFoundResponse(response)) {
         response = await GoogleOneTapSignIn.createAccount();
       }
-      if (isNoSavedCredentialFoundResponse(response)) {
+      if (!explicit && isNoSavedCredentialFoundResponse(response)) {
         response = await GoogleOneTapSignIn.presentExplicitSignIn();
       }
       if (isSuccessResponse(response)) {
         const idToken = response.data.idToken;
-        if (!idToken) throw new UserFacingError('Google no devolvió una identidad válida.');
+        if (!idToken)
+          throw new UserFacingError('No pudimos confirmar tu cuenta de Google. Intenta de nuevo.');
         await service.loginWithGoogle(idToken, remember);
-        returnToAuthDestination(router, authDestination);
-        setAuthDestination('/inicio');
         return;
       }
       if (isCancelledResponse(response)) {
-        if (__DEV__) {
-          console.warn(
-            '[GoogleAuth] Flujo cancelado o cerrado por Google Play Services. ' +
-              'Si no apareció la ventana para elegir cuenta en Android, el SHA-1 registrado en Google Cloud Console no coincide con el del APK.',
-          );
-        }
+        toast.info('Google no completó el acceso. Intenta de nuevo cuando quieras.');
+        console.warn('[GoogleAuth] Respuesta cancelled: no se recibió una identidad de Google.');
         return;
       }
       if (isNoSavedCredentialFoundResponse(response)) {
@@ -114,7 +117,9 @@ function ConfiguredGoogleAuthButton({
       }
       throw new UserFacingError('No se pudo completar el inicio de sesión con Google.');
     } catch (error) {
-      toast.error(getFriendlyErrorMessage(error));
+      if (error && typeof error === 'object' && 'code' in error && typeof error.code === 'string')
+        console.warn('[GoogleAuth] Código de error:', error.code);
+      toast.error(getGoogleAuthErrorMessage(error));
     } finally {
       locked.current = false;
       setLoading(false);

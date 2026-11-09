@@ -16,6 +16,11 @@
     },
     "android": {
       "package": "com.cemydi.app",
+      "blockedPermissions": [
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
+      ],
       "icon": "./assets/icons/android-adaptive-foreground.png",
       "adaptiveIcon": {
         "backgroundColor": "#FFFFFF",
