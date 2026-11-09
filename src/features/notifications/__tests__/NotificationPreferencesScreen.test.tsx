@@ -16,8 +16,8 @@ jest.mock('@/hooks/useNetworkStatus', () => ({ useNetworkStatus: () => ({ isOnli
 jest.mock('@/hooks/useToast', () => ({ useToast: () => ({ error: mockShowError }) }));
 jest.mock('expo-router', () => ({ useFocusEffect: () => undefined }));
 jest.mock('../native-push', () => ({ registerNativePush: jest.fn() }));
-jest.mock('@/features/profile/components/ProfileLayout', () => ({
-  ProfileLayout: ({ children }: { children: ReactNode }) => children,
+jest.mock('@/components/account/AccountLayout', () => ({
+  AccountLayout: ({ children }: { children: ReactNode }) => children,
 }));
 jest.mock('../notification-service', () => ({
   notificationService: { preferences: jest.fn(), savePreferences: jest.fn() },

@@ -4,7 +4,14 @@ import { isDevice } from 'expo-device';
 import * as SecureStore from 'expo-secure-store';
 import { UserFacingError } from '@/services/http/api-error';
 import { notificationService } from './notification-service';
+import { explainPermission } from '@/services/permission-rationale';
+import {
+  clearPushRegistration,
+  savePushRegistration,
+  type PushCleanupStatus,
+} from './push-registration';
 
+let notificationsModule: typeof import('expo-notifications') | null = null;
 export async function loadNativeNotifications() {
   if (
     Platform.OS === 'web' ||
@@ -15,8 +22,12 @@ export async function loadNativeNotifications() {
       'Las notificaciones push necesitan la app instalada en un dispositivo físico.',
     );
   }
+  if (notificationsModule) return notificationsModule;
   try {
-    return await import('expo-notifications');
+    // Defer native module initialization until a screen or the session needs it.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    notificationsModule = require('expo-notifications') as typeof import('expo-notifications');
+    return notificationsModule;
   } catch {
     throw new UserFacingError(
       'Actualiza la app para activar las notificaciones en este dispositivo.',
@@ -32,6 +43,7 @@ export async function requestNativePermissionOnce(
     typeof import('expo-notifications'),
     'getPermissionsAsync' | 'requestPermissionsAsync'
   >,
+  isCurrent: () => boolean = () => true,
 ) {
   if (permissionFlight) return permissionFlight;
   permissionFlight = (async () => {
@@ -44,6 +56,8 @@ export async function requestNativePermissionOnce(
       /* OS status and session guard still apply. */
     }
     if (permissionAttempted || stored) return current;
+    if (!(await explainPermission('notifications'))) return current;
+    if (!isCurrent()) return current;
     permissionAttempted = true;
     try {
       await SecureStore.setItemAsync('cemydi-notification-permission-requested', '1');
@@ -57,7 +71,14 @@ export async function requestNativePermissionOnce(
   return permissionFlight;
 }
 
-export async function registerNativePush(isCurrent: () => boolean, requestPermission: boolean) {
+let registrationVersion = 0;
+export async function registerNativePush(
+  isSessionCurrent: () => boolean,
+  requestPermission: boolean,
+  userId: number,
+) {
+  const version = registrationVersion;
+  const isCurrent = () => version === registrationVersion && isSessionCurrent();
   const notifications = await loadNativeNotifications();
   const projectId: unknown =
     Constants.easConfig?.projectId ?? Constants.expoConfig?.extra?.eas?.projectId;
@@ -68,9 +89,10 @@ export async function registerNativePush(isCurrent: () => boolean, requestPermis
     });
   }
   let permission = await notifications.getPermissionsAsync();
-  if (!isCurrent()) return;
+  if (!isCurrent())
+    throw new UserFacingError('La sesión cambió. Vuelve a abrir las notificaciones.');
   if (!permission.granted && requestPermission && permission.status === 'undetermined')
-    permission = await requestNativePermissionOnce(notifications);
+    permission = await requestNativePermissionOnce(notifications, isCurrent);
   if (!permission.granted) {
     if (!requestPermission) return;
     throw new UserFacingError(
@@ -102,8 +124,42 @@ export async function registerNativePush(isCurrent: () => boolean, requestPermis
   });
   if (!isCurrent())
     throw new UserFacingError('La sesión cambió. Vuelve a abrir las notificaciones.');
+  // Persist before POST: a lost response must not leave an untracked registration.
+  await savePushRegistration(token.data, userId, isCurrent);
+  if (!isCurrent())
+    throw new UserFacingError('La sesión cambió. Vuelve a abrir las notificaciones.');
   await notificationService.register(token.data);
+  if (!isCurrent())
+    throw new UserFacingError('La sesión cambió. Vuelve a abrir las notificaciones.');
   return token.data;
+}
+
+/**
+ * The backend deactivates this session's subscriptions in the logout transaction.
+ * Keep the encrypted local record until remote revocation is confirmed.
+ */
+export async function releaseNativePush(
+  userId: number | undefined,
+  logout: Promise<{ remoteStatus: 'revoked' | 'pending' | 'failed' }>,
+  isCurrent: () => boolean,
+): Promise<PushCleanupStatus> {
+  registrationVersion += 1;
+  const dismiss = (async () => {
+    try {
+      const notifications = await loadNativeNotifications();
+      if (isCurrent()) await notifications.dismissAllNotificationsAsync();
+    } catch {
+      // Tray cleanup is best effort, including unsupported platforms.
+    }
+  })();
+  try {
+    const result = await logout;
+    await dismiss;
+    if (result.remoteStatus !== 'revoked') return 'pending';
+    return clearPushRegistration(userId, isCurrent);
+  } catch {
+    return 'failed';
+  }
 }
 
 export function notificationIdFromData(data: unknown): string | null {

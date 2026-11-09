@@ -1,5 +1,5 @@
 import { View } from 'react-native';
-import { HomeNotificationBell } from '@/features/notifications/HomeNotificationBell';
+import { HomeNotificationBell } from '@/features/notifications';
 import UserRound from 'lucide-react-native/icons/user-round';
 import { AppButton } from '@/components/ui/AppButton';
 import { CatalogImage } from '@/components/ui/CatalogImage';

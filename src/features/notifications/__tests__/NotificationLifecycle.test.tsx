@@ -3,8 +3,9 @@ import { act, waitFor } from '@testing-library/react-native';
 import type { Notification, NotificationHandler, NotificationResponse } from 'expo-notifications';
 import { render } from '../../../../tests/support/render-with-toast';
 import { AUTH_ACCOUNT, installAuthApiMock } from '../../../../tests/support/auth-api-mock';
+import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/providers/auth-provider';
-import { NotificationLifecycle } from '../NotificationLifecycle';
+import { NotificationLifecycle, NOTIFICATION_REFRESH_WINDOW_MS } from '../NotificationLifecycle';
 
 const mockRouter = { push: jest.fn() };
 const mockRemove = jest.fn();
@@ -28,12 +29,15 @@ jest.mock('../native-push', () => ({
   registerNativePush: (...args: unknown[]) => mockRegister(...args),
 }));
 let auth: ReturnType<typeof useAuth>;
+let queryClient: QueryClient;
 function Harness({ login = true }: { login?: boolean }) {
   const currentAuth = useAuth();
+  const client = useQueryClient();
   const { service } = currentAuth;
   useEffect(() => {
     auth = currentAuth;
-  }, [currentAuth]);
+    queryClient = client;
+  }, [currentAuth, client]);
   useEffect(() => {
     if (login) void service.login(AUTH_ACCOUNT.correo, AUTH_ACCOUNT.password, false);
   }, [login, service]);
@@ -67,6 +71,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   installAuthApiMock();
 });
+afterEach(() => jest.useRealTimers());
 async function ready() {
   await waitFor(() => expect(auth.status).toBe('authenticated'));
   await waitFor(() => expect(mockRegister).toHaveBeenCalled());
@@ -102,7 +107,7 @@ it('ignora avisos de otra cuenta, destinos externos y listeners de una sesión c
   });
   expect(mockRouter.push).not.toHaveBeenCalled();
 });
-it('conserva un destino interno durante login y elimina las suscripciones al desmontar', async () => {
+it('pide login al abrir un aviso sin sesión y elimina las suscripciones al desmontar', async () => {
   const view = await render(<Harness login={false} />);
   await waitFor(() =>
     expect(mockNative.addNotificationResponseReceivedListener).toHaveBeenCalled(),
@@ -111,7 +116,6 @@ it('conserva un destino interno durante login y elimina las suscripciones al des
   await act(async () => {
     open(response());
   });
-  expect(auth.authDestination).toBe('/perfil/notificaciones/notice-1');
   expect(mockRouter.push).toHaveBeenCalledWith('/login');
   await view.unmount();
   expect(mockRemove).toHaveBeenCalledTimes(3);
@@ -128,4 +132,35 @@ it('presenta avisos en primer plano solo para la cuenta comprobada', async () =>
   expect(await handler?.handleNotification(response(2).notification)).toMatchObject({
     shouldShowBanner: false,
   });
+});
+
+it('actualiza rentas, reseñas y bandeja solo al recibir un aviso de la cuenta activa', async () => {
+  jest.useFakeTimers();
+  await render(<Harness />);
+  await ready();
+  const invalidate = jest.spyOn(queryClient, 'invalidateQueries');
+  const receive = mockNative.addNotificationReceivedListener.mock.calls.at(-1)![0];
+  await act(async () => {
+    receive(response(2).notification);
+  });
+  expect(invalidate).not.toHaveBeenCalled();
+  await act(async () => {
+    for (let index = 0; index < 30; index += 1) receive(response().notification);
+  });
+  expect(invalidate).not.toHaveBeenCalled();
+  await act(async () => {
+    await jest.advanceTimersByTimeAsync(NOTIFICATION_REFRESH_WINDOW_MS);
+  });
+  expect(invalidate).toHaveBeenCalledTimes(3);
+  expect(invalidate).toHaveBeenCalledWith({ queryKey: ['notifications', 1] });
+  expect(invalidate).toHaveBeenCalledWith({ queryKey: ['account', 1] });
+  expect(invalidate).toHaveBeenCalledWith({ queryKey: ['reviews', 'product'] });
+  invalidate.mockClear();
+  await act(async () => {
+    receive(response().notification);
+    await auth.logout();
+    receive(response().notification);
+    await jest.advanceTimersByTimeAsync(NOTIFICATION_REFRESH_WINDOW_MS);
+  });
+  expect(invalidate).not.toHaveBeenCalled();
 });

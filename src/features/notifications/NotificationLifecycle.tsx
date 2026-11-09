@@ -5,8 +5,10 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/providers/auth-provider';
 import { loadNativeNotifications, notificationIdFromData, registerNativePush } from './native-push';
 
+export const NOTIFICATION_REFRESH_WINDOW_MS = 1500;
+
 export function NotificationLifecycle() {
-  const { user, status, getSession, getSessionVersion, setAuthDestination } = useAuth();
+  const { user, status, getSession, getSessionVersion } = useAuth();
   const router = useRouter();
   const client = useQueryClient();
   const lastOpened = useRef<string | null>(null);
@@ -17,9 +19,11 @@ export function NotificationLifecycle() {
     const isCurrent = () =>
       active && getSessionVersion() === version && getSession().user?.id === user?.id;
     const subscriptions: { remove: () => void }[] = [];
+    let refreshTimer: ReturnType<typeof setTimeout> | undefined;
     let clearHandler: (() => void) | undefined;
     const refresh = () => {
-      if (user?.rol === 'CLIENT') void registerNativePush(isCurrent, false).catch(() => undefined);
+      if (user?.rol === 'CLIENT')
+        void registerNativePush(isCurrent, false, user.id).catch(() => undefined);
     };
     void loadNativeNotifications()
       .then(async (notifications) => {
@@ -52,16 +56,28 @@ export function NotificationLifecycle() {
           if (current.user?.rol === 'CLIENT')
             router.push({ pathname: '/perfil/notificaciones/[id]', params: { id } });
           else if (!current.user) {
-            setAuthDestination(`/perfil/notificaciones/${id}`);
             router.push('/login');
           }
           void notifications.clearLastNotificationResponseAsync().catch(() => undefined);
         };
         subscriptions.push(notifications.addNotificationResponseReceivedListener(open));
         subscriptions.push(
-          notifications.addNotificationReceivedListener(() => {
-            if (isCurrent() && user?.rol === 'CLIENT')
-              void client.invalidateQueries({ queryKey: ['notifications', user.id] });
+          notifications.addNotificationReceivedListener((notification) => {
+            if (
+              isCurrent() &&
+              user?.rol === 'CLIENT' &&
+              notification.request.content.data?.userId === user.id
+            ) {
+              if (refreshTimer !== undefined) return;
+              // One trailing refresh per window; a continuous stream cannot postpone it forever.
+              refreshTimer = setTimeout(() => {
+                refreshTimer = undefined;
+                if (!isCurrent()) return;
+                void client.invalidateQueries({ queryKey: ['notifications', user.id] });
+                void client.invalidateQueries({ queryKey: ['account', user.id] });
+                void client.invalidateQueries({ queryKey: ['reviews', 'product'] });
+              }, NOTIFICATION_REFRESH_WINDOW_MS);
+            }
           }),
         );
         subscriptions.push(notifications.addPushTokenListener(refresh));
@@ -79,18 +95,10 @@ export function NotificationLifecycle() {
     );
     return () => {
       active = false;
+      if (refreshTimer !== undefined) clearTimeout(refreshTimer);
       clearHandler?.();
       subscriptions.forEach((item) => item.remove());
     };
-  }, [
-    user?.id,
-    user?.rol,
-    status,
-    getSession,
-    getSessionVersion,
-    setAuthDestination,
-    router,
-    client,
-  ]);
+  }, [user?.id, user?.rol, status, getSession, getSessionVersion, router, client]);
   return null;
 }
