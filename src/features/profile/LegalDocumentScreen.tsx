@@ -1,8 +1,9 @@
 import { Text, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { ProfileLayout } from './components/ProfileLayout';
-import { AccountResourceState } from './components/AccountResourceState';
+import { AccountSection } from '@/components/account/AccountSection';
+import { AccountLayout } from '@/components/account/AccountLayout';
+import { AccountResourceState } from '@/components/account/AccountResourceState';
 import { accountService, legalText, legalSlugs } from './account-service';
 import { useAccountResource } from './useAccountResource';
 
@@ -15,7 +16,7 @@ export function LegalDocumentScreen() {
     { enabled: Boolean(validSlug), publicAccess: true },
   );
   return (
-    <ProfileLayout
+    <AccountLayout
       title={validSlug === 'politicas-de-privacidad' ? 'Privacidad' : 'Términos y condiciones'}
       publicAccess
     >
@@ -26,7 +27,7 @@ export function LegalDocumentScreen() {
         />
       ) : (
         <AccountResourceState {...query} isOnline={isOnline} retry={() => void query.refetch()}>
-          <View className="gap-6 px-5 pb-8">
+          <View className="gap-7 px-5 pb-8 pt-5">
             <View className="gap-3">
               <Text accessibilityRole="header" className="font-sans-bold text-xl text-primary">
                 {query.data?.document.title}
@@ -36,24 +37,18 @@ export function LegalDocumentScreen() {
               </Text>
             </View>
             {query.data?.document.sections.map((section) => (
-              <View key={section.id} className="gap-3">
-                <Text
-                  accessibilityRole="header"
-                  className="font-sans-semibold text-lg text-primary"
-                >
-                  {section.title}
-                </Text>
+              <AccountSection key={section.id} title={section.title}>
                 <Text
                   selectable
                   className={`font-sans text-base leading-7 ${section.variant === 'medical-alert' ? 'text-danger' : 'text-secondary'}`}
                 >
                   {legalText(section.body)}
                 </Text>
-              </View>
+              </AccountSection>
             ))}
           </View>
         </AccountResourceState>
       )}
-    </ProfileLayout>
+    </AccountLayout>
   );
 }

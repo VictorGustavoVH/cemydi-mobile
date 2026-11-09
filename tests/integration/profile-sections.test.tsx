@@ -13,6 +13,7 @@ import { RentalsScreen } from '@/features/profile/RentalsScreen';
 import { RentalDetailScreen } from '@/features/profile/RentalDetailScreen';
 import { MyReviewsScreen } from '@/features/profile/MyReviewsScreen';
 import { HelpScreen } from '@/features/profile/HelpScreen';
+import { SUPPORT_LOCATIONS } from '@/features/profile/support-content';
 import { LegalDocumentScreen } from '@/features/profile/LegalDocumentScreen';
 import { accountService } from '@/features/profile/account-service';
 import { ApiError } from '@/services/http/api-error';
@@ -64,6 +65,7 @@ describe('Secciones de Perfil', () => {
   it('consulta historial y abre el detalle exacto', async () => {
     await show(RentalsScreen);
     await fireEvent.press(await screen.findByLabelText('Ver renta REN-123'));
+    expect(screen.queryByLabelText('Actualizar rentas')).toBeNull();
     expect(mockRouter.push).toHaveBeenCalledWith({
       pathname: '/perfil/renta/[id]',
       params: { id: RENTAL.id },
@@ -118,6 +120,7 @@ describe('Secciones de Perfil', () => {
     await show(MyReviewsScreen);
     expect(await screen.findByText('Buena atención')).toBeTruthy();
     expect(screen.getByText('Publicada')).toBeTruthy();
+    expect(screen.queryByLabelText('Actualizar reseñas')).toBeNull();
     await fireEvent.press(screen.getByLabelText('Ver producto: Equipo de prueba'));
     expect(mockRouter.push).toHaveBeenCalledWith({
       pathname: '/producto/[id]',
@@ -143,6 +146,47 @@ describe('Secciones de Perfil', () => {
     expect(open).toHaveBeenCalledWith('tel:7896880251');
     await fireEvent.press(screen.getByLabelText('Escribir a CEMYDI'));
     expect(await screen.findByText(/No se pudo abrir una aplicación/)).toBeTruthy();
+  });
+  it('abre los canales publicados y la ruta exacta de ambas ubicaciones', async () => {
+    const open = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
+    await show(HelpScreen);
+    await fireEvent.press(screen.getByRole('button', { name: 'Escribir por WhatsApp' }));
+    expect(open).toHaveBeenLastCalledWith('https://wa.me/527896880251');
+    await fireEvent.press(screen.getByRole('button', { name: 'Facebook de CEMYDI' }));
+    expect(open).toHaveBeenLastCalledWith('https://www.facebook.com/OrtopediaCEMYDI');
+    for (const location of SUPPORT_LOCATIONS) {
+      expect(screen.getByText(location.address)).toBeTruthy();
+      await fireEvent.press(screen.getByRole('link', { name: `Cómo llegar a ${location.name}` }));
+      expect(open).toHaveBeenLastCalledWith(location.mapUrl);
+    }
+  });
+  it('conserva las direcciones sin red y bloquea solo los contactos que requieren internet', async () => {
+    const network = installNetworkMock();
+    await show(HelpScreen);
+    await act(async () => network.emit({ isInternetReachable: false }));
+    expect(screen.getByRole('button', { name: 'Escribir por WhatsApp' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Facebook de CEMYDI' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Llamar a CEMYDI' })).not.toBeDisabled();
+    for (const location of SUPPORT_LOCATIONS) {
+      expect(screen.getByText(location.address)).toBeTruthy();
+      expect(screen.getByRole('link', { name: `Cómo llegar a ${location.name}` })).toBeDisabled();
+    }
+  });
+  it('permite desplegar las preguntas y el depósito sin saturar el contenido inicial', async () => {
+    const help = await show(HelpScreen);
+    expect(screen.queryByText(/En Perfil, abre Mis rentas y selecciona/)).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: '¿Dónde consulto mis rentas?' }));
+    expect(screen.getByText(/En Perfil, abre Mis rentas y selecciona/)).toBeTruthy();
+    await fireEvent.press(screen.getByRole('button', { name: '¿Dónde consulto mis rentas?' }));
+    expect(screen.queryByText(/En Perfil, abre Mis rentas y selecciona/)).toBeNull();
+    await help.unmount();
+    mockParams = { id: RENTAL.id };
+    await show(RentalDetailScreen);
+    await screen.findByLabelText('Cancelar solicitud');
+    expect(screen.queryByText(/Devuelto:/)).toBeNull();
+    expect(screen.queryByLabelText('Actualizar renta')).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: 'Detalle del depósito' }));
+    expect(screen.getByText(/Devuelto:/)).toBeTruthy();
   });
   it('devuelve al invitado a Inicio en lugar de mostrar una sección privada', async () => {
     await render(

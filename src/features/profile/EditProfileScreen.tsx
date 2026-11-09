@@ -3,18 +3,16 @@ import { Keyboard, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import UserRound from 'lucide-react-native/icons/user-round';
 import Mail from 'lucide-react-native/icons/mail';
-import Phone from 'lucide-react-native/icons/phone';
-import MapPin from 'lucide-react-native/icons/map-pin';
 import { AppInput } from '@/components/ui/AppInput';
 import { AppButton } from '@/components/ui/AppButton';
 import { useToast } from '@/hooks/useToast';
 import { getFriendlyErrorMessage } from '@/services/http/api-error';
-import { colors } from '@/theme';
-import { ProfileLayout } from './components/ProfileLayout';
+import { AccountMenuItem } from '@/components/account/AccountMenuItem';
+import { AccountSection } from '@/components/account/AccountSection';
+import { AccountLayout } from '@/components/account/AccountLayout';
 import { ProfileDataState } from './components/ProfileDataState';
-import { UnsavedProfileChanges } from './components/UnsavedProfileChanges';
+import { UnsavedAccountChanges } from '@/components/account/UnsavedAccountChanges';
 import { useProfile } from './useProfile';
 import {
   profileChanges,
@@ -28,6 +26,7 @@ type ProfileFormProps = { user: ProfileUser; profile: ReturnType<typeof useProfi
 function ProfileForm({ user, profile }: ProfileFormProps) {
   const router = useRouter();
   const [baseline, setBaseline] = useState(user);
+  const [editing, setEditing] = useState(false);
   const toast = useToast();
   const {
     control,
@@ -52,6 +51,7 @@ function ProfileForm({ user, profile }: ProfileFormProps) {
       const saved = await profile.save(changes);
       setBaseline(saved);
       reset(toProfileForm(saved));
+      setEditing(false);
       Keyboard.dismiss();
       toast.success('Tus datos se guardaron correctamente');
     } catch (error) {
@@ -64,90 +64,59 @@ function ProfileForm({ user, profile }: ProfileFormProps) {
     }
   });
   return (
-    <View className="gap-6 px-5 pb-8">
-      <View className="gap-2">
-        <Text className="font-sans-semibold text-xl text-primary">Tus datos personales</Text>
-        <Text className="font-sans text-sm leading-6 text-secondary">
-          Mantén actualizada tu información de contacto.
-        </Text>
-      </View>
-      <Controller
-        control={control}
-        name="nombre"
-        render={({ field, fieldState }) => (
-          <AppInput
-            ref={field.ref}
-            label="Nombre completo"
-            value={field.value}
-            onChangeText={field.onChange}
-            onBlur={field.onBlur}
-            error={fieldState.error?.message}
-            valid={
-              fieldState.isDirty && profileFormSchema.shape.nombre.safeParse(field.value).success
-            }
-            editable={!disabled}
-            autoCapitalize="words"
-            autoComplete="name"
-            textContentType="name"
-            maxLength={120}
-            returnKeyType="next"
-            onSubmitEditing={() => setFocus('telefono')}
-            leadingIcon={<UserRound aria-hidden size={20} color={colors.textSecondary} />}
-          />
-        )}
-      />
-      <View className="gap-2">
-        <View className="flex-row items-center gap-2">
-          <Mail aria-hidden size={20} color={colors.textSecondary} />
-          <Text className="font-sans-semibold text-base text-primary">Correo electrónico</Text>
-        </View>
-        <Text selectable className="font-sans text-sm text-secondary">
-          {user.correo}
-        </Text>
-        <AppButton
-          label="Cambiar correo con código"
-          variant="secondary"
-          disabled={disabled}
-          onPress={() => router.push('/perfil/cambiar-correo')}
+    <View className="gap-6 px-5 pb-8 pt-5">
+      <AccountSection title="Datos de contacto">
+        <Controller
+          control={control}
+          name="nombre"
+          render={({ field, fieldState }) => (
+            <AppInput
+              ref={field.ref}
+              label="Nombre completo"
+              value={editing ? field.value : (user[field.name] ?? '')}
+              onChangeText={field.onChange}
+              onBlur={field.onBlur}
+              error={fieldState.error?.message}
+              valid={editing && profileFormSchema.shape.nombre.safeParse(field.value).success}
+              editable={editing && !disabled}
+              autoCapitalize="words"
+              autoComplete="name"
+              textContentType="name"
+              maxLength={120}
+              returnKeyType="next"
+              onSubmitEditing={() => setFocus('telefono')}
+            />
+          )}
         />
-      </View>
-      <Controller
-        control={control}
-        name="telefono"
-        render={({ field, fieldState }) => (
-          <AppInput
-            ref={field.ref}
-            label="Teléfono (opcional)"
-            value={field.value}
-            onChangeText={field.onChange}
-            onBlur={field.onBlur}
-            error={fieldState.error?.message}
-            valid={
-              fieldState.isDirty &&
-              Boolean(field.value) &&
-              profileFormSchema.shape.telefono.safeParse(field.value).success
-            }
-            editable={!disabled}
-            autoComplete="tel"
-            textContentType="telephoneNumber"
-            keyboardType="phone-pad"
-            maxLength={30}
-            returnKeyType="next"
-            onSubmitEditing={() => setFocus('direccion')}
-            placeholder="Ej. +52 55 1234 5678"
-            leadingIcon={<Phone aria-hidden size={20} color={colors.textSecondary} />}
-          />
-        )}
-      />
-      <View className="gap-4 pt-2">
-        <View className="gap-1">
-          <Text accessibilityRole="header" className="font-sans-semibold text-lg text-primary">
-            Dirección de contacto
-          </Text>
-          <Text className="font-sans text-sm leading-5 text-secondary">
-            Es opcional. Podrás confirmar el domicilio de entrega al solicitar una renta.
-          </Text>
-        </View>
+        <Controller
+          control={control}
+          name="telefono"
+          render={({ field, fieldState }) => (
+            <AppInput
+              ref={field.ref}
+              label="Teléfono (opcional)"
+              value={editing ? field.value : (user[field.name] ?? '')}
+              onChangeText={field.onChange}
+              onBlur={field.onBlur}
+              error={fieldState.error?.message}
+              valid={
+                editing &&
+                Boolean(field.value) &&
+                profileFormSchema.shape.telefono.safeParse(field.value).success
+              }
+              editable={editing && !disabled}
+              autoComplete="tel"
+              textContentType="telephoneNumber"
+              keyboardType="phone-pad"
+              maxLength={30}
+              returnKeyType="next"
+              onSubmitEditing={() => setFocus('direccion')}
+              placeholder="Ej. +52 789 123 4567"
+            />
+          )}
+        />
+      </AccountSection>
+      <View className="pt-1">
         <Controller
           control={control}
           name="direccion"
@@ -155,23 +124,39 @@ function ProfileForm({ user, profile }: ProfileFormProps) {
             <AppInput
               ref={field.ref}
               label="Dirección (opcional)"
-              value={field.value}
+              value={editing ? field.value : (user[field.name] ?? '')}
+              valid={
+                editing &&
+                Boolean(field.value.trim()) &&
+                profileFormSchema.shape.direccion.safeParse(field.value).success
+              }
               onChangeText={field.onChange}
               onBlur={field.onBlur}
               error={fieldState.error?.message}
-              editable={!disabled}
+              editable={editing && !disabled}
               multiline
               numberOfLines={3}
-              style={{ minHeight: 104, textAlignVertical: 'top' }}
               maxLength={180}
               autoCapitalize="sentences"
               autoComplete="street-address"
               textContentType="fullStreetAddress"
               placeholder="Calle, número, colonia, ciudad y código postal"
-              helperText={`${field.value.length}/180 caracteres`}
-              leadingIcon={<MapPin aria-hidden size={20} color={colors.textSecondary} />}
+              helperText={`${(editing ? field.value : (user.direccion ?? '')).length}/180 caracteres`}
             />
           )}
+        />
+      </View>
+      <View className="gap-2 border-t border-border/50 pt-6">
+        <Text accessibilityRole="header" className="font-sans-semibold text-base text-primary">
+          Correo y acceso
+        </Text>
+        <AccountMenuItem
+          title="Cambiar correo con código"
+          description={user.correo}
+          iconTone="info"
+          icon={Mail}
+          disabled={disabled}
+          onPress={() => router.push('/perfil/cambiar-correo')}
         />
       </View>
       {errors.root?.server?.message ? (
@@ -179,25 +164,50 @@ function ProfileForm({ user, profile }: ProfileFormProps) {
           {errors.root.server.message}
         </Text>
       ) : null}
-      <AppButton
-        label="Guardar cambios"
-        loading={profile.saving}
-        disabled={disabled || !isDirty}
-        onPress={() => void submit()}
-      />
-      <UnsavedProfileChanges dirty={isDirty} saving={profile.saving} />
+      <View className="gap-3 border-t border-border/50 pt-5">
+        {!editing ? (
+          <AppButton
+            label="Modificar datos"
+            disabled={disabled}
+            onPress={() => {
+              setBaseline(user);
+              reset(toProfileForm(user));
+              setEditing(true);
+            }}
+          />
+        ) : (
+          <>
+            <AppButton
+              label="Guardar cambios"
+              loading={profile.saving}
+              disabled={disabled || !isDirty}
+              onPress={() => void submit()}
+            />
+            <AppButton
+              label="Cancelar"
+              variant="ghost"
+              disabled={profile.saving}
+              onPress={() => {
+                reset(toProfileForm(user));
+                setEditing(false);
+              }}
+            />
+          </>
+        )}
+      </View>
+      <UnsavedAccountChanges dirty={isDirty} saving={profile.saving} />
     </View>
   );
 }
 export function EditProfileScreen() {
   const profile = useProfile();
   return (
-    <ProfileLayout title="Editar perfil">
+    <AccountLayout title="Datos personales" protectCredentials>
       <ProfileDataState profile={profile}>
         {profile.query.data ? (
           <ProfileForm key={profile.query.data.id} user={profile.query.data} profile={profile} />
         ) : null}
       </ProfileDataState>
-    </ProfileLayout>
+    </AccountLayout>
   );
 }
