@@ -15,6 +15,7 @@
       "typedRoutes": true
     },
     "android": {
+      "versionCode": 1,
       "package": "com.cemydi.app",
       "blockedPermissions": [
         "android.permission.READ_EXTERNAL_STORAGE",
@@ -52,7 +53,12 @@
         "expo-speech-recognition",
         {
           "microphonePermission": "Permite que CEMYDI use el micrófono para buscar productos por voz.",
-          "speechRecognitionPermission": "Permite que CEMYDI convierta tu voz en texto para buscar productos."
+          "speechRecognitionPermission": "Permite que CEMYDI convierta tu voz en texto para buscar productos.",
+          "androidSpeechServicePackages": [
+            "com.google.android.googlequicksearchbox",
+            "com.google.android.tts",
+            "com.samsung.android.bixby.agent"
+          ]
         }
       ],
       "expo-secure-store",

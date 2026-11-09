@@ -86,6 +86,12 @@
     "doctor": "npx --yes expo-doctor",
     "prepare": "husky",
     "check": "npm run typecheck && npm run lint && npm run format:check && npm test",
+    "test:release-security": "node --test scripts/security/android-release.test.cjs scripts/security/android-cng.test.cjs",
+    "release:key": "node scripts/security/create-signing-key.cjs",
+    "release:android": "node scripts/security/build-release.cjs",
+    "release:bundle": "node scripts/security/build-release.cjs --aab",
+    "release:inspect": "node scripts/security/inspect-release.cjs",
+    "security:tls": "node scripts/security/tls-pins.cjs",
     "security:audit": "node scripts/security/audit.cjs",
     "test:dependency-security": "node --test scripts/security/dependencies.test.cjs"
   },

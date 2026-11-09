@@ -1,4 +1,11 @@
+/* global __dirname */
+const { existsSync } = require('node:fs');
+const { join } = require('node:path');
+
 module.exports = ({ config: base }) => {
+  const googleServicesFile =
+    process.env.GOOGLE_SERVICES_JSON?.trim() ||
+    (existsSync(join(__dirname, 'google-services.json')) ? './google-services.json' : undefined);
   const iosClientId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID?.trim();
   const webClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID?.trim();
   const iosClientSuffix = '.apps.googleusercontent.com';
@@ -21,15 +28,14 @@ module.exports = ({ config: base }) => {
     },
     android: {
       ...base.android,
-      ...(process.env.GOOGLE_SERVICES_JSON?.trim()
-        ? { googleServicesFile: process.env.GOOGLE_SERVICES_JSON.trim() }
-        : {}),
+      ...(googleServicesFile ? { googleServicesFile } : {}),
     },
     plugins: [
       ...base.plugins,
       './plugins/with-android-java.cjs',
       './plugins/with-android-cmake.cjs',
       './plugins/with-android-screens-lifetime.cjs',
+      './plugins/with-android-security.cjs',
       ...(hasValidIosClient
         ? [
             [

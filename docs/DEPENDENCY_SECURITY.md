@@ -88,6 +88,13 @@ Los reportes locales quedan en `test-results/security/dependencies/` y están
 ignorados por Git. Si el registro falla o devuelve un resultado incompatible, la
 auditoría falla; no transforma un error de red en ausencia de vulnerabilidades.
 
+## TLS y validación externa
+
+El usuario aprobó sustituir pinning por HTTPS con validación estándar de Android
+y CA del sistema para el backend administrado por Render. Release rechaza HTTP
+y certificados no confiables; ya no requiere un pin de respaldo. Ver
+[ANDROID_RELEASE_SECURITY.md](./ANDROID_RELEASE_SECURITY.md).
+
 ## Límites de validación
 
 La prueba del backend en un entorno aislado y la aceptación Android/iOS con una
