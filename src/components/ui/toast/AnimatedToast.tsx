@@ -1,13 +1,19 @@
-import { useEffect, type RefObject } from 'react';
-import { AccessibilityInfo, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useMemo, type RefObject } from 'react';
+import { AccessibilityInfo, PanResponder, StyleSheet, Text, View } from 'react-native';
 import { BlurView } from 'expo-blur';
+import * as Haptics from 'expo-haptics';
 import Animated, {
   Easing,
+  Extrapolation,
   FadeIn,
   FadeOut,
+  ReduceMotion,
+  cancelAnimation,
+  interpolate,
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
+  withSpring,
   withTiming,
 } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
@@ -39,64 +45,154 @@ export function AnimatedToast({
 }: AnimatedToastProps) {
   const { id, revision } = entry;
   const progress = useSharedValue(0);
-  const scrollOffset = useSharedValue(scrolled ? -26 : 0);
+  const visibility = useSharedValue(0);
+  const translateX = useSharedValue(0);
+  const isDismissing = useSharedValue(false);
   const reduced = useReducedMotion();
+  const scrollOffset = useSharedValue(!reduced && scrolled ? -26 : 0);
+
+  useEffect(() => {
+    translateX.set(0);
+    isDismissing.set(false);
+  }, [id, revision, translateX, isDismissing]);
+
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => false,
+        onMoveShouldSetPanResponder: (_evt, gestureState) => {
+          if (entry.closing || isDismissing.get()) return false;
+          return (
+            Math.abs(gestureState.dx) > 10 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy)
+          );
+        },
+        onPanResponderGrant: () => {
+          cancelAnimation(translateX);
+        },
+        onPanResponderMove: (_evt, gestureState) => {
+          if (isDismissing.get()) return;
+          translateX.set(gestureState.dx);
+        },
+        onPanResponderRelease: (_evt, gestureState) => {
+          if (isDismissing.get()) return;
+          const dx = gestureState.dx;
+          const vx = gestureState.vx;
+          const dismissThreshold = 80;
+          const velocityThreshold = 0.5;
+          const shouldDismiss = Math.abs(dx) > dismissThreshold || Math.abs(vx) > velocityThreshold;
+
+          if (shouldDismiss) {
+            isDismissing.set(true);
+            const direction = dx > 0 || (dx === 0 && vx > 0) ? 1 : -1;
+            const targetX = direction * 400;
+
+            void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
+
+            translateX.set(
+              withTiming(targetX, {
+                duration: reduced ? 100 : 180,
+                easing: Easing.bezier(0.23, 1, 0.32, 1),
+              }),
+            );
+            visibility.set(withTiming(0, { duration: reduced ? 100 : 150 }));
+            onDismiss(id);
+          } else {
+            translateX.set(
+              withSpring(0, {
+                dampingRatio: 0.8,
+                duration: 300,
+                reduceMotion: ReduceMotion.System,
+              }),
+            );
+          }
+        },
+        onPanResponderTerminate: () => {
+          if (!isDismissing.get()) {
+            translateX.set(
+              withSpring(0, {
+                dampingRatio: 0.8,
+                duration: 300,
+                reduceMotion: ReduceMotion.System,
+              }),
+            );
+          }
+        },
+      }),
+    [entry.closing, id, isDismissing, onDismiss, reduced, translateX, visibility],
+  );
 
   useEffect(() => {
     scrollOffset.set(
-      withTiming(scrolled ? -26 : 0, {
-        duration: reduced ? 100 : 260,
-        easing: Easing.bezier(0.2, 0.8, 0.2, 1),
+      withTiming(!reduced && scrolled ? -26 : 0, {
+        duration: reduced ? 100 : 180,
+        easing: Easing.bezier(0.23, 1, 0.32, 1),
       }),
     );
+    return () => cancelAnimation(scrollOffset);
   }, [scrolled, reduced, scrollOffset]);
 
   useEffect(() => {
     if (!entry.closing) {
       AccessibilityInfo.announceForAccessibility(entry.message);
+      visibility.set(withTiming(1, { duration: reduced ? 100 : 160 }));
       progress.set(
         withTiming(1, {
-          duration: reduced ? 100 : 380,
-          easing: Easing.bezier(0.16, 1, 0.3, 1),
+          duration: reduced ? 0 : 280,
+          easing: Easing.bezier(0.23, 1, 0.32, 1),
         }),
       );
     } else {
+      visibility.set(withTiming(0, { duration: reduced ? 100 : 150 }));
       progress.set(
         withTiming(
           0,
-          { duration: reduced ? 100 : 220, easing: Easing.bezier(0.25, 1, 0.5, 1) },
+          { duration: reduced ? 100 : 180, easing: Easing.bezier(0.23, 1, 0.32, 1) },
           (finished) => {
             if (finished) scheduleOnRN(onExited, id, revision);
           },
         ),
       );
     }
-  }, [entry.closing, id, revision, entry.message, progress, reduced, onExited]);
+    return () => {
+      cancelAnimation(progress);
+      cancelAnimation(visibility);
+    };
+  }, [entry.closing, id, revision, entry.message, progress, visibility, reduced, onExited]);
 
   const iconEntering = () => {
     'worklet';
     return {
-      initialValues: { opacity: 0, transform: [{ scale: reduced ? 1 : 0.94 }] },
+      initialValues: { opacity: 0, transform: [{ scale: reduced ? 1 : 0.97 }] },
       animations: {
-        opacity: withTiming(1, { duration: reduced ? 100 : 200 }),
-        transform: [{ scale: withTiming(1, { duration: reduced ? 0 : 200 }) }],
+        opacity: withTiming(1, { duration: reduced ? 100 : 180 }),
+        transform: [{ scale: withTiming(1, { duration: reduced ? 0 : 180 }) }],
       },
     };
   };
 
   const style = useAnimatedStyle(() => {
-    const entranceY = reduced ? 0 : (bottom ? 32 : -32) * (1 - progress.get());
+    const entranceY = reduced ? 0 : (bottom ? 12 : -12) * (1 - progress.get());
+    const currentTranslateX = translateX.get();
+    const dragFade = interpolate(
+      Math.abs(currentTranslateX),
+      [0, 150],
+      [1, 0.4],
+      Extrapolation.CLAMP,
+    );
     return {
-      opacity: progress.get(),
+      opacity: visibility.get() * (reduced ? 1 : dragFade),
       transform: [
-        { translateY: entranceY + scrollOffset.get() },
-        { scale: reduced ? 1 : 0.94 + 0.06 * progress.get() },
+        { translateX: currentTranslateX },
+        { translateY: reduced ? 0 : entranceY + scrollOffset.get() },
+        { scale: reduced ? 1 : 0.98 + 0.02 * progress.get() },
       ],
     };
   });
   const undo = entry.type === 'undo';
   return (
     <Animated.View
+      {...panResponder.panHandlers}
+      testID="animated-toast"
       pointerEvents={entry.closing ? 'none' : 'auto'}
       style={[styles.shadow, { borderRadius: undo ? 14 : 16 }, style]}
     >

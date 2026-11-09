@@ -60,7 +60,7 @@ function Viewport({
     >
       <View pointerEvents="box-none" style={{ width: '100%', maxWidth: 480 }}>
         <AnimatedToast
-          key={entry.id}
+          key={bottom ? 'bottom' : 'top'}
           entry={entry}
           scrolled={bottom ? false : isScrolled}
           bottom={bottom}
