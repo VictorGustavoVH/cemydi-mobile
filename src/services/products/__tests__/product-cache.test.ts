@@ -82,3 +82,15 @@ describe('Caché compartida del detalle', () => {
     expect(client.getQueryData(productDetailKey('wheelchair'))).toBeUndefined();
   });
 });
+
+it('no siembra un producto inactivo ni renueva la fecha de un detalle anterior con él', () => {
+  const client = new QueryClient();
+  const active = productFixture(1);
+  seedProductDetail(client, active, 1000);
+  seedProductDetail(client, productFixture(1, { activo: false }), 2000);
+  seedProductDetail(client, productFixture(2, { activo: false }), 2000);
+  expect(client.getQueryData(productDetailKey(1))).toEqual({ product: active });
+  expect(client.getQueryState(productDetailKey(1))?.dataUpdatedAt).toBe(1000);
+  expect(client.getQueryData(productDetailKey(2))).toBeUndefined();
+  client.clear();
+});

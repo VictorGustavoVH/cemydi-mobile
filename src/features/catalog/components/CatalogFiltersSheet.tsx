@@ -1,5 +1,4 @@
 import { Text, View } from 'react-native';
-import Check from 'lucide-react-native/icons/check';
 import { AppButton } from '@/components/ui/AppButton';
 import { AppSheet } from '@/components/ui/AppSheet';
 import {
@@ -7,7 +6,7 @@ import {
   emptyProductFilters,
   type ProductFilters,
 } from '@/services/products/product-service';
-import { colors } from '@/theme';
+import { CatalogFilterChoice } from './CatalogFilterChoice';
 
 type CatalogFiltersSheetProps = {
   applied: ProductFilters;
@@ -15,33 +14,6 @@ type CatalogFiltersSheetProps = {
   onChange: (filters: ProductFilters) => void;
   onClose: () => void;
 };
-
-function FilterChoice({
-  label,
-  selected,
-  onPress,
-  disabled = false,
-  single = false,
-}: {
-  label: string;
-  selected: boolean;
-  onPress: () => void;
-  disabled?: boolean;
-  single?: boolean;
-}) {
-  return (
-    <AppButton
-      label={label}
-      accessibilityRole={single ? 'radio' : 'checkbox'}
-      accessibilityState={{ checked: selected }}
-      variant={selected ? 'primary' : 'secondary'}
-      className="justify-start"
-      onPress={onPress}
-      disabled={disabled}
-      leftIcon={selected ? <Check aria-hidden color={colors.onBrand} size={18} /> : undefined}
-    />
-  );
-}
 
 export function CatalogFiltersSheet({
   applied,
@@ -80,12 +52,22 @@ export function CatalogFiltersSheet({
       </Text>
       <View accessibilityRole="radiogroup" accessibilityLabel="Ordenar por" className="gap-2">
         {catalogSortOptions.map((option) => (
-          <FilterChoice
+          <CatalogFilterChoice
             single
             key={option.value}
             label={option.label}
             selected={filters.sort === option.value}
-            onPress={() => onChange({ ...filters, sort: option.value })}
+            onPress={() =>
+              onChange({
+                ...filters,
+                sort: filters.sort === option.value ? 'reciente' : option.value,
+              })
+            }
+            onClear={
+              option.value !== 'reciente'
+                ? () => onChange({ ...filters, sort: 'reciente' })
+                : undefined
+            }
           />
         ))}
       </View>
@@ -99,10 +81,13 @@ export function CatalogFiltersSheet({
           ['MIXTO', 'Compra y renta'],
         ] as const
       ).map(([value, label]) => (
-        <FilterChoice
+        <CatalogFilterChoice
           key={value}
           label={label}
           selected={filters.tipos.includes(value)}
+          onClear={() =>
+            onChange({ ...filters, tipos: filters.tipos.filter((item) => item !== value) })
+          }
           onPress={() =>
             onChange({
               ...filters,
@@ -124,12 +109,13 @@ export function CatalogFiltersSheet({
             </Text>
           ) : null}
           {availableOptions?.[key].map((value) => (
-            <FilterChoice
+            <CatalogFilterChoice
               key={value}
               label={value}
               selected={filters[key].includes(value)}
               disabled={!filters[key].includes(value) && filters[key].length >= 20}
               onPress={() => toggle(key, value)}
+              onClear={() => toggle(key, value)}
             />
           ))}
         </View>
@@ -145,17 +131,26 @@ export function CatalogFiltersSheet({
             ['Sin receta', false],
           ] as const
         ).map(([label, value]) => (
-          <FilterChoice
+          <CatalogFilterChoice
             single
             key={label}
             label={label}
             selected={filters.requiereReceta === value}
-            onPress={() => onChange({ ...filters, requiereReceta: value })}
+            onPress={() =>
+              onChange({
+                ...filters,
+                requiereReceta: filters.requiereReceta === value ? null : value,
+              })
+            }
+            onClear={
+              value !== null ? () => onChange({ ...filters, requiereReceta: null }) : undefined
+            }
           />
         ))}
       </View>
-      <FilterChoice
+      <CatalogFilterChoice
         label="Solo disponibles"
+        onClear={() => onChange({ ...filters, soloDisponibles: false })}
         selected={filters.soloDisponibles}
         onPress={() => onChange({ ...filters, soloDisponibles: !filters.soloDisponibles })}
       />

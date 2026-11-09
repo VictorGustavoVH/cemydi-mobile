@@ -36,7 +36,18 @@ it('conecta Inicio, búsqueda, filtros y detalle usando contratos HTTP y caché 
     } else if (url.pathname === '/promotions') {
       body = { promotions: [productOfferFixture(1)] };
     } else if (/^\/reviews\/product\/\d+$/.test(url.pathname)) {
-      body = { reviews: [], summary: { count: 0, averageRating: 0 } };
+      body = {
+        reviews: [],
+        summary: { count: 0, averageRating: 0 },
+        pagination: {
+          page: Number(url.searchParams.get('page')),
+          pageSize: 10,
+          total: 0,
+          totalPages: 1,
+          hasNextPage: false,
+          hasPreviousPage: false,
+        },
+      };
     } else if (url.pathname === '/products/1/recommendations') {
       body = { recommendations: [] };
     } else {

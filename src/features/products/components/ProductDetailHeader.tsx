@@ -11,6 +11,7 @@ import { useAuth } from '@/providers/auth-provider';
 import { useFavorites } from '@/features/favorites/hooks/useFavorites';
 import { useCatalogPreview } from '@/providers/catalog-preview-provider';
 import { colors } from '@/theme';
+import { productShareUrl } from '../product-share';
 
 type ProductDetailHeaderProps = {
   productId: string;
@@ -18,6 +19,7 @@ type ProductDetailHeaderProps = {
   /** Nombre del producto; sin él, compartir permanece deshabilitado. */
   productName?: string;
   productCaption?: string;
+  productSlug?: string;
 };
 
 /**
@@ -30,6 +32,7 @@ export function ProductDetailHeader({
   fallbackHref,
   productName,
   productCaption,
+  productSlug,
 }: ProductDetailHeaderProps) {
   const { user } = useAuth();
   const preview = useCatalogPreview();
@@ -37,6 +40,8 @@ export function ProductDetailHeader({
   const toast = useToast();
   const [sharing, setSharing] = useState(false);
   const sharingLock = useRef(false);
+  const shareUrl = productSlug === undefined ? undefined : productShareUrl(productSlug);
+  const canShare = Boolean(productName && shareUrl !== null);
 
   const isBackend = Boolean(user && /^\d+$/.test(productId));
   const favorite = isBackend
@@ -44,15 +49,16 @@ export function ProductDetailHeader({
     : preview.favorites.includes(productId);
 
   async function shareProduct() {
-    if (!productName || sharingLock.current) return;
+    if (!productName || !canShare || sharingLock.current) return;
     sharingLock.current = true;
     setSharing(true);
     try {
       await Share.share({
         title: productName,
-        message: productCaption
-          ? `${productName} · CEMYDI\nDisponible para ${productCaption.toLowerCase()}.`
-          : `${productName} · CEMYDI`,
+        message:
+          (productCaption
+            ? `${productName} · CEMYDI\nDisponible para ${productCaption.toLowerCase()}.`
+            : `${productName} · CEMYDI`) + (shareUrl ? `\n${shareUrl}` : ''),
       });
     } catch {
       toast.error('No se pudo compartir. Inténtalo de nuevo.');
@@ -99,7 +105,10 @@ export function ProductDetailHeader({
           label="Compartir producto"
           variant="ghost"
           loading={sharing}
-          disabled={!productName}
+          disabled={!canShare}
+          accessibilityHint={
+            shareUrl === null ? 'El enlace público de este producto no está disponible.' : undefined
+          }
           className="h-11 w-11 rounded-full px-0 py-0"
           onPress={() => void shareProduct()}
           leftIcon={

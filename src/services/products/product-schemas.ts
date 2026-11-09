@@ -1,5 +1,18 @@
 import { z } from 'zod';
 
+const productImageUrlSchema = z
+  .string()
+  .url()
+  .regex(/^https?:\/\//i)
+  .refine((value) => {
+    try {
+      const url = new URL(value);
+      return !url.username && !url.password;
+    } catch {
+      return false;
+    }
+  }, 'La imagen debe usar una URL HTTP(S) sin credenciales.');
+
 // Verified against ProductsService.mapProduct and the Prisma Product model.
 export const productSchema = z.object({
   id: z.number().int().positive(),
@@ -23,11 +36,11 @@ export const productSchema = z.object({
   material: z.string().nullable(),
   contenidoCaja: z.string().nullable(),
   indicacionesUso: z.string().nullable(),
-  imageUrl: z.string().nullable(),
+  imageUrl: productImageUrlSchema.nullable(),
   images: z.array(
     z.object({
       id: z.number().int(),
-      imageUrl: z.string(),
+      imageUrl: productImageUrlSchema,
       sortOrder: z.number().int(),
       createdAt: z.string(),
     }),
@@ -52,6 +65,14 @@ export const productDetailSchema = z.object({ product: productSchema });
 export const productRecommendationsSchema = z.object({
   recommendations: z.array(productSchema),
 });
+export const reviewPaginationSchema = z.object({
+  page: z.number().int().min(1).max(1_000_000),
+  pageSize: z.number().int().min(1).max(50),
+  total: z.number().int().nonnegative(),
+  totalPages: z.number().int().positive(),
+  hasPreviousPage: z.boolean(),
+  hasNextPage: z.boolean(),
+});
 export const productReviewsSchema = z.object({
   reviews: z.array(
     z.object({
@@ -66,6 +87,11 @@ export const productReviewsSchema = z.object({
     count: z.number().int().nonnegative(),
     averageRating: z.number().min(0).max(5),
   }),
+  pagination: reviewPaginationSchema.optional(),
+});
+export const productReviewsPageSchema = productReviewsSchema.extend({
+  pagination: reviewPaginationSchema,
+  reviews: productReviewsSchema.shape.reviews.max(50),
 });
 export type ProductReviews = z.infer<typeof productReviewsSchema>;
 export const promotionsSchema = z.object({

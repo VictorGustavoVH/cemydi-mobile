@@ -3,6 +3,7 @@ import SlidersHorizontal from 'lucide-react-native/icons/sliders-horizontal';
 import { AppButton } from '@/components/ui/AppButton';
 import { emptyProductFilters, type ProductFilters } from '@/services/products/product-service';
 import { colors } from '@/theme';
+import { CatalogFilterChoice } from './CatalogFilterChoice';
 
 type CatalogQuickFiltersProps = {
   filters: ProductFilters;
@@ -39,12 +40,12 @@ export function CatalogQuickFilters({
     {
       label: 'Compra',
       selected: purchase,
-      next: { ...filters, tipos: ['VENTA', 'MIXTO'] },
+      next: { ...filters, tipos: purchase ? [] : ['VENTA', 'MIXTO'] },
     },
     {
       label: 'Renta',
       selected: rental,
-      next: { ...filters, tipos: ['RENTA', 'MIXTO'] },
+      next: { ...filters, tipos: rental ? [] : ['RENTA', 'MIXTO'] },
     },
     {
       label: 'Disponibles',
@@ -89,28 +90,25 @@ export function CatalogQuickFilters({
           className="flex-row gap-2"
         >
           {choices.slice(0, 3).map((choice) => (
-            <AppButton
+            <CatalogFilterChoice
               key={choice.label}
               label={choice.label}
-              accessibilityRole="radio"
-              accessibilityState={{ checked: choice.selected }}
-              variant={choice.selected ? 'primary' : 'outline'}
-              className="min-h-11 rounded-full px-4 py-2"
-              labelClassName="text-sm"
+              single
+              compact
+              selected={choice.selected}
               onPress={() => onChange(choice.next)}
+              onClear={choice.label !== 'Todos' ? () => onChange(choice.next) : undefined}
             />
           ))}
         </View>
         {choices.slice(3).map((choice) => (
-          <AppButton
+          <CatalogFilterChoice
             key={choice.label}
             label={choice.label}
-            accessibilityRole="checkbox"
-            accessibilityState={{ checked: choice.selected }}
-            variant={choice.selected ? 'primary' : 'outline'}
-            className="min-h-11 rounded-full px-4 py-2"
-            labelClassName="text-sm"
+            compact
+            selected={choice.selected}
             onPress={() => onChange(choice.next)}
+            onClear={() => onChange(choice.next)}
           />
         ))}
       </ScrollView>

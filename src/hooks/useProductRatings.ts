@@ -1,5 +1,5 @@
-import { useMemo } from 'react';
-import { useQueries } from '@tanstack/react-query';
+import { useCallback, useMemo } from 'react';
+import { useQueries, type UseQueryResult } from '@tanstack/react-query';
 import { productService } from '@/services/products/product-service';
 import type { ProductReviews } from '@/services/products/product-schemas';
 
@@ -31,27 +31,32 @@ export function useProductRatings(productIds: string[]) {
     [productIds],
   );
 
-  const results = useQueries({
+  const combine = useCallback(
+    (results: UseQueryResult<ProductReviews>[]) => {
+      const ratings: Record<string, ProductRatingState> = {};
+      ids.forEach((productId, index) => {
+        const result = results[index];
+        const summary = result?.data?.summary;
+        ratings[productId] = {
+          summary,
+          isPaused: !summary && (result?.isPaused ?? false),
+          isError: !summary && (result?.isError ?? false),
+          isFetching: !summary && (result?.isFetching ?? false),
+        };
+      });
+      return ratings;
+    },
+    [ids],
+  );
+
+  // useQueries conserva por structural sharing el mapa y cada resumen. Un
+  // refetch con datos visibles no cambia el estado que consumen las tarjetas.
+  return useQueries({
     queries: ids.map((productId) => ({
       queryKey: ['reviews', 'product', productId],
       queryFn: ({ signal }) => productService.reviews(productId, signal),
       staleTime: 30_000,
     })),
+    combine,
   });
-
-  return useMemo(() => {
-    const ratings: Record<string, ProductRatingState> = {};
-
-    ids.forEach((productId, index) => {
-      const result = results[index];
-      ratings[productId] = {
-        summary: result?.data?.summary,
-        isPaused: result?.isPaused ?? false,
-        isError: result?.isError ?? false,
-        isFetching: result?.isFetching ?? false,
-      };
-    });
-
-    return ratings;
-  }, [ids, results]);
 }

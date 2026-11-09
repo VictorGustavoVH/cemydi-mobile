@@ -1,15 +1,104 @@
 import { httpClient } from '@/services/http/client';
 import { ApiError } from '@/services/http/api-error';
-import { productFixture, productPage } from '../../../../tests/support/product-fixtures';
+import {
+  productFixture,
+  productPage,
+  productReviewPage,
+} from '../../../../tests/support/product-fixtures';
 import { homeService } from '@/features/home/services/homeService.api';
 import { emptyProductFilters, productService } from '../product-service';
 import { toProductCard, toProductDetail } from '../product-adapter';
+import { jsonResponse } from '../../../../tests/support/auth-api-mock';
+
+const emptyReviewPage = {
+  reviews: [],
+  summary: { count: 0, averageRating: 0 },
+  pagination: {
+    page: 1,
+    pageSize: 10,
+    total: 0,
+    totalPages: 1,
+    hasNextPage: false,
+    hasPreviousPage: false,
+  },
+};
 
 describe('Contratos públicos del catálogo', () => {
+  it('solicita la página de reseñas indicada con tamaño acotado y AbortSignal', async () => {
+    const request = jest.spyOn(httpClient, 'request').mockResolvedValueOnce(productReviewPage(2));
+    const signal = new AbortController().signal;
+    const result = await productService.reviews('101', signal, 2);
+    expect(result.reviews).toHaveLength(2);
+    expect(result.summary.count).toBe(12);
+    expect(request).toHaveBeenCalledWith('/reviews/product/101?page=2&pageSize=10', {
+      signal,
+      credentials: 'omit',
+      cache: 'no-store',
+    });
+  });
+  it.each(['legacy', 'wrong-page', 'oversized', 'wrong-total', 'wrong-next'])(
+    'rechaza una respuesta paginada incompatible: %s',
+    async (kind) => {
+      const response = productReviewPage(1);
+      if (kind === 'legacy') delete response.pagination;
+      if (kind === 'wrong-page') response.pagination!.page = 2;
+      if (kind === 'oversized') response.reviews.push(response.reviews[0]!);
+      if (kind === 'wrong-total') response.pagination!.total = 99;
+      if (kind === 'wrong-next') response.pagination!.hasNextPage = false;
+      jest.spyOn(httpClient, 'request').mockResolvedValueOnce(response);
+      await expect(productService.reviews('101')).rejects.toMatchObject({ kind: 'parse' });
+    },
+  );
+  it('rechaza imágenes de esquemas no admitidos en la frontera HTTP', async () => {
+    jest.spyOn(httpClient, 'request').mockResolvedValueOnce({
+      product: productFixture(1, { imageUrl: 'file:///private/patient.pdf' }),
+    });
+    await expect(productService.detail('1')).rejects.toMatchObject({ kind: 'parse' });
+  });
+  it.each([
+    {
+      name: 'listado',
+      read: (signal: AbortSignal) => productService.list(emptyProductFilters, 1, 10, signal),
+      response: productPage(),
+    },
+    {
+      name: 'detalle',
+      read: (signal: AbortSignal) => productService.detail('1', signal),
+      response: { product: productFixture(1) },
+    },
+    {
+      name: 'promociones',
+      read: (signal: AbortSignal) => productService.offers(signal),
+      response: { promotions: [] },
+    },
+    {
+      name: 'recomendaciones',
+      read: (signal: AbortSignal) => productService.recommendations('1', signal),
+      response: { recommendations: [] },
+    },
+    {
+      name: 'reseñas',
+      read: (signal: AbortSignal) => productService.reviews('1', signal),
+      response: emptyReviewPage,
+    },
+  ])(
+    'propaga no-store hasta fetch en $name, conservando lecturas públicas',
+    async ({ read, response }) => {
+      jest.mocked(fetch).mockResolvedValueOnce(jsonResponse(response));
+      await read(new AbortController().signal);
+      expect(fetch).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({ method: 'GET', cache: 'no-store', credentials: 'omit' }),
+      );
+      expect(new Headers(jest.mocked(fetch).mock.calls[0][1]?.headers).has('Authorization')).toBe(
+        false,
+      );
+    },
+  );
   it('consulta reseñas y recomendaciones públicas y rechaza contratos inválidos', async () => {
     const request = jest
       .spyOn(httpClient, 'request')
-      .mockResolvedValueOnce({ reviews: [], summary: { count: 0, averageRating: 0 } })
+      .mockResolvedValueOnce(emptyReviewPage)
       .mockResolvedValueOnce({ recommendations: [productFixture(2)] })
       .mockResolvedValueOnce({ reviews: [{ rating: 8 }] });
     const controller = new AbortController();
@@ -19,13 +108,15 @@ describe('Contratos públicos del catálogo', () => {
     await expect(productService.recommendations('1', controller.signal)).resolves.toMatchObject({
       recommendations: [{ id: 2 }],
     });
-    expect(request).toHaveBeenNthCalledWith(1, '/reviews/product/1', {
+    expect(request).toHaveBeenNthCalledWith(1, '/reviews/product/1?page=1&pageSize=10', {
       signal: controller.signal,
       credentials: 'omit',
+      cache: 'no-store',
     });
     expect(request).toHaveBeenNthCalledWith(2, '/products/1/recommendations?limit=5', {
       signal: controller.signal,
       credentials: 'omit',
+      cache: 'no-store',
     });
     await expect(productService.reviews('1')).rejects.toMatchObject({ kind: 'parse' });
   });
@@ -56,6 +147,7 @@ describe('Contratos públicos del catálogo', () => {
       soloDisponibles: 'true',
     });
     expect(options?.credentials).toBe('omit');
+    expect(options?.cache).toBe('no-store');
     expect(url.searchParams.has('includeInactive')).toBe(false);
   });
 

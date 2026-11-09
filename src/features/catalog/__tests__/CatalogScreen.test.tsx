@@ -192,6 +192,8 @@ describe('Catálogo móvil público', () => {
     await screen.findByText('Ocurrió un error. Intenta de nuevo.');
     await fireEvent.press(screen.getByRole('button', { name: 'Reintentar' }));
     await screen.findByText('No encontramos productos');
+    // Decorativo: oculto para lectores de pantalla, pero presente en pantalla.
+    expect(screen.getByTestId('empty-product-icon', { includeHiddenElements: true })).toBeTruthy();
     expect(list).toHaveBeenCalledTimes(2);
   });
 
@@ -311,4 +313,47 @@ describe('Catálogo móvil público', () => {
       ),
     );
   });
+});
+
+it('quita filtros con la X sin borrar la búsqueda ni los demás criterios', async () => {
+  const list = jest.spyOn(productService, 'list').mockResolvedValue(productPage());
+  await render(<CatalogScreen />);
+  await screen.findByRole('button', { name: /^Producto 1\./ });
+  await fireEvent.changeText(screen.getByLabelText('Buscar equipo ortopédico'), 'silla');
+  await fireEvent.press(screen.getByRole('radio', { name: 'Compra' }));
+  await fireEvent.press(screen.getByRole('checkbox', { name: 'Disponibles' }));
+  await fireEvent.press(screen.getByRole('checkbox', { name: 'Menor precio' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Quitar filtro Compra' }));
+  await waitFor(() =>
+    expect(list.mock.calls.at(-1)?.[0]).toMatchObject({
+      search: 'silla',
+      tipos: [],
+      soloDisponibles: true,
+      sort: 'precio-asc',
+    }),
+  );
+  expect(screen.queryByRole('button', { name: 'Quitar filtro Compra' })).toBeNull();
+  await fireEvent.press(screen.getByRole('button', { name: 'Quitar filtro Disponibles' }));
+  await waitFor(() =>
+    expect(list.mock.calls.at(-1)?.[0]).toMatchObject({
+      search: 'silla',
+      soloDisponibles: false,
+      sort: 'precio-asc',
+    }),
+  );
+  await fireEvent.press(screen.getByRole('button', { name: 'Filtrar catálogo' }));
+  await fireEvent.press(screen.getByRole('radio', { name: 'Con receta' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Quitar filtro Con receta' }));
+  expect(screen.getByRole('radio', { name: 'Todas' })).toHaveProp(
+    'accessibilityState',
+    expect.objectContaining({ checked: true }),
+  );
+  expect(screen.queryByRole('button', { name: 'Quitar filtro Con receta' })).toBeNull();
+  await fireEvent.press(screen.getByRole('button', { name: 'Aplicar filtros' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Quitar filtro Menor precio' }));
+  expect(screen.getByRole('checkbox', { name: 'Menor precio' })).toHaveProp(
+    'accessibilityState',
+    expect.objectContaining({ checked: false }),
+  );
+  expect(screen.getByLabelText('Buscar equipo ortopédico')).toHaveProp('value', 'silla');
 });

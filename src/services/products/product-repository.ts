@@ -1,7 +1,6 @@
 import type { Product, ProductList } from './product-schemas';
 import { productService, type ProductFilters } from './product-service';
 
-/** Lecturas públicas de productos; transporte, validación y caché quedan fuera del contrato. */
 export interface ProductRepository {
   list(
     filters: ProductFilters,
@@ -12,8 +11,7 @@ export interface ProductRepository {
   detail(id: string, signal?: AbortSignal): Promise<{ product: Product }>;
   recommendations(id: string, signal?: AbortSignal): Promise<{ recommendations: Product[] }>;
 }
-
-/** La fuente puede sustituirse sin cambiar consumidores ni replicar el cliente HTTP. */
+// Repository-Separa las consultas de datos del producto de las pantallas.
 export function createProductRepository(
   source: ProductRepository = productService,
 ): ProductRepository {

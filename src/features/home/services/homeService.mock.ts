@@ -1,4 +1,5 @@
-import { homeBanners, homeCategories, homeProducts } from '@/data/catalog-preview';
+import { homeBanners, homeCategories } from '@/data/catalog-preview';
+import { homeProducts } from '@/data/catalog-fixtures';
 
 import type { HomeData, HomeService } from './homeService';
 

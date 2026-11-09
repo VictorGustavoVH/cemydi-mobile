@@ -16,6 +16,21 @@ function CatalogConsumer() {
 
 describe('useHome', () => {
   beforeEach(installHomePreviewApiMock);
+  it('no siembra productos inactivos aunque provengan de datos antiguos del servicio', async () => {
+    jest.spyOn(homeService, 'getHome').mockResolvedValue({
+      banners: [],
+      categories: [],
+      products: [],
+      rawProducts: [productFixture(1), productFixture(2, { activo: false })],
+    });
+    const client = new QueryClient();
+    const view = await renderHook(useHome, {
+      wrapper: ({ children }) => <QueryTestProvider client={client}>{children}</QueryTestProvider>,
+    });
+    await waitFor(() => expect(client.getQueryData(productDetailKey(1))).toBeDefined());
+    expect(client.getQueryData(productDetailKey(2))).toBeUndefined();
+    await view.unmount();
+  });
   it('conserva el resultado en caché al desmontar y volver al catálogo', async () => {
     const service = jest.spyOn(homeService, 'getHome');
     const view = await render(<CatalogConsumer />, { wrapper: QueryTestProvider });

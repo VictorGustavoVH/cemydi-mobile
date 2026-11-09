@@ -6,11 +6,13 @@ import {
   productListSchema,
   promotionsSchema,
   productRecommendationsSchema,
-  productReviewsSchema,
+  productReviewsPageSchema,
+  type ProductReviews,
 } from './product-schemas';
 
 export const CATALOG_PAGE_SIZE = 10;
 export const HOME_PRODUCT_LIMIT = 6;
+export const REVIEW_PAGE_SIZE = 10;
 export const catalogSortOptions = [
   { value: 'reciente', label: 'Más recientes' },
   { value: 'precio-asc', label: 'Menor precio' },
@@ -50,7 +52,11 @@ export function normalizeProductFilters(filters: ProductFilters): ProductFilters
 }
 
 async function read<T>(path: string, schema: z.ZodType<T>, signal?: AbortSignal): Promise<T> {
-  const response = await httpClient.request(path, { signal, credentials: 'omit' });
+  const response = await httpClient.request(path, {
+    signal,
+    credentials: 'omit',
+    cache: 'no-store',
+  });
   const parsed = schema.safeParse(response);
   if (!parsed.success) {
     throw new ApiError('La respuesta del catálogo no tiene el formato esperado.', {
@@ -91,7 +97,23 @@ export const productService = {
       signal,
     );
   },
-  reviews(id: string, signal?: AbortSignal) {
-    return read(`/reviews/product/${encodeURIComponent(id)}`, productReviewsSchema, signal);
+  reviews(id: string, signal?: AbortSignal, page = 1): Promise<ProductReviews> {
+    if (!Number.isSafeInteger(page) || page < 1 || page > 1_000_000)
+      throw new ApiError('Página de reseñas inválida.', { kind: 'parse' });
+    return read(
+      `/reviews/product/${encodeURIComponent(id)}?page=${page}&pageSize=${REVIEW_PAGE_SIZE}`,
+      productReviewsPageSchema.refine(
+        (data) =>
+          data.pagination.page === page &&
+          data.pagination.pageSize === REVIEW_PAGE_SIZE &&
+          data.reviews.length <= REVIEW_PAGE_SIZE &&
+          data.pagination.total === data.summary.count &&
+          data.pagination.totalPages ===
+            Math.max(1, Math.ceil(data.pagination.total / REVIEW_PAGE_SIZE)) &&
+          data.pagination.hasNextPage === page < data.pagination.totalPages &&
+          data.pagination.hasPreviousPage === page > 1,
+      ),
+      signal,
+    );
   },
 };

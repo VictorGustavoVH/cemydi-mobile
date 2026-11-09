@@ -7,7 +7,9 @@ import type { HomeService } from './homeService';
 export const homeService: HomeService = {
   async getHome(signal) {
     const result = await productRepository.list(emptyProductFilters, 1, HOME_PRODUCT_LIMIT, signal);
-    const products = result.products.slice(0, HOME_PRODUCT_LIMIT);
+    const products = result.products
+      .filter((product) => product.activo === true)
+      .slice(0, HOME_PRODUCT_LIMIT);
     return {
       banners: homeBanners,
       categories: homeCategories,
