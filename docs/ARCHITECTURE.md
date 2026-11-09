@@ -49,7 +49,10 @@ perfil, favoritos, carrito conectado y bandeja/preferencias de notificaciones.
 Los contratos y límites vigentes están en [AUTHENTICATION.md](./AUTHENTICATION.md),
 [CATALOG.md](./CATALOG.md), [CART.md](./CART.md) y [NOTIFICATIONS.md](./NOTIFICATIONS.md).
 
-El Stack raíz monta proveedores compartidos y `NotificationLifecycle`. El grupo
+El Stack raíz monta proveedores compartidos, `NotificationLifecycle` y
+`FavoritesLifecycle`. Este último transfiere los favoritos de invitado
+pendientes tras autenticar, con bloqueo compartido de escrituras y comprobación
+de versión de sesión; ver [PROFILE.md](./PROFILE.md). El grupo
 `src/app/(tabs)` contiene Inicio, Catálogo, Carrito y Perfil, manteniendo sus URLs.
 La barra existente vive como tabBar del navegador; los detalles y formularios se
 apilan fuera del grupo. Perfil evalúa las redirecciones privadas solo con foco.
@@ -60,7 +63,7 @@ Home conserva banner/categorías editoriales y consulta seis productos reales.
 Catálogo acumula páginas remotas de 24. Los fixtures siguen aislados para pruebas;
 no son fallback de la API. CatalogPreviewProvider mantiene únicamente favoritos
 locales de muestra y carrito temporal de invitado. CartProvider usa TanStack Query
-para el carrito autenticado y sus mutaciones. No hay pago ni contratación nueva.
+para el carrito autenticado y sus mutaciones. La solicitud de renta y sus documentos se describen en [RENTALS.md](./RENTALS.md); los pagos siguen fuera de alcance.
 
 No se versionan `ios/` ni `android/`. `app.config.js` extiende `app.json` con Google Sign-In, `google-services.json` y el project ID de EAS.
 
@@ -155,7 +158,7 @@ Responsabilidades:
 - `QueryProvider`: QueryClient único, políticas de retry, foco, reconexión y pausa offline mediante Expo Network.
 - `CatalogPreviewProvider`: estado local de invitado para favoritos y carrito de muestra durante el proceso.
 - `ToastProvider`: una sola instancia de store y viewport.
-- `AuthProvider`: sesión, restauración, refresh, logout, desafíos OTP y destino de retorno.
+- `AuthProvider`: sesión, restauración, refresh, logout y desafíos OTP.
 - `CartProvider`: carrito remoto para cuentas autenticadas, conteo de unidades y adaptación del carrito local para invitados.
 
 No se añaden providers globales sin consumidores reales.
@@ -220,7 +223,7 @@ Conserva filtros, resultados, errores y `AbortSignal`. El servicio existente man
 HTTP, serialización y validación Zod; el repositorio no añade transporte ni reglas
 de negocio. Promociones y reseñas permanecen en sus servicios actuales.
 
-Lo consumen `useCatalog`, `homeService.api`, `ConnectedProductDetailScreen`,
+Lo consumen `useCatalog`, `homeService.api`, `useProductDetail`, `useProductRecommendations`,
 `CatalogSearch` y `prefetchProductDetail`. `useCatalog(filters, repository)` permite
 inyectar un repositorio falso sin HTTP. Las query keys, los envelopes de caché,
 la paginación y las políticas de TanStack Query permanecen iguales. La dependencia
@@ -240,7 +243,7 @@ flowchart TD
 ```
 
 La arquitectura sigue organizada por features y capas, con aproximación a MVVM
-mediante hooks. Detalle y sugerencias aún contienen queries dentro de componentes;
+mediante hooks. Las consultas y adapters del detalle y sus recomendaciones viven en hooks de producto; el buscador conserva su query local;
 no existe una separación completa de dominio y casos de uso propia de Clean Architecture.
 El Repository es una frontera de lectura acotada, no una migración global.
 Los patrones existentes de sesión no cambian: `authSession` es una instancia
@@ -290,3 +293,26 @@ Las convenciones para nuevas pantallas, imágenes y estados de carga están en [
 - ejecución E2E nativa con Maestro y builds de prueba;
 - identificadores y credenciales de EAS/Google Play;
 - respuesta a notificaciones push (apertura desde el sistema) en una build nativa.
+
+## Correcciones de auditoría — 2 de noviembre de 2026
+
+- `src/components/account` contiene AccountLayout, AccountAccessBoundary, AccountResourceState,
+  AccountStatusBadge, AccountSection, AccountMenuItem y UnsavedAccountChanges. Los consumen
+  Perfil, Notificaciones y Reseñas. El boundary conserva la política de sesión existente;
+  el formulario modal no impone el encabezado ni el destino de navegación de Perfil.
+- `features/auth`, `favorites`, `notifications` y `reviews` exponen APIs públicas pequeñas
+  para los consumidores de otros dominios. Los servicios y formularios siguen en su feature.
+- `ProductGridItem` y `useProductGridMetrics` comparten columnas, gutter de 20 y gap de 12
+  entre Inicio, Catálogo y Favoritos. `useContainerWidth` toma la medida del viewport y
+  descuenta insets antes de recibirla. El detalle y el zoom miden sus carruseles por separado.
+- `useProductDetail` conserva la frescura de los datos recuperados de caché y omite buscar
+  en listados cuando ya existe el detalle. `useProductRecommendations` conserva key y staleTime.
+- La ruta de producto acepta solo enteros positivos seguros. Los fixtures se suministran
+  explícitamente desde tests; ni el detalle ni el carrito resuelven un id hacia datos de muestra.
+- Favoritos espera una respuesta conocida de ids o de lista, comparte el bloqueo de mutación,
+  reconcilia la respuesta y espera las invalidaciones antes de aceptar otra operación.
+
+Los productos ilustrativos se separan del contenido editorial en `src/data/catalog-fixtures.ts`.
+Solo los importan el servicio mock y los fixtures de detalle, usados por las pruebas;
+Inicio conserva banners y categorías sin importar esos productos. Los imports de
+ProductDetailPreview en producción son exclusivamente de tipo y se eliminan del bundle.

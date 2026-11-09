@@ -267,6 +267,7 @@ describe('Detalle público conectado', () => {
     );
     expect(screen.getByLabelText('Cantidad de Producto 1, compra: 1')).toBeTruthy();
     expect(screen.getByLabelText('Cantidad de Producto 1, renta: 1')).toBeTruthy();
+    expect(screen.getByText(/Inicia sesión para guardar tus productos/)).toBeTruthy();
     await fireEvent.press(screen.getByLabelText('Eliminar Producto 1, compra'));
     expect(screen.queryByLabelText('Cantidad de Producto 1, compra: 1')).toBeNull();
     await fireEvent.press(screen.getByLabelText('Deshacer eliminación del producto'));

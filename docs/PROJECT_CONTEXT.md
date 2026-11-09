@@ -84,7 +84,7 @@ La app incluye:
 - Un invitado conserva un carrito local en memoria durante el proceso.
 - Se admiten compra y renta, cupones, cantidades, fechas y notas.
 - Las rentas propias se consultan, detallan y cancelan cuando el backend lo permite.
-- **No implementado en móvil:** creación de la solicitud de renta desde el carrito (`POST /rentals/from-cart`) y carga de recetas.
+- Solicitud desde el carrito en dos pasos, con carga/eliminación de recetas, datos de entrega y aceptaciones legales. Ver [RENTALS.md](./RENTALS.md).
 
 ### Notificaciones
 
@@ -132,7 +132,7 @@ No inventes endpoints, DTOs, roles, permisos, campos de respuesta ni estados.
 
 ## Decisiones pendientes
 
-- URL de API por entorno y política HTTPS;
+- separación de backends por entorno: los tres entornos remotos EAS actuales usan la misma API pública HTTPS;
 - validación nativa de Google Sign-In y notificaciones push en Android e iOS;
 - significado del carrito de venta sin checkout actual;
 - soporte formal de tablet y breakpoints;
@@ -140,7 +140,22 @@ No inventes endpoints, DTOs, roles, permisos, campos de respuesta ni estados.
 - política offline más allá de detección de conectividad y refetch;
 - descarga, vista previa y compartición de documentos de renta;
 - app/universal links verificados para tokens de correo;
-- identificadores, credenciales y builds de EAS/Google Play;
+- registro y verificación de Play Console, clave de carga/firma de Play y aceptación de una build distribuida;
 - soporte web, actualmente fuera de alcance.
 
 Véanse [ARCHITECTURE.md](./ARCHITECTURE.md), [API_INTEGRATION.md](./API_INTEGRATION.md) y [AUTHENTICATION.md](./AUTHENTICATION.md) para las decisiones técnicas.
+
+## Preparación de Google Play — 8 de noviembre de 2026
+
+EAS tiene API HTTPS, cliente Google Android, origen web y archivo Firebase en
+development, preview y production. APP_ENV es development en desarrollo y
+production en los otros dos. No se configura un backend staging separado por
+nombrar un entorno preview. Google iOS sigue pendiente y no bloquea la preparación
+Android.
+
+El perfil production declara AAB. `npm run release:bundle` permite generarlo
+localmente con la firma existente mediante CNG; su compilación e inspección no
+sustituyen aceptación funcional ni registro en Play. La ficha en español, los
+gráficos y el inventario preliminar de datos están en
+[store/google-play](../store/google-play/README.md). El usuario dejó el registro de
+Play Console para después; no se envió una publicación desde esta preparación.

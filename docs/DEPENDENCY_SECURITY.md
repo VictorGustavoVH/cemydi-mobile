@@ -3,7 +3,7 @@
 ## Preparación de Play — 8 de noviembre de 2026
 
 Expo se alineó a 57.0.32 y los parches recomendados de constants, dev-client,
-notifications, router y splash-screen, manteniendo SDK 57 y React Native
+notifications, router, sharing y splash-screen, manteniendo SDK 57 y React Native
 0.86. El CLI 57.0.33 trasladó DevTools a `server/devtools`, usa JSON Schema mediante
 `@expo/schema-utils` y recibe Zod como argumento para extensiones MCP. Se retiró el
 override específico del CLI 57.0.32, que ya no corresponde al consumidor instalado.
@@ -95,30 +95,18 @@ y CA del sistema para el backend administrado por Render. Release rechaza HTTP
 y certificados no confiables; ya no requiere un pin de respaldo. Ver
 [ANDROID_RELEASE_SECURITY.md](./ANDROID_RELEASE_SECURITY.md).
 
-## Límites de validación
-
 La prueba del backend en un entorno aislado y la aceptación Android/iOS con una
 build instalada siguen pendientes. El ZAP existente solo analiza su fixture;
 ningún resultado de este documento acredita seguridad integral del backend.
 
 ## Validación de la rama de dependencias — 8 de noviembre de 2026
 
-Esta rama publica únicamente los parches de dependencias, el adaptador CommonJS,
-sus regresiones y el job SCA. Los módulos nativos nuevos de formularios, documentos,
-capturas y compartir se incorporan con sus respectivas funcionalidades, no aquí.
+La rama de dependencias publicó únicamente los parches, el adaptador CommonJS,
+sus regresiones y el job SCA. Los módulos nativos de formularios, documentos,
+capturas y compartir llegaron en sus respectivas ramas.
 
-Validación local del árbol aislado:
-
-- `npm ci --no-audit --no-fund`: aprobado; npm mantiene un aviso de peer entre
-  `test-renderer` y React, sin cambiar la versión de React del proyecto.
-- `npm run typecheck`, `npm run lint` y `npm run format:check`: aprobados.
-- `npm run doctor`: 21 comprobaciones aprobadas.
-- `npm test -- --runInBand`: 73 suites y 401 pruebas aprobadas. Persisten avisos
-  de `act` en Favoritos; no se silencian.
-- `npm run test:dependency-security`: 7 pruebas aprobadas.
-- `npm run security:audit`: 0 hallazgos altos/críticos y 10 bajos, incluidas
-  propagaciones; el reporte completo permanece ignorado en `test-results/`.
-
-Los resultados de GitHub Actions se comprueban sobre el último commit del PR antes
-de continuar con otra rama. La validación local no sustituye esos checks ni la
-aceptación nativa.
+Validación local de esa rama: `npm ci`, typecheck, lint y format:check aprobados;
+Expo Doctor 21/21; Jest 73 suites y 401 pruebas; 7 regresiones de dependencias;
+auditoría con 0 hallazgos altos/críticos y 10 bajos. La evidencia completa y
+los reportes locales permanecen ignorados en `test-results/`. La validación de
+una rama no sustituye la aceptación nativa de la versión final.

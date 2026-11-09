@@ -1,6 +1,17 @@
 # Pruebas de CEMYDI Mobile
 
+La configuración Android de TLS, ofuscación, firma y permisos, la inspección
+del APK con JADX y la matriz de caja negra Debug/Release están en
+[ANDROID_RELEASE_SECURITY.md](./ANDROID_RELEASE_SECURITY.md). Ejecutar
+`npm run test:release-security` para comprobar configuración e inspección sin dispositivo.
+Estas pruebas no acreditan TLS/MitM ni aceptación funcional en Release.
+
 ## Alcance
+
+La auditoría de dependencias y sus regresiones se ejecutan con
+`npm run security:audit` y `npm run test:dependency-security`. El job SCA de
+`security.yml` bloquea avisos altos/críticos sin excluir tooling. Correcciones,
+overrides y avisos restantes: [DEPENDENCY_SECURITY.md](./DEPENDENCY_SECURITY.md).
 
 Este documento describe la estrategia de pruebas vigente, los comandos y las verificaciones manuales que Jest no puede sustituir. La integración de pestañas, push y onboarding se documenta en [MOBILE_QUALITY.md](./MOBILE_QUALITY.md). El registro histórico de ejecuciones y evidencias anteriores está en [archive/TESTING_HISTORY.md](./archive/TESTING_HISTORY.md).
 
@@ -375,12 +386,6 @@ Google Play Internal Testing se usará después de las validaciones automáticas
 
 ## Evidencia y límites
 
-El proveedor de pruebas registra queries y mutaciones creadas durante cada montaje,
-incluidas las retiradas por `clear()` al cambiar de cuenta. Tras desmontar sus hijos,
-cancela consultas, destruye los timers pendientes y retira sus suscripciones.
-`query-provider-cleanup.test.tsx` cubre las tres regresiones de GC sin modificar
-el QueryClient de producción ni usar `forceExit`.
-
 Registrar fecha, responsable, dispositivo/OS, commit/build, escenario, pasos, resultado esperado/observado, estado y enlace a evidencia, sin secretos ni datos personales.
 
 Siguen dependiendo de entorno o de funcionalidad:
@@ -390,3 +395,17 @@ Siguen dependiendo de entorno o de funcionalidad:
 - QA Android/iOS y tablet;
 - rendimiento, segundo plano y UAT;
 - distribución en Google Play.
+
+## Limpieza de Jest — auditoría del 2 de noviembre de 2026
+
+Se reprodujeron tres casos de GC pendiente: mutaciones al desmontar, queries con
+`gcTime` explícito al desmontar y queries retiradas por `clear()` durante cambios
+de cuenta cuyos observadores aún las conservaban. Se trazó este último caso hasta
+`Query.removeObserver` / `QueryObserver.setOptions`, con timers de 300000 ms.
+El proveedor de pruebas registra queries/mutaciones creadas durante su vida, conserva
+sus referencias aunque salgan de la caché y, después del cleanup de los hijos,
+cancela queries, destruye timers, limpia datos y retira sus suscripciones.
+Las tres regresiones de `query-provider-cleanup.test.tsx` fallan antes de sus ajustes
+(un timer cada una) y pasan después (cero). No se alteró el QueryClient de producción,
+no se cambió su política de GC y no se usa forceExit.
+Los resultados y avisos de la ejecución completa están en AUDIT_CORRECTIONS.md.

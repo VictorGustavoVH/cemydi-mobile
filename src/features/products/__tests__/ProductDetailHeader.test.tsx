@@ -3,10 +3,12 @@ import { ProductDetailHeader } from '../components/ProductDetailHeader';
 import { Share } from 'react-native';
 
 const mockToggle = jest.fn();
+let mockReady = false;
 let mockPending = false;
 let mockFavorite = false;
-jest.mock('@/features/favorites/hooks/useFavorites', () => ({
+jest.mock('@/features/favorites', () => ({
   useFavorites: () => ({
+    idsReady: mockReady,
     isPendingToggle: mockPending,
     isFavorite: () => mockFavorite,
     toggleFavorite: mockToggle,
@@ -19,10 +21,13 @@ jest.mock('@/providers/catalog-preview-provider', () => ({
 jest.mock('@/hooks/useToast', () => ({ useToast: () => ({ info: jest.fn(), error: jest.fn() }) }));
 jest.mock('expo-router', () => ({ useRouter: () => ({ canGoBack: () => true, back: jest.fn() }) }));
 
-it('bloquea favoritos mientras guarda y mantiene la selección conocida', async () => {
+it('bloquea favoritos hasta resolver los ids y mientras guarda, manteniendo la selección conocida', async () => {
   const view = await render(<ProductDetailHeader productId="1" fallbackHref="/catalogo" />);
-  await fireEvent.press(screen.getByLabelText('Guardar en favoritos'));
-  expect(mockToggle).toHaveBeenCalledWith('1');
+  const button = screen.getByLabelText('Guardar en favoritos');
+  expect(button).toBeDisabled();
+  await fireEvent.press(button);
+  expect(mockToggle).not.toHaveBeenCalled();
+  mockReady = true;
   mockFavorite = true;
   await view.rerender(<ProductDetailHeader productId="1" fallbackHref="/catalogo" />);
   expect(screen.getByLabelText('Quitar de favoritos')).toBeEnabled();
