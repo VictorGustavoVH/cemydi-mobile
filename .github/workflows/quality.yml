@@ -43,6 +43,9 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Android release security configuration
+        run: npm run test:release-security
+
       - name: Lint
         run: npm run lint
 

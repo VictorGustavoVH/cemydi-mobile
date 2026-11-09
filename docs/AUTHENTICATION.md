@@ -100,13 +100,13 @@ su `JwtStrategy` consulta el estado actual de la cuenta y refresh también lo ex
 
 ### Privacidad de credenciales en Android
 
-En esta rama, el bloqueo de capturas se aplica a las pantallas de acceso y
-recuperación de credenciales de `AuthLayout`. Las pantallas privadas de gestión
-de cuenta incorporarán la misma protección en su rama específica.
-`CredentialScreenProtection`
+Por decisión del usuario, el bloqueo de capturas se aplica a pantallas de
+credenciales y, desde su confirmación del 8 de noviembre de 2026, también a Datos
+personales (`/perfil/editar`) por teléfono y domicilio. `CredentialScreenProtection`
 usa `expo-screen-capture` 57.0.4 para
 activar `FLAG_SECURE` con foco de navegación, antes de mostrar los campos. Se aplica
-a `AuthLayout` (login, registro, recuperación, OTP y nueva contraseña). Si falla la activación, oculta
+a `AuthLayout` (login, registro, recuperación, OTP y nueva contraseña), cambios de
+correo/contraseña y eliminación de cuenta con OTP. Si falla la activación, oculta
 los campos y ofrece reintento o retorno. Cada foco usa una clave independiente,
 liberada al salir o desmontar, incluso si la activación seguía pendiente. Mantiene
 el bloqueo al enviar la app a segundo plano: `AppState` no libera la protección.
@@ -156,6 +156,11 @@ la pantalla de origen. Si no existe una pantalla anterior, vuelve a `/inicio`.
 Cancelar no ejecuta la navegación posterior al acceso; `useAuthRedirect` elige
 Perfil o Inicio tras comprobar la sesión y los datos del perfil.
 Atrás del sistema conserva el historial nativo de la pantalla de origen.
+
+AccountAccessBoundary se evalúa antes del encabezado de cuenta. Un invitado no ve
+«Mi perfil» ni un spinner «Volviendo al inicio…»; el guard redirige con foco y
+restablece su bloqueo al perderlo, incluso después de un cierre de sesión explícito.
+Se mantienen restauración, errores de sesión y política de acceso existentes.
 
 El desplegable «Opciones de acceso» del encabezado de login y registro agrupa «Verificar cuenta» y
 «Ayuda». La verificación utiliza el correo del formulario, sin exigir contraseña;

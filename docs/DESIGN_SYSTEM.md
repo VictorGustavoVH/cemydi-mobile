@@ -146,16 +146,30 @@ Estados: default, pressed, focused, disabled y loading. El botón debe conservar
 - configuración de teclado y autofill adecuada;
 - estado disabled y readonly distinguibles.
 
-`AppInput` marca con borde de marca un valor no vacío, incluido un dato precargado.
-Los espacios no cuentan como contenido. `valid` representa validación explícita;
-los errores y `aria-invalid` tienen prioridad. La pista accesible distingue
-«Campo completado» de «Formato válido». Borrar el valor restaura el estado neutro.
-Inputs, labels y errores respetan fuentes grandes y el ancho del contenedor.
-`PasswordField` reutiliza este control, adapta sus iconos al estado y conserva
-la ayuda junto al label y el medidor con colores semánticos.
+`AppInput` marca automáticamente con borde de marca un valor no vacío (incluido
+un dato precargado). Los espacios no cuentan como contenido. Para campos con
+reglas, `valid={true|false}` representa el resultado de su schema y prevalece
+sobre el simple llenado; los errores y `aria-invalid` tienen prioridad. La pista
+accesible distingue «Campo completado» de «Formato válido». Borrar el contenido
+restaura el estado neutro. Un borde de grosor constante evita cambios de tamaño
+entre estados. `AppDateInput` aplica el mismo criterio a una fecha válida.
 
-`AppDateInput` y `AppTimeInput` encapsulan el selector nativo de fecha/hora,
-manteniendo etiquetas, errores, estado disabled y confirmación en iOS.
+`PasswordField` reutiliza `AppInput` y adapta sus iconos al estado. Los formularios
+de registro, recuperación, seguridad, perfil, renta, cupones y paginación usan sus
+reglas existentes para indicar formato válido. No confundir formato con aceptación
+del servidor. Los datos precargados válidos no exigen editarlos para colorearse.
+
+Los inputs conservan ancho dentro del contenedor (`minWidth: 0`, `width: 100%`,
+reducción flexible), sin ensancharse por correos, URLs o palabras largas. Notas y
+direcciones multilínea tienen altura predeterminada de 120 puntos, máximo de 160
+y desplazamiento interno. Las pantallas pueden definir dimensiones explícitas
+cuando estén justificadas. No desactivar el scroll interno para autoexpandir un
+formulario sin revisar teclado y fuentes grandes. El OTP `unstyled` conserva
+sus dimensiones y estilos particulares. Labels, ayudas y errores pueden envolver
+texto; no se recortan para fijar la altura de todo el formulario.
+
+La ayuda de contraseña usa CircleQuestionMark junto al label y visibilidad con
+Eye/EyeOff. El medidor de creación combina nivel escrito y segmentos semánticos.
 
 ### Card
 
@@ -222,7 +236,7 @@ Implementado:
 - Regenerar al cambiar recursos con `python scripts/generate-image-placeholders.py` (requiere Pillow); `--check` verifica hashes y SHA-256 contra los archivos actuales. La transparencia se compone sobre blanco solo para generar el hash; el original conserva su alfa.
 - Home muestra cabecera, buscador y navegación desde el primer render. Su consulta real de seis productos usa ProductGridSkeleton; banners, categorías y filtros conservan el reveal por opacidad de 180 ms y desfases 0/40/80 ms, respetando movimiento reducido. Refetch conserva contenido y ofrece reintento si falla.
 - ProductGridSkeleton reutiliza Skeleton/SkeletonBlock y representa las tarjetas actuales. Catálogo paginado y detalle conectado tienen carga inicial; no superponen Skeleton sobre fotos con datos disponibles.
-- Detalle público consume API y admite su galería real; el detalle histórico de fixtures y el carrito local siguen siendo sincrónicos. Zoom se monta al abrirlo. Véase [CATALOG.md](./CATALOG.md).
+- Detalle público consume API y admite su galería real; los fixtures del detalle se suministran solo en pruebas y el carrito local usa snapshots de productos consultados. Zoom se monta al abrirlo. Véase [CATALOG.md](./CATALOG.md).
 
 Decisiones para nuevas funcionalidades:
 
@@ -245,34 +259,117 @@ Catálogo usa una fila de filtros debajo del input: botón «Filtros» a la izqu
 
 AppScreen scroll es el único responsable del ajuste y del desplazamiento al campo enfocado en AuthLayout. Mide la intersección de su viewport con el teclado y añade solo el espacio restante, incluyendo cuando Android ya redimensionó la ventana. No anidar KeyboardAvoidingView u otro ajuste automático de insets sobre este mecanismo sin evidencia nativa. Mantener safe areas, scroll y botones alcanzables; validar Android/iOS y fuentes grandes. Onboarding permite escalado del sistema mediante su scroll, sin maxFontSizeMultiplier arbitrario. Usar AppButton para tarjetas/controles con pressed, rol, etiqueta y disabled; compartir componentes antes de crear duplicados.
 
-## Interfaz compartida — 8 de noviembre de 2026
+## Indicador de carga compartido — 2 de noviembre de 2026
 
-- `src/theme/colors.json` es la fuente única de colores para React Native y Tailwind.
-  La marca conserva #258e8b; los colores de texto y controles usan tokens semánticos.
-- `AppSpinner` comparte la carga de botones, estados y paginación. Respeta movimiento
-  reducido y pausa al pasar a segundo plano. Los botones conservan su texto y bloqueo.
-- `AppSheet` admite diálogos centrados y bloqueo del cierre durante operaciones.
-- ProductCard y ProductGridSkeleton usan imagen 3:2 con máximo de 160 puntos,
-  precios escalables y etiquetas en flujo normal. ProductGridItem y los hooks de
-  métricas permiten reutilizar la geometría sin duplicarla entre pantallas.
-- AppScreen, el popover y los controles conservan acceso con teclado y safe areas.
-- `usePullToRefresh` descarta finalizaciones antiguas tras deshabilitarse o desmontarse.
+`AppSpinner` sustituye al ActivityIndicator de LoadingState, AppButton y
+AppPagination. Usa el icono Lucide LoaderCircle con trazo redondeado y una pista
+circular tenue, sin fondos decorativos ni gradientes. La rotación CSS de Reanimated
+se ejecuta en el hilo de UI con una vuelta lineal de 900 ms; solo anima transform.
+Se pausa en segundo plano y se muestra estático con movimiento reducido. La
+suscripción a AppState se retira al ocultarlo o desmontarlo.
 
-Los tests de componentes, contraste y limpieza de QueryClient no sustituyen la
-aceptación visual de Android/iOS, TalkBack/VoiceOver ni pruebas de rendimiento nativo.
+Corrección del 3 de noviembre: la pista comparte el radio 9 del viewport 24 de
+LoaderCircle instalado, evitando dos anillos desalineados. Un estado inicial
+`unknown` no pausa el indicador; solo background, inactive y extension lo pausan.
+La rotación lineal de 900 ms y el estado estático con movimiento reducido se conservan.
 
-## Componentes de cuenta — 8 de noviembre de 2026
+Admite tamaño, color semántico según la superficie, etiqueta accesible, modo
+decorativo y `animating`. Se anuncia como progreso indeterminado; dentro de botones
+y paginación es decorativo para conservar una sola etiqueta del control. Los
+botones siguen mostrando su texto, con acciones bloqueadas durante el envío.
+No sustituye los skeletons que ya representan la estructura de datos pendientes.
 
-- `AccountLayout` y `AccountAccessBoundary` concentran encabezado, acceso y
-  restauración de sesión sin duplicar la política de Perfil en cada pantalla.
-- `AccountSection`, `AccountMenuItem`, `AccountStatusBadge` y
-  `FormStepProgress` reutilizan AppButton/AppSheet y tokens semánticos; los
-  estados de renta y reseña se etiquetan con texto, no solo con color.
-- `AccountResourceState` comparte loading, vacío, error, offline y reintento.
-- `UnsavedAccountChanges` advierte cambios sin guardar al salir sin bloquear
-  el cierre de sesión.
-- `FrequentlyAskedQuestions` es el acordeón común de ayuda, con estado
-  expandido anunciado por accesibilidad.
+## Diálogos y filtros — 2 de noviembre de 2026
 
-Estos componentes no modifican endpoints. La aceptación visual y con lector de
-pantalla en Android/iOS queda pendiente.
+`AppSheet` admite `presentation="dialog"` para confirmaciones centradas, con ancho
+máximo de 420 puntos, safe areas y contenido desplazable si aumenta la fuente.
+Conserva su host de toast dentro del modal. `closeDisabled` bloquea X y Atrás al
+confirmar una operación. La presentación predeterminada sigue siendo la hoja.
+
+`CatalogFilterChoice` comparte opciones del panel y filtros rápidos. Las selecciones
+activas muestran una X en la esquina superior derecha, con área táctil de 44 puntos
+y etiqueta «Quitar filtro …». La acción de quitar es hermana del botón de selección;
+no anida controles interactivos. Quitar conserva búsqueda y otros filtros. Los
+valores predeterminados Todos, Todas y orden reciente no muestran una X; quitar
+receta u orden devuelve ese criterio a su valor predeterminado.
+
+## Accesibilidad de catálogo y controles — 2 de noviembre de 2026
+
+- `src/theme/colors.json` es la fuente de valores de color para TypeScript y Tailwind.
+  `brand` conserva #258e8b. Botones primarios y texto de enlaces usan `brandStrong`;
+  secundarios usan `textSecondary`. Las combinaciones cubiertas tienen al menos 4.5:1.
+- AppInput respeta el escalado del dispositivo; solo aplica un límite si el consumidor
+  lo solicita explícitamente. ProductCard no encoge precios ni limita sus líneas.
+- La foto de ProductCard y su skeleton usan 3:2 con altura máxima de 160 y mantienen
+  `contain` de CatalogImage. Las etiquetas de modalidad y disponibilidad están en flujo
+  normal para permitir que crezcan sin superponerse a la foto o recortarse.
+- El skeleton omite espacios de descuento por defecto; admite descuento y receta explícitos
+  cuando se conocen, y sus líneas crecen con la fuente. La altura final puede variar con
+  el contenido real; no se promete eliminar todos los desplazamientos de layout.
+- El botón de voz mide 44×44. El cierre del zoom usa inset superior + 8 y el modal respeta
+  insets laterales e inferior. Las páginas se calculan con el ancho real de cada carrusel.
+- AppButton mantiene el texto durante loading y sustituye los iconos por un solo spinner.
+- AccountStatusBadge separa estados de renta/reseña y usa surfaceMuted para la apariencia badge.
+- Perfil raíz presenta Atrás con destino a Inicio; no recorre formularios de acceso. Las subpantallas conservan su navegación de retorno.
+
+Estas verificaciones automatizadas no certifican layout nativo, TalkBack ni VoiceOver.
+Repetir en Android/iOS con fuente ampliada y safe areas; portrait sigue siendo la orientación
+configurada. Las pruebas de dimensiones también cubren cambios de ancho sin habilitar rotación.
+
+## Ajustes de tarjetas e iconos — 3 de noviembre de 2026
+
+La valoración de ProductCard aparece a la derecha en la misma fila de la marca,
+en la parte superior del bloque de información, incluyendo carga, vacío, error y offline.
+ProductGridSkeleton refleja esa posición. Las etiquetas de modalidad siguen en
+flujo normal y los precios conservan escalado del sistema.
+
+La imagen recibe una altura numérica derivada del ancho real (3:2, máximo 160),
+con `contain`, sin una capa absoluta ni atenuación del producto agotado. Las
+cuadrículas y recomendaciones pasan su ancho ya calculado para evitar medirlo de
+nuevo por tarjeta; otros consumidores pueden resolverlo mediante onLayout.
+
+Los nuevos tokens accentViolet, accentOrange, accentRose, accentCyan, accentIndigo
+y accentSky distinguen opciones de cuenta. Se mantienen la marca y las superficies
+blancas; los tonos pasan contraste AA sobre blanco. El encabezado de Perfil usa
+Settings negro mediante iconOnSurface y abre Notificaciones provisionalmente.
+La edición de perfil permanece en Datos personales y Completar.
+No se cambian los permisos ni el comportamiento de las acciones por su color.
+
+## Menús y ayuda — 3 de noviembre de 2026
+
+Login y registro comparten AuthHeaderMenu mediante AuthLayout.headerAction. EllipsisVertical
+abre un desplegable anclado a la derecha con «Verificar cuenta» y «Ayuda», texto negro
+semántico menuText e iconos de sus colores actuales. Reutiliza AppScreenPopover; ajusta
+el ancho al viewport y permite scroll con fuentes grandes. Superficie blanca con radio de
+20 puntos, borde borderSubtle y sombra suave; ancho preferido de 216 puntos, padding
+exterior de 3 puntos y filas de al menos 44 puntos con 8 horizontales y 4 verticales.
+Icono a la izquierda y texto de peso regular. La entrada usa Reanimated CSS sobre el
+hilo UI: opacidad, desplazamiento de -4 a 0 y escala de 0.98 a 1 en 180 ms, curva
+(0.23, 1, 0.32, 1), sin rebote. Con movimiento reducido usa solo opacidad durante 80 ms. No duplica opciones en el cuerpo.
+Verificar valida el correo actual antes de enviar el desafío existente y enfoca el
+campo si falta o es inválido; Ayuda abre la pantalla pública sin exigir sesión.
+El desplegable cierra al tocar fuera, pulsar Atrás del sistema, perder el foco de la
+pantalla o elegir una opción. Login coloca «¿Olvidaste tu contraseña?» arriba a la
+derecha del input mediante AppInput.labelTrailingAction; conserva la ayuda junto al label
+y permite salto de línea con fuentes grandes. El enlace usa AppButton unstyled sin
+padding ni altura mínima heredados, texto de 14/20 e includeFontPadding desactivado en
+Android; amplía el área táctil con hitSlop vertical de 12 puntos. La fila alinea su
+contenido al borde inferior y se separa del input por 4 puntos (8 en campos sin acción).
+
+Inicio termina con FrequentlyAskedQuestions, compartido con Ayuda y contacto,
+independiente de la consulta de productos. Reutiliza AccountSection como acordeón,
+sin cards anidadas. El formulario de cupones conserva sus acciones y cierra con X;
+no muestra el botón adicional «Volver al carrito». La revisión de carrito lo conserva.
+
+## Refresco nativo y espaciado de tarjetas — 3 de noviembre de 2026
+
+ProductCard y ProductGridSkeleton separan las badges superiores de la imagen con
+8 puntos de padding inferior, iguales a los márgenes superior y laterales.
+
+Inicio, Catálogo, Favoritos, Perfil y Notificaciones conectan AppRefreshControl a
+consultas reales. Perfil reutiliza el scroll de AppScreen mediante las props
+onRefresh/refreshing/refreshEnabled, sin anidar otro scroll. Inicio y Catálogo refrescan
+también valoraciones. El indicador representa solo el gesto o reintento explícito;
+no se activa por refetch automático. El gesto se desactiva offline y el indicador
+se detiene al perder conexión. usePullToRefresh ignora resultados tardíos tras
+deshabilitarse o desmontarse para no cerrar una recarga nueva.

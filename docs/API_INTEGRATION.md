@@ -117,7 +117,7 @@ Query params usados por el móvil en `GET /products`:
 - `soloDisponibles`: `true`;
 - `sort`: `reciente`, `precio-asc`, `precio-desc`, `disponibles`, `popular`, `nombre-asc` o `nombre-desc`;
 - `page`: entero desde 1;
-- `pageSize`: el móvil usa 24 en catálogo.
+- `pageSize`: el móvil usa 10 en catálogo.
 
 Respuesta de listado:
 
@@ -146,7 +146,74 @@ El detalle responde `{ product }`. Las recomendaciones usan `limit=5`. Los preci
 - `GET /reviews/product/:productId` devuelve la calificación y las reseñas públicas.
 - `GET /reviews/mine` devuelve las reseñas del cliente autenticado.
 
-`POST /reviews` existe en el backend, pero el móvil todavía no lo consume.
+- `GET /reviews/product/:productId/mine` requiere JWT y devuelve `{ review: null | { id, rating, comment, status, createdAt, updatedAt } }`.
+- `POST /reviews` requiere JWT; acepta `{ productId: entero positivo, rating: entero de 1 a 5, comment: texto de 5 a 500 caracteres tras trim }` y responde `{ message, review }` con los mismos campos. Hace upsert por usuario/producto; crear o editar deja la reseña en `PENDING` y retira una publicación previa hasta su nueva aprobación.
+
+El móvil permite escribir desde el detalle del producto y editar desde Mis reseñas.
+`reviewService` usa Bearer y valida la respuesta; `useWriteReview` verifica identidad
+más versión de sesión antes y después del envío, impide doble envío y no encola
+escrituras offline. Invalida las reseñas propias y las públicas del producto tras
+confirmar. El formulario conserva borrador y muestra errores de contenido conocidos.
+
+El schema local también rechaza etiquetas HTML y esquemas de script evidentes
+antes del POST, conservando el borrador y mostrando «Escribe tu opinión solo con
+texto». Es una validación orientativa de entrada: no replica la normalización,
+lista de palabras o moderación del backend, no elimina contenido silenciosamente
+y no reemplaza el render como texto. Comentarios superiores a 500 caracteres se
+rechazan por longitud sin ejecutar la expresión de detección sobre ellos.
+
+El usuario autorizó paginación opcional en `GET /reviews/product/:productId`.
+Sin parámetros conserva `{ reviews, summary }` completo para la web y clientes
+anteriores. Al enviar `page` o `pageSize`, devuelve además
+`pagination: { page, pageSize, total, totalPages, hasPreviousPage, hasNextPage }`.
+Los valores por defecto son página 1 y tamaño 10; `page` admite enteros 1–1 000 000
+y `pageSize` 1–50. Entradas vacías, fraccionarias, repetidas o fuera de rango dan 400. No cambian autenticación ni rutas de escritura.
+
+El móvil solicita siempre `page=N&pageSize=10`, incluidas las valoraciones para
+las tarjetas; la respuesta debe confirmar página, tamaño, resumen y continuidad.
+Si el servidor no ofrece el contrato paginado, la app presenta el error existente;
+no reintenta descargando el listado completo. Desplegar este backend antes de
+publicar el cliente actualizado. El modo antiguo sigue sin límite total por
+compatibilidad y no debe describirse como protección global contra DoS.
+
+Cada página selecciona solo los campos públicos y ordena por `createdAt DESC,
+id DESC`. Su resumen cuenta/promedia todas las reseñas aprobadas del producto
+mediante agregación SQL dentro de una transacción RepeatableRead junto con la
+lectura de esa página. Una página fuera del total queda vacía con el resumen global.
+Las reseñas pendientes/rechazadas no se incluyen.
+
+`useProductReviews` usa una caché infinita `['reviews', 'product', id, 'pages']`,
+separada del recurso plano de valoraciones. Las invalidaciones existentes por
+prefijo siguen cubriendo ambos. El detalle muestra primero dos opiniones de las
+diez consultadas; «Ver más» despliega la página ya cargada y «Cargar más reseñas»
+pide la siguiente. Conserva las opiniones previas ante errores, permite reintentar
+la misma página, bloquea carga offline y deduplica IDs entre páginas. Pulsaciones
+rápidas comparten la petición en curso mediante `cancelRefetch: false`. El contador
+y promedio usan el resumen global, no la cantidad de filas descargadas.
+
+El cache crece solo con páginas solicitadas por el usuario; no hay un máximo total
+para las páginas cargadas manualmente. La paginación por offset puede cambiar si
+se publican o retiran reseñas durante la navegación: se deduplican IDs y las
+invalidaciones/revalidaciones recuperan el listado actual, sin prometer un snapshot
+único entre peticiones independientes.
+
+La comprobación local de contenido aprobó antes 109 suites/704 pruebas
+(`test-results/security/review-input-jest.json` y `.log`). La validación de la
+paginación se registra con su ejecución propia, sin atribuirla a esas cifras.
+
+El backend valida la política de contenido antes de persistir y aprobar: rechaza
+palabras ofensivas de una lista mantenida (con variantes comunes de mayúsculas,
+acentos, separadores, leetspeak y caracteres invisibles), HTML, esquemas de script,
+patrones comunes de JavaScript/SQL y controles peligrosos. Inspecciona hasta tres
+capas de codificación sin ejecutar ni reescribir el comentario original. Es un
+filtro heurístico de contenido, no una garantía de detectar cualquier ataque o
+insulto. La moderación humana, la representación como texto y las consultas Prisma
+parametrizadas siguen siendo obligatorias. No se ejecuta código de las reseñas.
+
+Los cambios de protección están en `cemydi-backend/src/modules/reviews/review-content.ts`
+y deben desplegarse en el servidor para proteger los envíos reales. Referencias:
+[validación de entradas OWASP](https://cheatsheetseries.owasp.org/cheatsheets/Input_Validation_Cheat_Sheet.html)
+y [salida segura OWASP](https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html).
 
 ## Carrito
 
@@ -182,11 +249,14 @@ Mensajes de negocio reconocidos: stock insuficiente, producto no encontrado, cup
 
 Las operaciones del cliente exigen sesión y rol `CLIENT`.
 
-| Método | Ruta                  | Uso móvil                                                    |
-| ------ | --------------------- | ------------------------------------------------------------ |
-| GET    | `/rentals/mine`       | Lista paginada; el móvil usa `pageSize=8`                    |
-| GET    | `/rentals/mine/:id`   | Detalle propio                                               |
-| PATCH  | `/rentals/:id/cancel` | Cancela una solicitud pendiente cuando el backend lo permite |
+| Método | Ruta                                       | Uso móvil                                                        |
+| ------ | ------------------------------------------ | ---------------------------------------------------------------- |
+| GET    | `/rentals/mine`                            | Lista paginada; el móvil usa `pageSize=8`                        |
+| GET    | `/rentals/mine/:id`                        | Detalle propio                                                   |
+| PATCH  | `/rentals/:id/cancel`                      | Cancela una solicitud pendiente cuando el backend lo permite     |
+| POST   | `/rentals/from-cart`                       | Envía todas las rentas del carrito con requisitos y aceptaciones |
+| POST   | `/rentals/cart-items/:itemId/prescription` | Adjunta o reemplaza una receta del carrito mediante multipart    |
+| DELETE | `/rentals/cart-items/:itemId/prescription` | Elimina una receta del carrito                                   |
 
 Estados confirmados de renta: `PENDING`, `APPROVED`, `REJECTED`, `CANCELLED`, `DELIVERED` y `RETURNED`.
 
@@ -194,7 +264,7 @@ Estados de depósito: `PENDING`, `RETURNED`, `RETAINED` y `PARTIALLY_RETAINED`.
 
 El detalle incluye folio, fechas, importes, método de entrega, domicilio, notas, estado de depósito e items con su receta asociada.
 
-**No implementado en móvil:** `POST /rentals/from-cart`, la carga/eliminación de recetas y la descarga de documentos. El backend ya expone esos contratos; el cliente no los consume todavía.
+`POST /rentals/from-cart` y `POST`/`DELETE /rentals/cart-items/:itemId/prescription` se consumen desde la solicitud móvil. Ver [RENTALS.md](./RENTALS.md) para DTO, multipart y manejo de resultados inciertos. La descarga de documentos sigue pendiente.
 
 ## Documentos legales
 
@@ -293,10 +363,10 @@ Después de mutar carrito, cupón, favoritos, notificaciones o renta, actualiza 
 
 ## Uploads y binarios
 
-El móvil todavía no sube recetas ni descarga documentos. Cuando se implemente:
+El móvil sube/elimina recetas del carrito; la descarga sigue pendiente. Ver [RENTALS.md](./RENTALS.md). Reglas de multipart:
 
 - React Native usa URIs y objetos multipart nativos, no `File` del DOM;
 - no fijes `Content-Type: multipart/form-data` con boundary manual;
 - valida tamaño y tipo para UX, pero conserva la validación del backend como autoridad;
-- los formatos confirmados son PDF, JPG/JPEG y PNG, con máximo de 8 MB;
+- los formatos confirmados en el backend actual son PDF, JPG/JPEG, PNG y WebP, con máximo de 8 MB;
 - la política de descarga, preview y compartición sigue pendiente.
