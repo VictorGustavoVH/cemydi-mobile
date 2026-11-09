@@ -40,6 +40,10 @@ jest.mock('expo-screen-capture', () => ({
   preventScreenCaptureAsync: jest.fn(async () => undefined),
   allowScreenCaptureAsync: jest.fn(async () => undefined),
 }));
+jest.mock('expo-file-system', () => ({
+  Paths: { cache: { uri: 'file:///cache/' } },
+  Directory: jest.fn(() => ({ uri: 'file:///cache/DocumentPicker/', exists: false })),
+}));
 jest.mock('react-native-worklets', () => ({
   scheduleOnRN: (callback: (...args: unknown[]) => void, ...args: unknown[]) => callback(...args),
 }));

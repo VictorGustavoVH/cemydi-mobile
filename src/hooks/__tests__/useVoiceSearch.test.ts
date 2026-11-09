@@ -1,6 +1,10 @@
 import { act, renderHook } from '@testing-library/react-native';
 import type { ExpoSpeechRecognitionResultEvent } from 'expo-speech-recognition';
 import { useVoiceSearch } from '../useVoiceSearch';
+import { explainPermission } from '@/services/permission-rationale';
+jest.mock('@/services/permission-rationale', () => ({
+  explainPermission: jest.fn(() => Promise.resolve(true)),
+}));
 
 const mockRemove = jest.fn();
 const mockSpeech = {
@@ -10,6 +14,7 @@ const mockSpeech = {
   >(() => ({ remove: mockRemove })),
   isRecognitionAvailable: jest.fn(() => true),
   requestPermissionsAsync: jest.fn(),
+  getPermissionsAsync: jest.fn(async () => ({ granted: false, canAskAgain: true })),
   start: jest.fn(),
   stop: jest.fn(),
   abort: jest.fn(),
@@ -24,6 +29,8 @@ describe('useVoiceSearch', () => {
     jest.clearAllMocks();
     mockSpeech.isRecognitionAvailable.mockReturnValue(true);
     mockSpeech.requestPermissionsAsync.mockResolvedValue({ granted: true });
+    jest.mocked(explainPermission).mockResolvedValue(true);
+    mockSpeech.getPermissionsAsync.mockResolvedValue({ granted: false, canAskAgain: true });
   });
 
   it('pide permisos una vez, dicta en español y permite detenerse', async () => {
@@ -36,9 +43,9 @@ describe('useVoiceSearch', () => {
     expect(mockSpeech.start).toHaveBeenCalledWith(
       expect.objectContaining({
         lang: 'es-MX',
-        recordingOptions: { persist: false },
       }),
     );
+    expect(mockSpeech.start.mock.calls[0][0]).not.toHaveProperty('recordingOptions');
     expect(result.current.requesting).toBe(true);
     expect(result.current.listening).toBe(false);
     const onStart = mockSpeech.addListener.mock.calls.find(([event]) => event === 'start')?.[1];
@@ -70,6 +77,24 @@ describe('useVoiceSearch', () => {
     expect(result.current.requesting).toBe(false);
   });
 
+  it('no solicita permiso al sistema si se cancela la explicación', async () => {
+    jest.mocked(explainPermission).mockResolvedValue(false);
+    const { result } = await renderHook(() => useVoiceSearch(jest.fn()));
+    await act(() => result.current.start());
+    expect(mockSpeech.requestPermissionsAsync).not.toHaveBeenCalled();
+    expect(mockSpeech.start).not.toHaveBeenCalled();
+    expect(result.current.requesting).toBe(false);
+  });
+
+  it('reutiliza el permiso concedido sin explicación ni solicitud nueva', async () => {
+    mockSpeech.getPermissionsAsync.mockResolvedValue({ granted: true, canAskAgain: true });
+    const { result } = await renderHook(() => useVoiceSearch(jest.fn()));
+    await act(() => result.current.start());
+    expect(explainPermission).not.toHaveBeenCalled();
+    expect(mockSpeech.requestPermissionsAsync).not.toHaveBeenCalled();
+    expect(mockSpeech.start).toHaveBeenCalled();
+  });
+
   it('ignora permisos que llegan después de cerrar el buscador', async () => {
     let resolvePermission!: (value: { granted: boolean }) => void;
     mockSpeech.requestPermissionsAsync.mockReturnValue(
@@ -97,5 +122,21 @@ describe('useVoiceSearch', () => {
     await act(() => result.current.start());
     expect(result.current.error).toMatch(/no está disponible/);
     expect(mockSpeech.requestPermissionsAsync).not.toHaveBeenCalled();
+  });
+
+  it('informa errores de permisos de servicio y estado ocupado', async () => {
+    const { result } = await renderHook(() => useVoiceSearch(jest.fn()));
+    await act(async () => {
+      await result.current.start();
+    });
+    const onError = mockSpeech.addListener.mock.calls.find(([event]) => event === 'error')?.[1];
+    await act(() => onError?.({ error: 'service-not-allowed', message: 'Not allowed' } as never));
+    expect(result.current.error).toMatch(/servicio de voz no permite/);
+
+    await act(async () => {
+      await result.current.start();
+    });
+    await act(() => onError?.({ error: 'busy', message: 'Busy' } as never));
+    expect(result.current.error).toMatch(/ocupado por otra aplicación/);
   });
 });

@@ -8,7 +8,7 @@ import { AppButton } from '@/components/ui/AppButton';
 import { BackButton } from '@/components/ui/BackButton';
 import { useToast } from '@/hooks/useToast';
 import { useAuth } from '@/providers/auth-provider';
-import { useFavorites } from '@/features/favorites/hooks/useFavorites';
+import { useFavorites } from '@/features/favorites';
 import { useCatalogPreview } from '@/providers/catalog-preview-provider';
 import { colors } from '@/theme';
 import { productShareUrl } from '../product-share';
@@ -77,7 +77,12 @@ export function ProductDetailHeader({
           hideLabel
           label={favorite ? 'Quitar de favoritos' : 'Guardar en favoritos'}
           accessibilityState={{ selected: favorite }}
-          disabled={isBackend && backendFavorites.isPendingToggle}
+          disabled={isBackend && (!backendFavorites.idsReady || backendFavorites.isPendingToggle)}
+          accessibilityHint={
+            isBackend && !backendFavorites.idsReady
+              ? 'Esperando tus favoritos. Si hay un error, vuelve a abrir el producto para reintentar.'
+              : undefined
+          }
           variant="ghost"
           className="h-11 w-11 rounded-full px-0 py-0"
           onPress={() => {

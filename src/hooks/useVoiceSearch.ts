@@ -2,6 +2,19 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 import { requireOptionalNativeModule } from 'expo';
 import type { ExpoSpeechRecognitionModule } from 'expo-speech-recognition';
+import { explainPermission } from '@/services/permission-rationale';
+
+const voiceErrors: Record<string, string> = {
+  'not-allowed': 'Permite el micrófono y el reconocimiento de voz en los ajustes del dispositivo.',
+  'service-not-allowed':
+    'El servicio de voz no permite iniciar la búsqueda. Revisa sus permisos en los ajustes del teléfono o escribe tu búsqueda.',
+  'audio-capture':
+    'No pudimos acceder al micrófono. Comprueba que otra app no lo esté usando e intenta de nuevo.',
+  'no-speech': 'No escuchamos ninguna palabra. Vuelve a intentarlo o escribe tu búsqueda.',
+  'speech-timeout': 'No escuchamos ninguna palabra. Vuelve a intentarlo o escribe tu búsqueda.',
+  busy: 'El micrófono está ocupado por otra aplicación. Intenta de nuevo.',
+  network: 'No pudimos conectar la búsqueda por voz. Revisa tu conexión o escribe tu búsqueda.',
+};
 
 /** Optional native loading keeps written search usable in Expo Go. */
 export function useVoiceSearch(onChange: (value: string) => void) {
@@ -24,7 +37,13 @@ export function useVoiceSearch(onChange: (value: string) => void) {
     pending.current = false;
     const wasOwned = owned.current;
     owned.current = false;
-    if (wasOwned) speech?.abort();
+    if (wasOwned) {
+      try {
+        speech?.abort();
+      } catch {
+        // Safe fallback
+      }
+    }
     setListening(false);
     setRequesting(false);
   }, [speech]);
@@ -54,18 +73,16 @@ export function useVoiceSearch(onChange: (value: string) => void) {
         setRequesting(false);
         setListening(false);
         if (event.error !== 'aborted') {
+          if (__DEV__) console.warn('[VoiceSearch] Código de error:', event.error);
           setError(
-            event.error === 'not-allowed'
-              ? 'Permite el micrófono y el reconocimiento de voz en los ajustes del dispositivo.'
-              : event.error === 'no-speech'
-                ? 'No escuchamos ninguna palabra. Vuelve a intentarlo o escribe tu búsqueda.'
-                : 'No pudimos reconocer tu voz. Revisa la conexión o escribe tu búsqueda.',
+            voiceErrors[event.error] ??
+              'No pudimos reconocer tu voz. Intenta de nuevo o escribe tu búsqueda.',
           );
         }
       }),
     ];
     const appState = AppState.addEventListener('change', (state) => {
-      if (state === 'background') cancel();
+      if (state === 'background' && owned.current) cancel();
     });
     return () => {
       generation.current += 1;
@@ -74,7 +91,11 @@ export function useVoiceSearch(onChange: (value: string) => void) {
       appState.remove();
       if (owned.current) {
         owned.current = false;
-        speech.abort();
+        try {
+          speech.abort();
+        } catch {
+          // Safe fallback
+        }
       }
     };
   }, [cancel, speech]);
@@ -96,7 +117,21 @@ export function useVoiceSearch(onChange: (value: string) => void) {
         );
         return;
       }
-      const permission = await speech.requestPermissionsAsync();
+      const currentPermission = await speech.getPermissionsAsync();
+      if (generation.current !== session) return;
+      if (!currentPermission.granted) {
+        if (!currentPermission.canAskAgain) {
+          setError(
+            'Permite el micrófono y el reconocimiento de voz en los ajustes del dispositivo.',
+          );
+          return;
+        }
+        const accepted = await explainPermission('microphone');
+        if (generation.current !== session || !accepted) return;
+      }
+      const permission = currentPermission.granted
+        ? currentPermission
+        : await speech.requestPermissionsAsync();
       if (generation.current !== session) return;
       if (!permission.granted) {
         setError('Permite el micrófono y el reconocimiento de voz en los ajustes del dispositivo.');
@@ -109,10 +144,16 @@ export function useVoiceSearch(onChange: (value: string) => void) {
         continuous: false,
         maxAlternatives: 1,
         iosTaskHint: 'search',
-        recordingOptions: { persist: false },
+        // Omit the optional nested Record: SDK 57 rejects RecordingOptions on this device.
+        // The native default is no audio recording/persistence.
       });
-    } catch {
+    } catch (failure) {
       if (generation.current === session) {
+        // Startup options contain no audio/transcript. Keep this native exception diagnosable in Release.
+        console.warn(
+          '[VoiceSearch] Fallo al iniciar:',
+          failure instanceof Error ? failure.message.slice(0, 600) : 'Error nativo',
+        );
         owned.current = false;
         setRequesting(false);
         setListening(false);
@@ -126,7 +167,13 @@ export function useVoiceSearch(onChange: (value: string) => void) {
     }
   }, [speech]);
   const stop = useCallback(() => {
-    if (owned.current) speech?.stop();
+    if (owned.current) {
+      try {
+        speech?.stop();
+      } catch {
+        // Safe fallback
+      }
+    }
   }, [speech]);
   return { listening, requesting, error, start, stop, cancel };
 }
