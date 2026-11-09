@@ -14,6 +14,10 @@ expo-env.d.ts
 *.orig.*
 *.jks
 *.p8
+
+# Local release signing material
+credentials.json
+.credentials/
 *.p12
 *.key
 *.mobileprovision
@@ -66,3 +70,5 @@ metro.critical.log
 google-services.json
 GoogleService-Info.plist
 *.p8
+
+.playwright-cli

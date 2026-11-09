@@ -1,10 +1,18 @@
 # Seguridad automatizada: alcance y operación
 
 Implementación técnica de Víctor Gustavo Valdivia Hernández para la Actividad 5.
-No modifica el cliente, autenticación, dependencias npm o backend.
+Los analizadores no modifican el cliente, autenticación ni backend. Las correcciones
+de dependencias y sus límites se documentan en
+[DEPENDENCY_SECURITY.md](../../docs/DEPENDENCY_SECURITY.md).
 
 ## Estado y alcance
 
+- `dependencies`: auditoría completa de dependencias npm, incluidas herramientas,
+  con bloqueo de avisos HIGH/CRITICAL y errores del registro. Se ejecuta en PR,
+  manualmente y cada semana; conserva todos los avisos moderados/bajos, sin
+  excepciones. Ejecutar `npm run test:dependency-security` y `npm run security:audit`.
+- La evidencia SCA queda en `test-results/security/dependencies/`: reporte npm,
+  política y SHA-256 del lockfile. SAST no sustituye esta comprobación.
 - `sast`: Semgrep Community Edition **1.182.0**, instalado en un entorno Python
   aislado. Diez reglas propias versionadas en `.semgrep/mobile.yml`, con casos
   positivos y negativos ejecutados contra el motor real. No se descarga un ruleset

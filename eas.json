@@ -19,13 +19,25 @@
       "environment": "preview",
       "node": "24.11.0",
       "env": {
-        "EXPO_PUBLIC_APP_ENV": "production"
+        "EXPO_PUBLIC_APP_ENV": "production",
+        "EXPO_PUBLIC_API_URL": "https://cemydi-backend-a9et.onrender.com",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "691107522618-vrg48rltjmknnk2gv8ijagukh4jifo4l.apps.googleusercontent.com"
       },
       "android": {
         "image": "ubuntu-26.04-jdk-17-ndk-r27b-sdk-57",
         "buildType": "apk"
       }
     },
-    "production": {}
+    "production": {
+      "autoIncrement": true,
+      "developmentClient": false,
+      "environment": "production",
+      "android": {
+        "buildType": "app-bundle"
+      },
+      "env": {
+        "EXPO_PUBLIC_APP_ENV": "production"
+      }
+    }
   }
 }

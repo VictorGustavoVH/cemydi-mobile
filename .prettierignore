@@ -7,3 +7,5 @@ package-lock.json
 coverage/
 test-results/
 .tools/
+.credentials/
+credentials.json
