@@ -1,16 +1,19 @@
 import { useState } from 'react';
 import { Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { AppButton } from '@/components/ui/AppButton';
+import ChevronRight from 'lucide-react-native/icons/chevron-right';
+import { colors } from '@/theme';
 import { AppPagination } from '@/components/ui/AppPagination';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { useAuth } from '@/providers/auth-provider';
-import { accountMoney as formatPreviewMoney } from './account-format';
-import { ProfileLayout } from './components/ProfileLayout';
-import { AccountResourceState } from './components/AccountResourceState';
-import { accountService, rentalLabels } from './account-service';
+import { accountMoney as formatPreviewMoney, accountDate } from './account-format';
+import { AccountLayout } from '@/components/account/AccountLayout';
+import { AccountResourceState } from '@/components/account/AccountResourceState';
+import { AppButton } from '@/components/ui/AppButton';
+import { ProfileProductRow } from './components/ProfileProductRow';
+import { AccountStatusBadge } from '@/components/account/AccountStatusBadge';
+import { accountService } from './account-service';
 import { useAccountResource } from './useAccountResource';
-import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 
 function RentalHistory() {
   const router = useRouter();
@@ -18,11 +21,8 @@ function RentalHistory() {
   const { query, isOnline, allowed } = useAccountResource(
     ['rentals', page],
     (signal) => accountService.rentals(page, signal),
-    { clientOnly: true },
+    { clientOnly: true, keepPreviousData: true, autoRefresh: true },
   );
-  const { refreshing, onRefresh } = usePullToRefresh(query.refetch, {
-    enabled: isOnline !== false,
-  });
   return (
     <AccountResourceState
       {...query}
@@ -33,25 +33,19 @@ function RentalHistory() {
       {query.data?.rentals.length === 0 ? (
         <EmptyState
           title="Sin solicitudes de renta"
-          description="Aquí aparecerán las solicitudes guardadas en tu cuenta, también las realizadas en la web."
+          description="Consulta aquí el estado de tus solicitudes."
           actionLabel="Explorar catálogo"
           onAction={() => router.navigate('/catalogo')}
         />
       ) : null}
-      <View className="gap-5 px-5 pb-8">
-        <AppButton
-          label="Actualizar rentas"
-          variant="ghost"
-          loading={refreshing}
-          disabled={isOnline === false}
-          onPress={onRefresh}
-        />
+      <View className="px-5 pb-8">
         {query.data?.rentals.map((rental) => (
           <AppButton
             key={rental.id}
             label={`Ver renta ${rental.folio ?? rental.id}`}
+            accessibilityHint="Abre los equipos, importes, entrega y seguimiento de esta solicitud."
             variant="unstyled"
-            className="gap-3 rounded-2xl bg-surface-muted p-4"
+            className="gap-3 border-b border-border py-5"
             onPress={() =>
               router.push({ pathname: '/perfil/renta/[id]', params: { id: rental.id } })
             }
@@ -60,23 +54,45 @@ function RentalHistory() {
               <Text className="font-sans-semibold text-base text-primary">
                 {rental.folio ?? 'Solicitud de renta'}
               </Text>
-              <Text className="font-sans-medium text-sm text-brand-strong">
-                {rentalLabels[rental.status]}
-              </Text>
+              <AccountStatusBadge kind="rental" status={rental.status} appearance="inline" />
             </View>
-            <Text className="font-sans text-sm leading-6 text-secondary">
-              {rental.items.map((item) => `${item.product.nombre} · ${item.quantity}`).join('\n')}
+            <Text className="font-sans text-xs text-secondary">
+              Solicitada el {accountDate(rental.createdAt)}
             </Text>
-            <Text className="font-sans-semibold text-base text-primary">
-              {formatPreviewMoney(rental.total)}
-            </Text>
+            {rental.items.slice(0, 2).map((item) => (
+              <ProfileProductRow
+                key={item.id}
+                name={item.product.nombre}
+                imageUrl={item.product.imageUrl}
+                description={`Cantidad: ${item.quantity} · ${item.days} días`}
+              />
+            ))}
+            {rental.items.length > 2 ? (
+              <Text className="font-sans text-sm text-secondary">
+                Y {rental.items.length - 2}{' '}
+                {rental.items.length === 3 ? 'equipo más' : 'equipos más'}
+              </Text>
+            ) : null}
+            <View className="flex-row flex-wrap items-center justify-between gap-3 pt-1">
+              <View className="gap-1">
+                <Text className="font-sans text-xs text-secondary">Total de la solicitud</Text>
+                <Text className="font-sans-semibold text-lg text-primary">
+                  {formatPreviewMoney(rental.total)}
+                </Text>
+              </View>
+              <View className="flex-row items-center gap-1">
+                <Text className="font-sans-medium text-sm text-secondary">Ver detalle</Text>
+                <ChevronRight aria-hidden size={18} color={colors.textSecondary} />
+              </View>
+            </View>
           </AppButton>
         ))}
         {query.data && query.data.pagination.totalPages > 1 ? (
           <AppPagination
-            page={page}
+            page={Math.min(query.data.pagination.page, query.data.pagination.totalPages)}
             totalPages={query.data.pagination.totalPages}
             disabled={query.isFetching || isOnline === false}
+            loading={query.isPlaceholderData}
             onPageChange={setPage}
           />
         ) : null}
@@ -87,8 +103,8 @@ function RentalHistory() {
 export function RentalsScreen() {
   const { user } = useAuth();
   return (
-    <ProfileLayout title="Mis rentas">
+    <AccountLayout title="Mis rentas">
       <RentalHistory key={user?.id ?? 'guest'} />
-    </ProfileLayout>
+    </AccountLayout>
   );
 }

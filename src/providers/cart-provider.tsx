@@ -2,6 +2,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -23,12 +24,15 @@ import { toCartEntry } from '@/features/cart/services/cart-adapter';
 import { getCartEntries } from '@/features/cart/cart-preview';
 import { isApiError, UserFacingError } from '@/services/http/api-error';
 import { createCartTransfer } from '@/features/cart/services/cart-transfer';
+import { rentalRequestService, type RentalRequestInput } from '@/services/rentals/rental-request';
+import type { Rental } from '@/services/rentals/rental-schemas';
 
 export const cartQueryKey = (userId: number | undefined) => ['cart', userId] as const;
 const subscribeOnline = (notify: () => void) => onlineManager.subscribe(notify);
 const getOnline = () => onlineManager.isOnline();
 export const CART_SYNC_INTERVAL_MS = 10_000;
-function useRemoteCart() {
+export type CartSyncScreen = 'cart' | 'rental-request';
+function useRemoteCart(syncScreen?: CartSyncScreen) {
   const { user, status, getSession, getSessionVersion } = useAuth();
   const userId = status === 'authenticated' ? user?.id : undefined;
   const client = useQueryClient();
@@ -48,11 +52,20 @@ function useRemoteCart() {
     staleTime: 30_000,
     refetchOnWindowFocus: 'always',
     refetchOnReconnect: 'always',
-    refetchInterval: CART_SYNC_INTERVAL_MS,
+    refetchInterval: (current) =>
+      syncScreen && !(isApiError(current.state.error) && current.state.error.status === 429)
+        ? CART_SYNC_INTERVAL_MS
+        : false,
     refetchIntervalInBackground: false,
     retry: false,
     gcTime: 0,
   });
+  const { refetch } = query;
+  useEffect(() => {
+    // Entering a cart screen revalidates even fresh data, without cancelling an existing read.
+    if (syncScreen && userId !== undefined && !lock.current && onlineManager.isOnline())
+      void refetch({ cancelRefetch: false });
+  }, [syncScreen, userId, refetch]);
   const { mutateAsync } = useMutation({
     mutationFn: (operation: () => Promise<ServerCart>) => operation(),
     retry: false,
@@ -128,6 +141,42 @@ function useRemoteCart() {
       return item;
     };
     return {
+      async uploadPrescription(itemId: number, body: FormData) {
+        let uploaded: Awaited<ReturnType<typeof rentalRequestService.upload>> | undefined;
+        await run(async () => {
+          uploaded = await rentalRequestService.upload(itemId, body);
+          return cartService.get();
+        });
+        if (!uploaded) throw new UserFacingError('No pudimos confirmar la carga de la receta.');
+        return uploaded;
+      },
+      async removePrescription(itemId: number) {
+        await run(async () => {
+          await rentalRequestService.remove(itemId);
+          return cartService.get();
+        });
+      },
+      async submitRental(input: RentalRequestInput) {
+        if (getSession().user?.rol !== 'CLIENT')
+          throw new UserFacingError('Esta función está disponible para cuentas de cliente.');
+        const expected = latest.current.userId;
+        const version = getSessionVersion();
+        let created: { message: string; rental: Rental } | undefined;
+        try {
+          await run(async () => {
+            created = await rentalRequestService.create(input);
+            return cartService.get();
+          });
+        } catch (error) {
+          // A failed cart refresh must never turn a confirmed request into a retryable submission.
+          if (!created || getSession().user?.id !== expected || getSessionVersion() !== version)
+            throw error;
+        }
+        if (!created)
+          throw new UserFacingError('No pudimos confirmar la solicitud. Consulta Mis rentas.');
+        void client.invalidateQueries({ queryKey: ['account', expected, 'rentals'] });
+        return created;
+      },
       async addItem(productId: string, mode: PreviewCartItem['mode']) {
         if (!/^\d+$/.test(productId))
           throw new UserFacingError('Este producto de muestra no se puede guardar en tu cuenta.');
@@ -205,7 +254,7 @@ function useRemoteCart() {
         }));
       },
     };
-  }, [run]);
+  }, [run, client, getSession, getSessionVersion]);
   const entries = useMemo(
     () =>
       (query.data?.items ?? []).map((item) => {
@@ -223,7 +272,6 @@ function useRemoteCart() {
       (version === undefined || getSessionVersion() === version),
     [getSession, getSessionVersion],
   );
-  const { refetch } = query;
   const refreshCart = useCallback(async () => {
     if (lock.current) return;
     const result = await refetch();
@@ -279,8 +327,16 @@ const CartContext = createContext<ReturnType<typeof useRemoteCart> | null>(null)
 const CartActionsContext = createContext<ReturnType<typeof useRemoteCart>['actions'] | null>(null);
 /** Solo el número de unidades: aísla a la barra inferior del sondeo del carrito. */
 const CartCountContext = createContext(0);
-export function CartProvider({ children }: { children: ReactNode }) {
-  const value = useRemoteCart();
+/** Informa si existe alguna renta en el carrito pendiente de configurar fechas o archivo. */
+const CartHasIncompleteRentalContext = createContext(false);
+export function CartProvider({
+  children,
+  syncScreen,
+}: {
+  children: ReactNode;
+  syncScreen?: CartSyncScreen;
+}) {
+  const value = useRemoteCart(syncScreen);
   const guest = useOptionalCatalogPreview();
   const connected = value.userId !== undefined;
   const guestItems = guest?.items;
@@ -291,16 +347,38 @@ export function CartProvider({ children }: { children: ReactNode }) {
         : (guestItems ?? []).reduce((sum, item) => sum + item.quantity, 0),
     [connected, value.entries, guestItems],
   );
+  const hasIncompleteRental = useMemo(() => {
+    if (connected) {
+      return value.entries.some(({ item, remote, product }) => {
+        if (item.mode !== 'rental') return false;
+        const hasDates = Boolean(item.rentalDraft?.startDate && item.rentalDraft?.endDate);
+        const requiresFile = Boolean(product?.prescription ?? remote?.product.requiereReceta);
+        const hasFile = Boolean(remote?.document);
+        return !hasDates || (requiresFile && !hasFile);
+      });
+    }
+    return (guestItems ?? []).some((item) => {
+      if (item.mode !== 'rental') return false;
+      const hasDates = Boolean(item.rentalDraft?.startDate && item.rentalDraft?.endDate);
+      const requiresFile = Boolean(item.productSnapshot?.prescription);
+      return !hasDates || requiresFile;
+    });
+  }, [connected, value.entries, guestItems]);
   return (
     <CartCountContext.Provider value={count}>
-      <CartActionsContext.Provider value={value.actions}>
-        <CartContext.Provider value={value}>{children}</CartContext.Provider>
-      </CartActionsContext.Provider>
+      <CartHasIncompleteRentalContext.Provider value={hasIncompleteRental}>
+        <CartActionsContext.Provider value={value.actions}>
+          <CartContext.Provider value={value}>{children}</CartContext.Provider>
+        </CartActionsContext.Provider>
+      </CartHasIncompleteRentalContext.Provider>
     </CartCountContext.Provider>
   );
 }
 export function useCartCount() {
   return useContext(CartCountContext);
+}
+export function useCartHasIncompleteRental() {
+  return useContext(CartHasIncompleteRentalContext);
 }
 export function useCartActions() {
   const { user, status } = useAuth();
@@ -340,17 +418,32 @@ export function useCart() {
       ),
     );
   }, [guest, remote]);
+  const hasIncompleteRental = useCartHasIncompleteRental();
   return useMemo(
     () => ({
       ...remote,
       ...actions,
+      uploadPrescription: remote.actions.uploadPrescription,
+      removePrescription: remote.actions.removePrescription,
+      submitRental: remote.actions.submitRental,
       connected,
       entries,
       items,
       guestItems: guest.items,
+      hasIncompleteRental,
       discardGuestItems,
       saveGuestItems,
     }),
-    [remote, actions, connected, entries, items, guest.items, discardGuestItems, saveGuestItems],
+    [
+      remote,
+      actions,
+      connected,
+      entries,
+      items,
+      guest.items,
+      hasIncompleteRental,
+      discardGuestItems,
+      saveGuestItems,
+    ],
   );
 }

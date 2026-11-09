@@ -1,4 +1,4 @@
-import { getProductPreview, type ProductDetailPreview } from '@/data/product-detail-preview';
+import type { ProductDetailPreview } from '@/data/product-detail-preview';
 import type { PreviewCartItem } from '@/providers/catalog-preview-provider';
 import type { ServerCartItem } from './services/cart-service';
 
@@ -9,7 +9,7 @@ export type CartPreviewEntry = {
 };
 export function getCartEntries(items: PreviewCartItem[]): CartPreviewEntry[] {
   return items.flatMap((item) => {
-    const product = item.productSnapshot ?? getProductPreview(item.productId);
+    const product = item.productSnapshot;
     return product ? [{ item, product }] : [];
   });
 }

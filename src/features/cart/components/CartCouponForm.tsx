@@ -35,15 +35,14 @@ export function CartCouponForm({ onRequireLogin }: { onRequireLogin?: () => void
       setError(undefined);
       toast.success('Cupón aplicado');
     } catch (error) {
-      setError(getFriendlyErrorMessage(error));
+      toast.error(getFriendlyErrorMessage(error));
     }
   }
   return (
     <>
       {!connected ? (
         <Text className="font-sans text-sm text-secondary">
-          Inicia sesión y guarda tus productos para validar el cupón. No hay descuentos aplicados al
-          carrito temporal.
+          Inicia sesión para guardar tus productos y aplicar un cupón.
         </Text>
       ) : null}
       {cart?.appliedCoupon ? (
@@ -54,6 +53,7 @@ export function CartCouponForm({ onRequireLogin }: { onRequireLogin?: () => void
       <AppInput
         label="Código de cupón"
         value={code}
+        valid={code.trim().length > 0 && couponInputSchema.safeParse(code.trim()).success}
         onChangeText={(text) => {
           setCode(text);
           if (error) setError(undefined);
@@ -98,7 +98,7 @@ export function CartCouponForm({ onRequireLogin }: { onRequireLogin?: () => void
                 setError(undefined);
                 toast.success('Cupón retirado');
               } catch (error) {
-                setError(getFriendlyErrorMessage(error));
+                toast.error(getFriendlyErrorMessage(error));
               }
             })()
           }

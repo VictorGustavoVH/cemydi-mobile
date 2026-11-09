@@ -1,3 +1,4 @@
+import { getProductPreview } from '@/data/product-detail-preview';
 import {
   displayDraftDate,
   formatDraftDateInput,
@@ -40,9 +41,27 @@ describe('Borradores y resumen ilustrativo del carrito', () => {
 
   it('omite productos ausentes y resume solo unidades seleccionadas por modalidad', () => {
     const entries = getCartEntries([
-      { productId: 'wheelchair', mode: 'purchase', quantity: 2, selected: true },
-      { productId: 'wheelchair', mode: 'rental', quantity: 3, selected: true },
-      { productId: 'oxygen', mode: 'rental', quantity: 1, selected: false },
+      {
+        productSnapshot: getProductPreview('wheelchair'),
+        productId: 'wheelchair',
+        mode: 'purchase',
+        quantity: 2,
+        selected: true,
+      },
+      {
+        productSnapshot: getProductPreview('wheelchair'),
+        productId: 'wheelchair',
+        mode: 'rental',
+        quantity: 3,
+        selected: true,
+      },
+      {
+        productSnapshot: getProductPreview('oxygen'),
+        productId: 'oxygen',
+        mode: 'rental',
+        quantity: 1,
+        selected: false,
+      },
       { productId: 'missing', mode: 'purchase', quantity: 1, selected: true },
     ]);
     expect(entries).toHaveLength(3);

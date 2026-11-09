@@ -1,3 +1,5 @@
+import { getProductPreview } from '@/data/product-detail-preview';
+import { selectCalendarDate } from '../../../../tests/support/select-calendar-date';
 import { useEffect } from 'react';
 import { fireEvent, screen } from '@testing-library/react-native';
 import { render } from '../../../../tests/support/render-with-toast';
@@ -34,10 +36,10 @@ function Seed({
   const { service } = useAuth();
   useEffect(() => {
     if (signedIn) void service.login(AUTH_ACCOUNT.correo, AUTH_ACCOUNT.password, false);
-    addItem('wheelchair', 'purchase');
-    addItem('wheelchair', 'rental');
+    addItem('wheelchair', 'purchase', getProductPreview('wheelchair'));
+    addItem('wheelchair', 'rental', getProductPreview('wheelchair'));
     if (quantity > 1) updateQuantity('wheelchair', 'purchase', quantity);
-    if (oxygen) addItem('oxygen', 'rental');
+    if (oxygen) addItem('oxygen', 'rental', getProductPreview('oxygen'));
     // Seed once; callbacks are session-provider operations.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -46,6 +48,35 @@ function Seed({
 
 describe('Carrito de muestra', () => {
   beforeEach(() => installAuthApiMock());
+  it('muestra el aviso solo en la tarjeta de renta y mantiene el color de su texto', async () => {
+    await render(
+      <CatalogPreviewProvider>
+        <Seed />
+      </CatalogPreviewProvider>,
+    );
+    expect(screen.getAllByTestId('cart-item-pending-dot')).toHaveLength(1);
+    expect(screen.queryByTestId('cart-pending-dot')).toBeNull();
+    expect(screen.getByText('Configurar renta')).toHaveProp(
+      'className',
+      'font-sans-medium text-xs text-brand-strong',
+    );
+    expect(
+      screen.getByLabelText('Configurar renta de Silla de ruedas').props.accessibilityHint,
+    ).toBe('Falta completar la configuración de esta renta.');
+  });
+  it('el formulario de cupones conserva sus acciones y cierra con X, sin Volver al carrito', async () => {
+    await render(
+      <CatalogPreviewProvider>
+        <Seed />
+      </CatalogPreviewProvider>,
+    );
+    await fireEvent.press(screen.getByLabelText('Aplicar cupón'));
+    expect(screen.getByLabelText('Código de cupón')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Volver al carrito' })).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: 'Cerrar' }));
+    expect(screen.queryByLabelText('Código de cupón')).toBeNull();
+    expect(screen.getByLabelText('Cantidad de Silla de ruedas, compra: 1')).toBeTruthy();
+  });
   it('no renderiza la imagen de otra tarjeta al cambiar selección o cantidad', async () => {
     const image = jest.spyOn(CatalogImageModule, 'CatalogImage');
     const view = await render(
@@ -133,11 +164,16 @@ describe('Carrito de muestra', () => {
     );
     await fireEvent.press(screen.getByLabelText('Configurar renta de Concentrador de oxígeno'));
     expect(screen.getByText('Receta requerida')).toBeTruthy();
-    await fireEvent.changeText(screen.getByLabelText('Fecha de inicio'), '31/02/2027');
-    await fireEvent.changeText(screen.getByLabelText('Fecha de devolución'), '10/03/2027');
     await fireEvent.press(screen.getByLabelText('Guardar borrador'));
-    expect(screen.getByText('Escribe una fecha válida: DD/MM/AAAA.')).toBeTruthy();
-    await fireEvent.changeText(screen.getByLabelText('Fecha de inicio'), '01032027');
+    expect(screen.getByText('Selecciona una fecha de inicio.')).toBeTruthy();
+    await selectCalendarDate('Fecha de inicio', '2027-03-01');
+    await selectCalendarDate('Fecha de devolución', '2027-03-10');
+    await selectCalendarDate('Fecha de inicio', '2027-03-11');
+    expect(screen.getByLabelText('Fecha de devolución')).toHaveProp('accessibilityValue', {
+      text: 'Sin seleccionar',
+    });
+    await selectCalendarDate('Fecha de inicio', '2027-03-01');
+    await selectCalendarDate('Fecha de devolución', '2027-03-10');
     await fireEvent.changeText(
       screen.getByLabelText('Notas de la renta (opcional)'),
       'Entrega por la mañana',
@@ -149,10 +185,12 @@ describe('Carrito de muestra', () => {
     await fireEvent.press(screen.getByLabelText('Deshacer eliminación del producto'));
     await fireEvent.press(screen.getByLabelText('Editar renta de Concentrador de oxígeno'));
     expect(screen.getByDisplayValue('Entrega por la mañana')).toBeTruthy();
-    expect(screen.getByDisplayValue('01/03/2027')).toBeTruthy();
+    expect(screen.getByLabelText('Fecha de inicio')).toHaveProp('accessibilityValue', {
+      text: '01/03/2027',
+    });
   });
 
-  it('permite revisar solo lo seleccionado y comunica el límite de cupones', async () => {
+  it('abre la solicitud con todas las rentas y comunica el límite de cupones', async () => {
     installCartApiMock({
       ...CART_RESPONSE,
       items: [
@@ -177,10 +215,7 @@ describe('Carrito de muestra', () => {
     await fireEvent.press(screen.getByLabelText('Seleccionar Concentrador de oxígeno, renta'));
     await fireEvent.press(screen.getByLabelText('Listo'));
     await fireEvent.press(screen.getByLabelText('Revisar carrito'));
-    expect(screen.getAllByText('Silla de ruedas · 1 unidad')).toHaveLength(2);
-    expect(screen.queryByText('Concentrador de oxígeno · 1 unidad')).toBeNull();
-    expect(screen.getByText(/Esta revisión no envía una solicitud/)).toBeTruthy();
-    await fireEvent.press(screen.getByLabelText('Volver al carrito'));
+    expect(mockRouter.push).toHaveBeenCalledWith('/solicitar-renta');
     await fireEvent.press(screen.getByLabelText('Aplicar cupón'));
     await fireEvent.changeText(screen.getByLabelText('Código de cupón'), 'x');
     await fireEvent.press(screen.getAllByLabelText('Aplicar cupón').at(-1)!);

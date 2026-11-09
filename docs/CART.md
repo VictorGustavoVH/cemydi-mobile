@@ -23,7 +23,7 @@ Las líneas usan su id de servidor, incluso cuando hay varias rentas del mismo e
 
 El resumen autenticado muestra exactamente `saleSubtotal`, `rentalSubtotal`, depósitos, descuentos y `total` recibidos. No calcula periodos, promociones, cupones ni importes finales. Las rentas sin configurar muestran que el total está incompleto. Un cupón guardado que ya no es válido muestra su motivo.
 
-La selección local se conserva como ayuda de revisión. El total corresponde explícitamente a **todo** el carrito guardado, porque los endpoints no aceptan selección parcial para cotizar ni solicitar renta. No se distribuye un cupón ni se inventa un total para un subconjunto.
+La selección local se conserva como ayuda de revisión del carrito; la solicitud muestra todas las rentas guardadas. El total corresponde explícitamente a **todo** el carrito guardado, porque los endpoints no aceptan selección parcial para cotizar ni solicitar renta. No se distribuye un cupón ni se inventa un total para un subconjunto.
 
 ## Invitado y transferencia
 
@@ -35,7 +35,29 @@ No existe endpoint de merge transaccional, clave de idempotencia o control de ve
 
 ## Caché, sesión y conectividad
 
-Query key `['cart', userId]`, staleTime de 30 segundos y consulta cada 10 segundos mientras la app está activa y conectada. Volver al primer plano o recuperar la conexión consulta siempre, incluso si la caché sigue fresca. Se conserva pull-to-refresh mediante `usePullToRefresh`, sin mezclarlo con el sondeo: el indicador solo responde al gesto o al reintento explícito y se deshabilita sin sesión, sin conexión o durante una escritura. `GET /cart` usa `cache: no-store`. La consulta periódica se pausa durante escrituras y en segundo plano; no constituye sincronización por sockets ni una transacción entre dispositivos. Las lecturas no reintentan automáticamente los errores. Las escrituras son confirmadas, sin actualización optimista ni cola offline; un bloqueo inmediato evita solicitudes simultáneas desde los controles. Se cancelan lecturas en vuelo antes de escribir y se sustituye la caché con la respuesta completa.
+Query key `['cart', userId]` y staleTime de 30 segundos. Desde el 8 de noviembre de
+2026, el layout raíz pasa `syncScreen` a `CartProvider` según la ruta visible:
+`/carrito` o `/solicitar-renta`. Solo esas pantallas consultan cada 10 segundos con
+sesión, conexión y app activa; al salir se elimina el intervalo. Al entrar o pasar
+de una a otra se revalida incluso una caché fresca, reutilizando una lectura en
+vuelo. Un 429 detiene el sondeo; volver a entrar, recuperar foco/conexión o un
+reintento explícito permiten recuperar la lectura. No hay reintento inmediato de
+un error HTTP. El intervalo sigue pausado durante escrituras y en segundo plano.
+
+Fuera de esas pantallas se conserva la lectura inicial para el contador, las
+respuestas completas de mutaciones y la revalidación al volver al primer plano o
+recuperar conexión. No hay sondeo periódico global. `useCartCount` conserva su
+contexto numérico separado. Esta política usa el
+[intervalo condicional de TanStack Query](https://tanstack.com/query/v5/docs/framework/react/reference/useQuery).
+
+Se conserva pull-to-refresh mediante `usePullToRefresh`, sin mezclarlo con el
+sondeo: el indicador solo responde al gesto o al reintento explícito y se
+deshabilita sin sesión, sin conexión o durante una escritura. `GET /cart` usa
+`cache: no-store`. No constituye sincronización por sockets ni una transacción
+entre dispositivos. Las lecturas no reintentan automáticamente los errores. Las
+escrituras son confirmadas, sin actualización optimista ni cola offline; un bloqueo
+inmediato evita solicitudes simultáneas desde los controles. Se cancelan lecturas
+en vuelo antes de escribir y se sustituye la caché con la respuesta completa.
 
 Para compartir carrito con la web, ambos clientes deben usar el mismo backend y la misma cuenta. La web local utiliza `/api` y lo redirige al `INTERNAL_API_URL` de su configuración privada; ese destino debe coincidir con el `EXPO_PUBLIC_API_URL` móvil. Cambiar el destino no migra carritos entre bases de datos y requiere volver a iniciar sesión en la web. La tarjeta «¿Tienes un cupón?» conserva el diseño anterior con icono y acceso al formulario conectado.
 
@@ -43,10 +65,15 @@ Red, timeout, respuesta inválida o 5xx durante una escritura requieren comproba
 
 AuthProvider elimina la caché al salir/cambiar de usuario. Las respuestas tardías y Deshacer verifican identidad y versión real de sesión antes de actualizar o volver a agregar. Un 401 usa la renovación y límite de repetición del transporte existente. Una sesión desconocida o con error no se presenta como carrito autenticado comprobado.
 
+## Solicitud de renta vigente
+
+«Revisar carrito» abre `/solicitar-renta` cuando una cuenta conectada tiene rentas. El formulario adapta los dos pasos de la web y permite adjuntar/eliminar recetas, editar fechas, aceptar documentos legales y enviar todas las rentas. Conserva los productos de compra y enlaza al seguimiento de la solicitud confirmada. Ver [RENTALS.md](./RENTALS.md).
+
 ## Alcance pendiente
 
-La revisión no paga, no crea pedidos ni envía solicitudes de renta. Checkout de venta sigue sin contrato de backend. El backend sí tiene `POST /rentals/from-cart`, protegido por rol CLIENT, con datos del solicitante, entrega y aceptaciones legales; no se invoca desde una simple configuración de fechas. Solicitud de renta, carga/descarga de recetas y su revisión constituyen flujos posteriores. Se muestra el documento guardado por otros clientes si existe, sin simular una carga móvil.
-
-El cuarto commit conecta la configuración de renta existente con el carrito, el detalle de productos y el contador de navegación. No incorpora pantallas de contratación, notificaciones, pestañas nuevas ni cambios del backend. Se verificó Expo instalado 57.0.31 y la documentación de Expo Router para SDK 57; se conserva la navegación actual con rutas delgadas.
+Checkout de venta sigue sin contrato de backend. La descarga, vista previa y
+compartición de recetas y el reemplazo de documentos rechazados desde una
+solicitud creada siguen pendientes. Guardar fechas por sí solo no envía una
+solicitud; el envío exige completar los requisitos y aceptaciones.
 
 Ver [TESTING.md](./TESTING.md) para evidencia automática y QA pendiente. La exportación de bundles no valida la persistencia ni la presentación en dispositivos.
