@@ -46,6 +46,12 @@ del último commit del PR antes de comenzar la siguiente. Un push sin checks no
 acredita aprobación. Si alguna verificación falla, resuélvela en la misma rama o
 registra el bloqueo y detén la secuencia; no omitas pruebas para continuar.
 
+Si los PR deben permanecer abiertos, encadena las ramas dependientes y dirige cada
+PR a su predecesora, de modo que su diff muestre únicamente sus cambios. Quality,
+Tests y Security admiten también las ramas base en español. No fusiones sin
+autorización; cuando se integre una predecesora, revisa la base y los checks del PR
+siguiente antes de integrarlo.
+
 ## Pull Request
 
 Un PR hacia `develop` debe incluir:
