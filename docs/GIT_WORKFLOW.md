@@ -3,7 +3,7 @@
 ## Estrategia vigente
 
 ```text
-feature/* → develop → main
+ramas de trabajo → develop → main
 ```
 
 La rama `develop` existe y es la rama de integración utilizada por el proyecto.
@@ -12,7 +12,7 @@ La rama `develop` existe y es la rama de integración utilizada por el proyecto.
 
 ```mermaid
 flowchart LR
-  Issue[Issue / Task] --> Branch[feature/* desde develop]
+  Issue[Issue / Task] --> Branch[Rama en español desde develop]
   Branch --> Commits[Commits pequeños]
   Commits --> PR[Pull Request a develop]
   PR --> Review[Review]
@@ -27,17 +27,24 @@ flowchart LR
 
 - `main`: versiones estables y validadas.
 - `develop`: integración de funcionalidades terminadas.
-- `feature/<descripcion-corta>`: desarrollo aislado de una tarea o cambio coherente, creado desde `develop`.
+- Ramas nuevas en español: `funcionalidad/<descripcion-corta>`, `mejora/<descripcion-corta>`, `correccion/<descripcion-corta>`, `seguridad/<descripcion-corta>` o `publicacion/<descripcion-corta>`, creadas desde `develop`. Usa minúsculas y guiones, sin espacios ni tildes.
+- Las ramas históricas `feature/*` se conservan; no se renombran `develop` ni `main`.
 
-Las ramas `feature/*` se integran de regreso a `develop` mediante Pull Request. `main` no se usa para desarrollo ordinario. No mezcles refactors no relacionados en una rama de feature.
+Las ramas de trabajo se integran de regreso a `develop` mediante Pull Request. `main` no se usa para desarrollo ordinario. No mezcles refactors no relacionados en una rama.
 
 ## Commits
 
 - pequeños, coherentes y revisables;
 - mensaje imperativo que explique el cambio;
 - seguir Conventional Commits (`ci:`, `test:`, `docs:`, `fix:`, `feat:` según el cambio);
+- escribir las descripciones y ámbitos de los commits en español, conservando los prefijos técnicos de Conventional Commits;
 - no incluir secretos, artefactos locales ni archivos generados innecesarios;
 - separar cambios funcionales, pruebas y documentación solo cuando ayude a la revisión, sin fragmentar artificialmente.
+
+Al publicar cambios divididos en varias ramas, comprueba con GitHub CLI los checks
+del último commit del PR antes de comenzar la siguiente. Un push sin checks no
+acredita aprobación. Si alguna verificación falla, resuélvela en la misma rama o
+registra el bloqueo y detén la secuencia; no omitas pruebas para continuar.
 
 ## Pull Request
 
