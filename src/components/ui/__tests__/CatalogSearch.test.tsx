@@ -1,6 +1,7 @@
-import { fireEvent, screen } from '@testing-library/react-native';
+import { fireEvent, screen, within } from '@testing-library/react-native';
 import { render } from '../../../../tests/support/render-with-toast';
 import { addRecentSearch, clearRecentSearches } from '@/hooks/useRecentSearches';
+import * as voiceHook from '@/hooks/useVoiceSearch';
 import { productService } from '@/services/products/product-service';
 import { productPage } from '../../../../tests/support/product-fixtures';
 import { CatalogSearch } from '../CatalogSearch';
@@ -15,6 +16,17 @@ describe('CatalogSearch', () => {
   beforeEach(() => {
     clearRecentSearches();
     jest.clearAllMocks();
+  });
+  it('muestra el error de voz en el toast, sin texto de error bajo el buscador', async () => {
+    await render(<CatalogSearch value="" onChange={jest.fn()} onSubmit={jest.fn()} />);
+    await fireEvent.press(screen.getByLabelText('Buscar por voz'));
+    const message = await screen.findByText(
+      'El reconocimiento de voz no está disponible en este dispositivo.',
+    );
+    expect(message).toBeTruthy();
+    expect(
+      within(screen.getByTestId('toast-viewport')).getByText(message.props.children),
+    ).toBeTruthy();
   });
 
   it('renderiza input, botón de filtros y botón X para borrar texto', async () => {
@@ -168,5 +180,26 @@ describe('CatalogSearch', () => {
     expect(await screen.findByText(/No pudimos cargar las sugerencias/)).toBeTruthy();
     await fireEvent.press(screen.getByLabelText('Buscar silla en el catálogo'));
     expect(onSubmit).toHaveBeenCalledWith('silla');
+  });
+
+  it('muestra el diseño activo del micrófono al escuchar voz sin cuadro inferior adicional', async () => {
+    const cancelMock = jest.fn();
+    jest.spyOn(voiceHook, 'useVoiceSearch').mockReturnValue({
+      listening: true,
+      requesting: false,
+      error: null,
+      start: jest.fn(),
+      stop: jest.fn(),
+      cancel: cancelMock,
+    });
+
+    await render(<CatalogSearch value="" onChange={jest.fn()} onSubmit={jest.fn()} />);
+
+    expect(screen.getByLabelText('Detener dictado')).toBeTruthy();
+    expect(screen.queryByText('Escuchando… Di el nombre del producto.')).toBeNull();
+    expect(screen.getByPlaceholderText('Escuchando… Di el producto')).toBeTruthy();
+
+    await fireEvent.press(screen.getByLabelText('Detener dictado'));
+    expect(cancelMock).toHaveBeenCalledTimes(1);
   });
 });

@@ -20,26 +20,40 @@ export function usePullToRefresh(
   refresh: () => Promise<unknown>,
   { enabled = true }: PullToRefreshOptions = {},
 ): PullToRefreshState {
-  const [refreshing, setRefreshing] = useState(false);
+  const [state, setState] = useState({ enabled, refreshing: false });
+  // Reset local UI when availability changes, without an extra effect render.
+  if (state.enabled !== enabled) setState({ enabled, refreshing: false });
   const inFlight = useRef(false);
+  const generation = useRef(0);
   const latest = useRef({ refresh, enabled });
   useEffect(() => {
     latest.current = { refresh, enabled };
   });
+  const invalidate = useCallback(() => {
+    generation.current++;
+    inFlight.current = false;
+  }, []);
+  useEffect(() => {
+    if (!enabled) invalidate();
+    return invalidate;
+  }, [enabled, invalidate]);
 
   const run = useCallback(async () => {
     const { refresh: currentRefresh, enabled: isEnabled } = latest.current;
     // Ignora gestos mientras la recarga ya está en curso o no está disponible.
     if (!isEnabled || inFlight.current) return;
     inFlight.current = true;
-    setRefreshing(true);
+    const request = ++generation.current;
+    setState({ enabled: isEnabled, refreshing: true });
     try {
       await currentRefresh();
     } catch {
       // La query que originó la recarga ya expone su propio estado de error.
     } finally {
-      inFlight.current = false;
-      setRefreshing(false);
+      if (request === generation.current) {
+        inFlight.current = false;
+        setState((current) => ({ ...current, refreshing: false }));
+      }
     }
   }, []);
 
@@ -47,5 +61,5 @@ export function usePullToRefresh(
     void run();
   }, [run]);
 
-  return { refreshing, onRefresh };
+  return { refreshing: state.refreshing, onRefresh };
 }

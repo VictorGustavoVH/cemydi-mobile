@@ -3,20 +3,30 @@ import { Keyboard, ScrollView, Text, TextInput, View } from 'react-native';
 import Clock from 'lucide-react-native/icons/clock';
 import Search from 'lucide-react-native/icons/search';
 import Mic from 'lucide-react-native/icons/mic';
-import Square from 'lucide-react-native/icons/square';
 import SlidersHorizontal from 'lucide-react-native/icons/sliders-horizontal';
 import X from 'lucide-react-native/icons/x';
 import ChevronRight from 'lucide-react-native/icons/chevron-right';
 import { useQuery } from '@tanstack/react-query';
+import Animated, {
+  cancelAnimation,
+  Easing,
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+} from 'react-native-reanimated';
 import { AppButton } from '@/components/ui/AppButton';
 import { AppInput } from '@/components/ui/AppInput';
 import { AppScreenPopover } from '@/components/ui/AppScreenPopover';
 import { CatalogImage } from '@/components/ui/CatalogImage';
+import { EmptyProductIcon } from '@/components/ui/EmptyProductIcon';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { SkeletonBlock } from '@/components/ui/Skeleton';
 import { useDebounce } from '@/hooks/useDebounce';
 import { useRecentSearches } from '@/hooks/useRecentSearches';
 import { useVoiceSearch } from '@/hooks/useVoiceSearch';
+import { useToast } from '@/hooks/useToast';
 import { formatProductMoney } from '@/services/products/product-adapter';
 import { emptyProductFilters } from '@/services/products/product-service';
 import { productRepository } from '@/services/products/product-repository';
@@ -34,6 +44,125 @@ type CatalogSearchProps = {
   onSuggestionsInteractionChange?: (interacting: boolean) => void;
   dismissSignal?: number;
 };
+
+type VoiceSearchButtonProps = {
+  listening: boolean;
+  requesting: boolean;
+  onPress: () => void;
+};
+
+function VoiceSearchButton({ listening, requesting, onPress }: VoiceSearchButtonProps) {
+  const pulseScale = useSharedValue(1);
+  const pulseOpacity = useSharedValue(0);
+  const buttonScale = useSharedValue(1);
+  const blinkOpacity = useSharedValue(1);
+  const reduced = useReducedMotion();
+
+  useEffect(() => {
+    if (listening && !reduced) {
+      buttonScale.set(
+        withRepeat(
+          withTiming(1.15, { duration: 500, easing: Easing.bezier(0.42, 0, 0.58, 1) }),
+          -1,
+          true,
+        ),
+      );
+      blinkOpacity.set(
+        withRepeat(
+          withTiming(0.25, { duration: 500, easing: Easing.bezier(0.42, 0, 0.58, 1) }),
+          -1,
+          true,
+        ),
+      );
+      pulseScale.set(1);
+      pulseOpacity.set(0.6);
+      pulseScale.set(
+        withRepeat(
+          withTiming(1.85, { duration: 1000, easing: Easing.bezier(0.16, 1, 0.3, 1) }),
+          -1,
+          false,
+        ),
+      );
+      pulseOpacity.set(
+        withRepeat(
+          withTiming(0, { duration: 1000, easing: Easing.bezier(0.16, 1, 0.3, 1) }),
+          -1,
+          false,
+        ),
+      );
+    } else {
+      cancelAnimation(pulseScale);
+      cancelAnimation(pulseOpacity);
+      cancelAnimation(buttonScale);
+      cancelAnimation(blinkOpacity);
+      buttonScale.set(withTiming(1, { duration: 200 }));
+      blinkOpacity.set(1);
+      pulseScale.set(1);
+      pulseOpacity.set(0);
+    }
+    return () => {
+      cancelAnimation(pulseScale);
+      cancelAnimation(pulseOpacity);
+      cancelAnimation(buttonScale);
+      cancelAnimation(blinkOpacity);
+    };
+  }, [listening, reduced, pulseScale, pulseOpacity, buttonScale, blinkOpacity]);
+
+  const animatedPulseStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: pulseScale.get() }],
+    opacity: pulseOpacity.get(),
+  }));
+
+  const animatedButtonStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: buttonScale.get() }],
+    opacity: listening ? blinkOpacity.get() : 1,
+  }));
+
+  return (
+    <View className="relative h-11 w-11 items-center justify-center">
+      {listening ? (
+        <Animated.View
+          aria-hidden
+          style={[
+            {
+              position: 'absolute',
+              width: 36,
+              height: 36,
+              borderRadius: 18,
+              backgroundColor: colors.brand,
+            },
+            animatedPulseStyle,
+          ]}
+        />
+      ) : null}
+      <Animated.View style={animatedButtonStyle}>
+        <AppButton
+          className="h-11 w-11 rounded-full !border-0 px-0 py-0"
+          hideLabel
+          label={listening ? 'Detener dictado' : 'Buscar por voz'}
+          loading={requesting}
+          accessibilityHint={
+            listening
+              ? 'Micrófono en funcionamiento. Toca para detener el dictado'
+              : 'Dicta el nombre del producto en español'
+          }
+          leftIcon={
+            requesting ? null : (
+              <Mic
+                aria-hidden
+                color={listening ? colors.onBrand : colors.textSecondary}
+                size={listening ? 20 : 18}
+                strokeWidth={listening ? 2.5 : 2}
+              />
+            )
+          }
+          onPress={onPress}
+          variant={listening ? 'primary' : 'ghost'}
+        />
+      </Animated.View>
+    </View>
+  );
+}
 
 export function CatalogSearch({
   value,
@@ -55,6 +184,10 @@ export function CatalogSearch({
   const gesture = useRef({ touch: false, drag: false, momentum: false });
   const { searches, addSearch, removeSearch } = useRecentSearches();
   const voice = useVoiceSearch(onChange);
+  const toast = useToast();
+  useEffect(() => {
+    if (voice.error) toast.error(voice.error);
+  }, [voice.error, toast]);
   const { cancel: cancelVoice } = voice;
   const setInteracting = useCallback(
     (active: boolean) => {
@@ -109,10 +242,13 @@ export function CatalogSearch({
   }, [showOverlay, releaseGesture]);
   useEffect(() => {
     const listener = Keyboard.addListener('keyboardDidHide', () => {
-      if (!voice.listening && !voice.requesting) close();
+      if (!voice.listening && !voice.requesting) {
+        setIsFocused(false);
+        releaseGesture();
+      }
     });
     return () => listener.remove();
-  }, [close, voice.listening, voice.requesting]);
+  }, [releaseGesture, voice.listening, voice.requesting]);
 
   const searchControls = (
     <View className="flex-row items-center gap-2">
@@ -121,10 +257,21 @@ export function CatalogSearch({
           ref={inputRef}
           autoCapitalize="none"
           autoCorrect={false}
-          className="border-border/50 bg-surface-muted text-sm"
+          className="text-sm"
+          style={
+            voice.listening
+              ? { borderColor: colors.brand, backgroundColor: colors.brandTint }
+              : { borderColor: colors.borderMuted, backgroundColor: colors.surfaceMuted }
+          }
           hideLabel
-          label={placeholder}
-          leadingIcon={<Search aria-hidden color={colors.textSecondary} size={19} />}
+          label={voice.listening ? 'Escuchando dictado' : placeholder}
+          leadingIcon={
+            <Search
+              aria-hidden
+              color={voice.listening ? colors.brand : colors.textSecondary}
+              size={19}
+            />
+          }
           maxLength={120}
           onChangeText={(text) => {
             voice.cancel();
@@ -135,28 +282,20 @@ export function CatalogSearch({
             if (!interacting.current && !voice.listening && !voice.requesting) setIsFocused(false);
           }}
           onSubmitEditing={() => submit()}
-          placeholder={placeholder}
+          placeholder={voice.listening ? 'Escuchando… Di el producto' : placeholder}
           returnKeyType="search"
           trailingAction={
             voice.listening || voice.requesting || value.length === 0 ? (
-              <AppButton
-                className="h-11 w-11 !border-0 p-0"
-                hideLabel
-                label={voice.listening ? 'Detener dictado' : 'Buscar por voz'}
-                loading={voice.requesting}
-                accessibilityHint="Dicta el nombre del producto en español"
-                leftIcon={
-                  voice.listening ? (
-                    <Square aria-hidden color={colors.brandStrong} size={18} />
-                  ) : (
-                    <Mic aria-hidden color={colors.textSecondary} size={20} />
-                  )
-                }
+              <VoiceSearchButton
+                listening={voice.listening}
+                requesting={voice.requesting}
                 onPress={() => {
-                  if (voice.listening) voice.stop();
-                  else void voice.start();
+                  if (voice.listening || voice.requesting) {
+                    voice.cancel();
+                  } else {
+                    void voice.start();
+                  }
                 }}
-                variant="ghost"
               />
             ) : (
               <AppButton
@@ -179,7 +318,8 @@ export function CatalogSearch({
       </View>
       {onFilters ? (
         <AppButton
-          className="h-12 w-12 !border-border/50 px-0 py-0"
+          className="h-12 w-12 px-0 py-0"
+          style={{ borderColor: colors.borderMuted }}
           hideLabel
           label="Filtrar catálogo"
           onPress={() => {
@@ -198,20 +338,11 @@ export function CatalogSearch({
       <View ref={searchAnchor} collapsable={false}>
         {searchControls}
       </View>
-      {voice.listening ? (
-        <Text accessibilityLiveRegion="polite" className="font-sans text-sm text-brand-strong">
-          Escuchando… Di el nombre del producto.
-        </Text>
-      ) : voice.error ? (
-        <Text accessibilityLiveRegion="polite" className="font-sans text-sm text-secondary">
-          {voice.error}
-        </Text>
-      ) : null}
       {showOverlay ? (
         <AppScreenPopover anchor={searchAnchor}>
           <View
-            className="overflow-hidden rounded-2xl border border-border/80 bg-white p-3 shadow-xl"
-            style={{ elevation: 12, flexShrink: 1 }}
+            className="overflow-hidden rounded-2xl border bg-white p-3"
+            style={{ borderColor: colors.borderOverlay, elevation: 12, flexShrink: 1 }}
             onTouchStart={() => setGesture('touch', true)}
             onTouchEnd={() => setGesture('touch', false)}
             onTouchCancel={() => setGesture('touch', false)}
@@ -325,9 +456,12 @@ export function CatalogSearch({
                       </AppButton>
                     ))
                   ) : (
-                    <Text className="font-sans text-sm text-secondary">
-                      No encontramos sugerencias para &quot;{value.trim()}&quot;
-                    </Text>
+                    <View className="items-center justify-center gap-2 py-4">
+                      <EmptyProductIcon size="compact" />
+                      <Text className="text-center font-sans text-sm text-secondary">
+                        No encontramos sugerencias para &quot;{value.trim()}&quot;
+                      </Text>
+                    </View>
                   )}
                 </View>
               )}

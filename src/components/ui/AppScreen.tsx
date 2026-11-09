@@ -19,7 +19,8 @@ import {
   View,
   type TextInputFocusEvent,
 } from 'react-native';
-import { SafeAreaView, type Edge } from 'react-native-safe-area-context';
+import { SafeAreaInsetsContext, type Edge } from 'react-native-safe-area-context';
+import { AppRefreshControl } from './AppRefreshControl';
 import { ToastContext } from '@/hooks/useToast';
 
 type AppScreenProps = {
@@ -28,6 +29,9 @@ type AppScreenProps = {
   contentClassName?: string;
   edges?: Edge[];
   scroll?: boolean;
+  refreshing?: boolean;
+  onRefresh?: () => void;
+  refreshEnabled?: boolean;
 };
 
 const scrollContentStyle = { flexGrow: 1 } as const;
@@ -63,6 +67,9 @@ export function AppScreen({
   contentClassName = '',
   edges = ['bottom', 'left', 'right'],
   scroll = false,
+  refreshing = false,
+  onRefresh,
+  refreshEnabled = true,
 }: AppScreenProps) {
   const toast = useContext(ToastContext);
   const scrollRef = useRef<ScrollView>(null);
@@ -154,8 +161,20 @@ export function AppScreen({
     }),
     [scheduleReveal],
   );
+  const contextInsets = useContext(SafeAreaInsetsContext);
+  const insets = contextInsets ?? { top: 0, bottom: 0, left: 0, right: 0 };
+  const safeAreaStyle = useMemo(
+    () => ({
+      paddingTop: edges.includes('top') ? insets.top : 0,
+      paddingBottom: edges.includes('bottom') ? insets.bottom : 0,
+      paddingLeft: edges.includes('left') ? insets.left : 0,
+      paddingRight: edges.includes('right') ? insets.right : 0,
+    }),
+    [edges, insets.top, insets.bottom, insets.left, insets.right],
+  );
+
   return (
-    <SafeAreaView className={`flex-1 bg-background ${className}`} edges={edges}>
+    <View className={`flex-1 bg-background ${className}`} style={safeAreaStyle}>
       <ScreenOverlayContext.Provider value={overlay}>
         <View style={{ flex: 1 }}>
           {scroll ? (
@@ -178,6 +197,15 @@ export function AppScreen({
                 contentInsetAdjustmentBehavior="automatic"
                 keyboardShouldPersistTaps="handled"
                 keyboardDismissMode="on-drag"
+                refreshControl={
+                  onRefresh ? (
+                    <AppRefreshControl
+                      refreshing={refreshing}
+                      onRefresh={onRefresh}
+                      enabled={refreshEnabled}
+                    />
+                  ) : undefined
+                }
               >
                 <View className={`flex-1 ${contentClassName}`}>{children}</View>
               </ScrollView>
@@ -197,6 +225,6 @@ export function AppScreen({
           </View>
         </View>
       </ScreenOverlayContext.Provider>
-    </SafeAreaView>
+    </View>
   );
 }

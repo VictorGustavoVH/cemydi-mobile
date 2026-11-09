@@ -1,5 +1,6 @@
-import { useRef, useState, type ComponentProps } from 'react';
+import { useEffect, useRef, useState, type ComponentProps } from 'react';
 import {
+  AppState,
   Keyboard,
   Modal,
   ScrollView,
@@ -25,6 +26,15 @@ type PasswordFieldProps = Omit<
 export function PasswordField({ editable = true, ...props }: PasswordFieldProps) {
   const [visible, setVisible] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state !== 'active') {
+        setVisible(false);
+        setShowHelp(false);
+      }
+    });
+    return () => subscription.remove();
+  }, []);
   const helpAnchor = useRef<View>(null);
   const [anchor, setAnchor] = useState({ x: 16, y: 100, height: 28 });
   const [tooltipHeight, setTooltipHeight] = useState(160);
@@ -44,7 +54,7 @@ export function PasswordField({ editable = true, ...props }: PasswordFieldProps)
   const Icon = visible ? EyeOff : Eye;
   const iconColor = props.error
     ? colors.inputError
-    : props.valid
+    : (props.valid ?? Boolean((props.value ?? props.defaultValue)?.trim()))
       ? colors.brand
       : colors.textSecondary;
   return (

@@ -75,8 +75,7 @@ function RentalHistory() {
         {query.data && query.data.pagination.totalPages > 1 ? (
           <AppPagination
             page={page}
-            pageSize={query.data.pagination.pageSize}
-            total={query.data.pagination.total}
+            totalPages={query.data.pagination.totalPages}
             disabled={query.isFetching || isOnline === false}
             onPageChange={setPage}
           />

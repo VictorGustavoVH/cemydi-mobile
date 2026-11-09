@@ -13,6 +13,32 @@ function createDeferred() {
 }
 
 describe('usePullToRefresh', () => {
+  it('detiene el indicador al perder conexión y una petición anterior no cierra una recarga nueva', async () => {
+    const previous = createDeferred();
+    const next = createDeferred();
+    const refresh = jest
+      .fn()
+      .mockReturnValueOnce(previous.promise)
+      .mockReturnValueOnce(next.promise);
+    const { result, rerender } = await renderHook(
+      ({ enabled }: { enabled: boolean }) => usePullToRefresh(refresh, { enabled }),
+      { initialProps: { enabled: true } },
+    );
+    await act(async () => result.current.onRefresh());
+    expect(result.current.refreshing).toBe(true);
+    await rerender({ enabled: false });
+    expect(result.current.refreshing).toBe(false);
+    await rerender({ enabled: true });
+    await act(async () => result.current.onRefresh());
+    await act(async () => {
+      previous.resolve();
+    });
+    expect(result.current.refreshing).toBe(true);
+    await act(async () => {
+      next.resolve();
+    });
+    expect(result.current.refreshing).toBe(false);
+  });
   it('marca refreshing solo mientras dura la recarga iniciada por el usuario', async () => {
     const deferred = createDeferred();
     const refresh = jest.fn(() => deferred.promise);

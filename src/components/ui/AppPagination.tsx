@@ -1,134 +1,150 @@
 import { useState } from 'react';
 import { Text, View } from 'react-native';
+import ChevronDown from 'lucide-react-native/icons/chevron-down';
 import ChevronLeft from 'lucide-react-native/icons/chevron-left';
 import ChevronRight from 'lucide-react-native/icons/chevron-right';
 import ChevronsLeft from 'lucide-react-native/icons/chevrons-left';
 import ChevronsRight from 'lucide-react-native/icons/chevrons-right';
 import { colors } from '@/theme';
 import { AppButton } from './AppButton';
+import { AppSpinner } from './AppSpinner';
 import { AppInput } from './AppInput';
+import { AppSheet } from './AppSheet';
 
 type AppPaginationProps = {
   page: number;
-  total: number;
-  pageSize: number;
+  totalPages: number;
   disabled?: boolean;
+  loading?: boolean;
   onPageChange: (page: number) => void;
+  className?: string;
 };
 
+/**
+ * Paginación compacta de una sola fila: primera, anterior, página actual,
+ * siguiente y última. El salto a una página concreta vive en una hoja, no
+ * dentro del footer de la lista, para que el teclado no tape el campo.
+ */
 export function AppPagination({
   page,
-  total,
-  pageSize,
+  totalPages,
   disabled = false,
+  loading = false,
   onPageChange,
+  className = '',
 }: AppPaginationProps) {
-  const [target, setTarget] = useState('');
   const [jumpOpen, setJumpOpen] = useState(false);
+  const [target, setTarget] = useState('');
   const [error, setError] = useState('');
-  const pages = Math.max(1, Math.ceil(total / pageSize));
-  const start = Math.max(1, Math.min(page - 1, pages - 2));
-  const numbers = Array.from({ length: Math.min(3, pages) }, (_, index) => start + index);
+  const pages = Math.max(1, Math.floor(Number.isFinite(totalPages) ? totalPages : 1));
+  const current = Math.min(Math.max(1, page), pages);
   const go = (next: number) => {
-    if (!disabled && next >= 1 && next <= pages && next !== page) onPageChange(next);
+    if (disabled || next < 1 || next > pages || next === current) return;
+    onPageChange(next);
+  };
+  const openJump = () => {
+    setTarget(String(current));
+    setError('');
+    setJumpOpen(true);
+  };
+  const closeJump = () => {
+    setJumpOpen(false);
+    setTarget('');
+    setError('');
   };
   const jump = () => {
-    const next = Number(target);
-    if (!/^\d+$/.test(target) || !Number.isSafeInteger(next) || next < 1 || next > pages) {
+    const value = target.trim();
+    const next = Number(value);
+    if (!/^\d+$/.test(value) || !Number.isSafeInteger(next) || next < 1 || next > pages) {
       setError(`Escribe una página del 1 al ${pages}.`);
       return;
     }
+    closeJump();
     go(next);
-    setTarget('');
-    setError('');
-    setJumpOpen(false);
   };
   return (
-    <View className="gap-3 border-t border-border pt-5">
-      <Text
-        accessibilityLiveRegion="polite"
-        className="text-center font-sans text-xs text-secondary"
-      >
-        {total ? (page - 1) * pageSize + 1 : 0}–{Math.min(page * pageSize, total)} de {total}{' '}
-        resultados
-      </Text>
-      <View className="flex-row items-center justify-between gap-1">
-        {[
-          { label: 'Primera página', next: 1, Icon: ChevronsLeft, boundary: page <= 1 },
-          { label: 'Página anterior', next: page - 1, Icon: ChevronLeft, boundary: page <= 1 },
-        ].map(({ label, next, Icon, boundary }) => (
+    <>
+      <View className={`flex-row items-center gap-1 ${className}`}>
+        <AppButton
+          label="Primera página"
+          hideLabel
+          variant="secondary"
+          className="h-11 w-11 px-0"
+          disabled={disabled || current <= 1}
+          onPress={() => go(1)}
+          leftIcon={<ChevronsLeft size={18} color={colors.textPrimary} aria-hidden />}
+        />
+        <AppButton
+          label="Página anterior"
+          hideLabel
+          variant="secondary"
+          className="h-11 w-11 px-0"
+          disabled={disabled || current <= 1}
+          onPress={() => go(current - 1)}
+          leftIcon={<ChevronLeft size={18} color={colors.textPrimary} aria-hidden />}
+        />
+        {loading ? (
+          <View
+            accessible
+            accessibilityLabel="Cargando página"
+            accessibilityLiveRegion="polite"
+            className="min-h-11 flex-1 items-center justify-center"
+          >
+            <AppSpinner color={colors.brand} size={20} decorative />
+          </View>
+        ) : (
           <AppButton
-            key={label}
-            label={label}
-            hideLabel
-            variant="secondary"
-            className="h-11 w-11 px-0"
-            disabled={disabled || boundary || !total}
-            onPress={() => go(next)}
-            leftIcon={<Icon size={18} color={colors.textPrimary} aria-hidden />}
-          />
-        ))}
-        <Text className="flex-1 text-center font-sans-medium text-sm text-primary">
-          {page} / {pages}
-        </Text>
-        {[
-          { label: 'Página siguiente', next: page + 1, Icon: ChevronRight },
-          { label: 'Última página', next: pages, Icon: ChevronsRight },
-        ].map(({ label, next, Icon }) => (
-          <AppButton
-            key={label}
-            label={label}
-            hideLabel
-            variant="secondary"
-            className="h-11 w-11 px-0"
-            disabled={disabled || page >= pages || !total}
-            onPress={() => go(next)}
-            leftIcon={<Icon size={18} color={colors.textPrimary} aria-hidden />}
-          />
-        ))}
-      </View>
-      {pages > 1 && (
-        <View className="flex-row flex-wrap items-center justify-center gap-1">
-          {numbers.map((number) => (
-            <AppButton
-              key={number}
-              label={String(number)}
-              accessibilityLabel={`Página ${number}`}
-              accessibilityState={{ selected: page === number }}
-              variant={page === number ? 'primary' : 'ghost'}
-              className="min-h-11 min-w-11 px-3"
-              disabled={disabled}
-              onPress={() => go(number)}
-            />
-          ))}
-          <AppButton
-            label="Ir a página"
+            label={`Página ${current} de ${pages}`}
+            accessibilityLabel={`Página ${current} de ${pages}`}
+            accessibilityHint="Abre el salto a otra página"
             variant="ghost"
-            disabled={disabled}
-            accessibilityState={{ expanded: jumpOpen }}
-            onPress={() => setJumpOpen(!jumpOpen)}
+            className="min-h-11 flex-1 px-1"
             labelClassName="text-sm"
+            disabled={disabled}
+            onPress={openJump}
+            rightIcon={<ChevronDown size={16} color={colors.textSecondary} aria-hidden />}
           />
-        </View>
-      )}
-      {jumpOpen && pages > 1 && (
-        <View className="gap-2">
-          <AppInput
-            label={`Página de destino (1 a ${pages})`}
-            value={target}
-            onChangeText={(value) => {
-              setTarget(value);
-              setError('');
-            }}
-            keyboardType="number-pad"
-            returnKeyType="go"
-            onSubmitEditing={jump}
-            error={error || undefined}
-            editable={!disabled}
-          />
-          <AppButton label="Ir" variant="secondary" disabled={disabled} onPress={jump} />
-        </View>
-      )}
-    </View>
+        )}
+        <AppButton
+          label="Página siguiente"
+          hideLabel
+          variant="secondary"
+          className="h-11 w-11 px-0"
+          disabled={disabled || current >= pages}
+          onPress={() => go(current + 1)}
+          leftIcon={<ChevronRight size={18} color={colors.textPrimary} aria-hidden />}
+        />
+        <AppButton
+          label="Última página"
+          hideLabel
+          variant="secondary"
+          className="h-11 w-11 px-0"
+          disabled={disabled || current >= pages}
+          onPress={() => go(pages)}
+          leftIcon={<ChevronsRight size={18} color={colors.textPrimary} aria-hidden />}
+        />
+      </View>
+      <AppSheet title="Ir a una página" visible={jumpOpen} onClose={closeJump}>
+        <Text className="font-sans text-sm leading-6 text-secondary">
+          Elige una página entre 1 y {pages}.
+        </Text>
+        <AppInput
+          autoFocus
+          label={`Página de destino (1 a ${pages})`}
+          value={target}
+          valid={/^\d+$/.test(target.trim()) && Number(target) >= 1 && Number(target) <= pages}
+          onChangeText={(value) => {
+            setTarget(value);
+            setError('');
+          }}
+          keyboardType="number-pad"
+          returnKeyType="go"
+          onSubmitEditing={jump}
+          error={error || undefined}
+          editable={!disabled}
+        />
+        <AppButton label="Ir" variant="secondary" disabled={disabled} onPress={jump} />
+      </AppSheet>
+    </>
   );
 }

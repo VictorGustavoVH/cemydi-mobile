@@ -21,11 +21,7 @@ import { useRouteCallback } from '@/hooks/useRouteCallback';
 import { useToastScroll } from '@/hooks/useToast';
 import { toProductCard } from '@/services/products/product-adapter';
 import { prefetchProductDetail, seedProductDetail } from '@/services/products/product-cache';
-import {
-  CATALOG_PAGE_SIZE,
-  emptyProductFilters,
-  type ProductFilters,
-} from '@/services/products/product-service';
+import { emptyProductFilters, type ProductFilters } from '@/services/products/product-service';
 import type { HomeProduct } from '@/data/catalog-preview';
 import { getFriendlyErrorMessage } from '@/services/http/api-error';
 import { useCatalog } from './hooks/useCatalog';
@@ -330,8 +326,7 @@ export function CatalogScreen() {
               {query.pagination && products.length ? (
                 <AppPagination
                   page={page}
-                  total={query.pagination.total}
-                  pageSize={CATALOG_PAGE_SIZE}
+                  totalPages={query.pagination.totalPages}
                   disabled={query.isFetching || isOnline === false}
                   onPageChange={setPage}
                 />

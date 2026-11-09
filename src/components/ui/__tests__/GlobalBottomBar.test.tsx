@@ -13,8 +13,11 @@ jest.mock('expo-router', () => ({
 
 jest.mock('expo-haptics', () => ({ selectionAsync: jest.fn().mockResolvedValue(undefined) }));
 
+let mockHasIncompleteRental = false;
+
 jest.mock('@/providers/cart-provider', () => ({
   useCartCount: () => 3,
+  useCartHasIncompleteRental: () => mockHasIncompleteRental,
 }));
 
 jest.mock('@/hooks/useAccountAccess', () => ({
@@ -31,6 +34,12 @@ describe('GlobalBottomBar', () => {
   it('muestra el contador del carrito en el badge', async () => {
     await render(<GlobalBottomBar />);
     expect(screen.getByLabelText('Carrito, 3 unidades')).toBeTruthy();
+  });
+
+  it('no muestra un punto en los tabs aunque haya rentas incompletas', async () => {
+    mockHasIncompleteRental = true;
+    await render(<GlobalBottomBar />);
+    expect(screen.queryByTestId('cart-pending-dot')).toBeNull();
   });
 
   it('ignora un doble toque rápido para no apilar navegaciones', async () => {

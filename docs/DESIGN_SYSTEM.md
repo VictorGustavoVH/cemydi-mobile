@@ -146,9 +146,16 @@ Estados: default, pressed, focused, disabled y loading. El botón debe conservar
 - configuración de teclado y autofill adecuada;
 - estado disabled y readonly distinguibles.
 
-El componente global `PasswordField` reutiliza `AppInput`: tooltip flotante con CircleQuestionMark junto al label, visibilidad con Eye/EyeOff y estado válido. La ayuda no ocupa espacio permanente. `AppInput.valid` indica formato válido mediante borde del color principal y pista accesible; el error tiene prioridad. El medidor de creación de contraseña combina nivel escrito y segmentos con colores semánticos.
+`AppInput` marca con borde de marca un valor no vacío, incluido un dato precargado.
+Los espacios no cuentan como contenido. `valid` representa validación explícita;
+los errores y `aria-invalid` tienen prioridad. La pista accesible distingue
+«Campo completado» de «Formato válido». Borrar el valor restaura el estado neutro.
+Inputs, labels y errores respetan fuentes grandes y el ancho del contenedor.
+`PasswordField` reutiliza este control, adapta sus iconos al estado y conserva
+la ayuda junto al label y el medidor con colores semánticos.
 
-El componente global `PasswordField` reutiliza `AppInput`: ayuda desplegable con CircleQuestionMark junto al label, visibilidad con Eye/EyeOff y estado válido. `AppInput.valid` indica formato válido mediante borde del color principal y pista accesible; el error tiene prioridad. El medidor combina nivel escrito y segmentos con colores semánticos.
+`AppDateInput` y `AppTimeInput` encapsulan el selector nativo de fecha/hora,
+manteniendo etiquetas, errores, estado disabled y confirmación en iOS.
 
 ### Card
 
@@ -237,3 +244,19 @@ APIs contrastadas con [expo-image SDK 57](https://docs.expo.dev/versions/v57.0.0
 Catálogo usa una fila de filtros debajo del input: botón «Filtros» a la izquierda y accesos rápidos desplazables horizontalmente en la misma línea, con AppButton y estado seleccionado. Su panel aplica los cambios al elegirlos. AppSheet admite headerContent para alojar «Aplicar filtros» debajo del título, fuera del scroll de opciones; las otras pantallas conservan su contenido habitual. No fijar la cabecera de Home/catálogo como solución al scroll: el desplegable del buscador usa la capa anclada de AppScreen.
 
 AppScreen scroll es el único responsable del ajuste y del desplazamiento al campo enfocado en AuthLayout. Mide la intersección de su viewport con el teclado y añade solo el espacio restante, incluyendo cuando Android ya redimensionó la ventana. No anidar KeyboardAvoidingView u otro ajuste automático de insets sobre este mecanismo sin evidencia nativa. Mantener safe areas, scroll y botones alcanzables; validar Android/iOS y fuentes grandes. Onboarding permite escalado del sistema mediante su scroll, sin maxFontSizeMultiplier arbitrario. Usar AppButton para tarjetas/controles con pressed, rol, etiqueta y disabled; compartir componentes antes de crear duplicados.
+
+## Interfaz compartida — 8 de noviembre de 2026
+
+- `src/theme/colors.json` es la fuente única de colores para React Native y Tailwind.
+  La marca conserva #258e8b; los colores de texto y controles usan tokens semánticos.
+- `AppSpinner` comparte la carga de botones, estados y paginación. Respeta movimiento
+  reducido y pausa al pasar a segundo plano. Los botones conservan su texto y bloqueo.
+- `AppSheet` admite diálogos centrados y bloqueo del cierre durante operaciones.
+- ProductCard y ProductGridSkeleton usan imagen 3:2 con máximo de 160 puntos,
+  precios escalables y etiquetas en flujo normal. ProductGridItem y los hooks de
+  métricas permiten reutilizar la geometría sin duplicarla entre pantallas.
+- AppScreen, el popover y los controles conservan acceso con teclado y safe areas.
+- `usePullToRefresh` descarta finalizaciones antiguas tras deshabilitarse o desmontarse.
+
+Los tests de componentes, contraste y limpieza de QueryClient no sustituyen la
+aceptación visual de Android/iOS, TalkBack/VoiceOver ni pruebas de rendimiento nativo.

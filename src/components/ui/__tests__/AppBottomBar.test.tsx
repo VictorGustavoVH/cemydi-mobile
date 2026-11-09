@@ -51,6 +51,21 @@ describe('AppBottomBar', () => {
     expect(screen.getByText('99+')).toBeTruthy();
   });
 
+  it('conserva el contador del carrito sin un punto de atención', async () => {
+    await render(
+      <AppBottomBar
+        cartCount={2}
+        onHome={onHome}
+        onExplore={onExplore}
+        onCart={onCart}
+        onProfile={onProfile}
+      />,
+    );
+
+    expect(screen.queryByTestId('cart-pending-dot')).toBeNull();
+    expect(screen.getByLabelText('Carrito, 2 unidades')).toBeTruthy();
+  });
+
   it('ejecuta los callbacks al presionar cada pestaña', async () => {
     await render(
       <AppBottomBar onHome={onHome} onExplore={onExplore} onCart={onCart} onProfile={onProfile} />,
