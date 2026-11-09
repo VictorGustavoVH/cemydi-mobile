@@ -5,6 +5,11 @@ on:
     branches:
       - develop
       - main
+      - 'seguridad/**'
+      - 'mejora/**'
+      - 'correccion/**'
+      - 'funcionalidad/**'
+      - 'publicacion/**'
   push:
     branches:
       - main

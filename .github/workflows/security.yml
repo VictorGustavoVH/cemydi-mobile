@@ -1,8 +1,17 @@
-name: Security — SAST y DAST smoke (backend pendiente)
+name: Security — SCA, SAST y DAST smoke (backend pendiente)
 
 on:
+  schedule:
+    - cron: '17 9 * * 1'
   pull_request:
-    branches: [develop, main]
+    branches:
+      - develop
+      - main
+      - 'seguridad/**'
+      - 'mejora/**'
+      - 'correccion/**'
+      - 'funcionalidad/**'
+      - 'publicacion/**'
     types: [opened, synchronize, reopened, ready_for_review, labeled]
   workflow_dispatch:
     inputs:
@@ -27,6 +36,35 @@ defaults:
     shell: bash
 
 jobs:
+  dependencies:
+    name: SCA — Dependencias npm
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
+          package-manager-cache: false
+      - name: Instalar el lockfile sin scripts de paquetes
+        run: npm ci --ignore-scripts
+      - name: Probar correcciones y política SCA
+        run: npm run test:dependency-security
+      - name: Auditar todas las dependencias y bloquear HIGH/CRITICAL
+        run: npm run security:audit
+      - name: Conservar evidencia SCA completa
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dependencies-${{ github.sha }}-${{ github.run_attempt }}
+          path: test-results/security/dependencies/
+          if-no-files-found: error
+          retention-days: 14
+
   sast:
     name: SAST — Semgrep CE
     runs-on: ubuntu-24.04
