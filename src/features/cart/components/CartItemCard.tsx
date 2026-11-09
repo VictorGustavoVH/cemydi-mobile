@@ -1,4 +1,5 @@
 import { memo } from 'react';
+import { RentalPendingDot } from './RentalPendingDot';
 import { Text, View, useWindowDimensions } from 'react-native';
 import Check from 'lucide-react-native/icons/check';
 import Minus from 'lucide-react-native/icons/minus';
@@ -57,6 +58,10 @@ export const CartItemCard = memo(function CartItemCard({
   const { width, fontScale } = useWindowDimensions();
   const compact = width < 390 || fontScale > 1.2 || selectionMode;
   const rental = item.mode === 'rental';
+  const hasDates = Boolean(item.rentalDraft?.startDate && item.rentalDraft?.endDate);
+  const requiresFile = Boolean(product.prescription);
+  const hasFile = Boolean(remote?.document);
+  const isRentalIncomplete = rental && (!hasDates || (requiresFile && !hasFile));
   const modeLabel = rental ? 'renta' : 'compra';
   const price = rental ? product.rental?.price : product.price;
   const priceLabel = (
@@ -220,6 +225,9 @@ export const CartItemCard = memo(function CartItemCard({
       {rental ? (
         <AppButton
           label={`${item.rentalDraft ? 'Editar' : 'Configurar'} renta de ${product.name}`}
+          accessibilityHint={
+            isRentalIncomplete ? 'Falta completar la configuración de esta renta.' : undefined
+          }
           variant="unstyled"
           disabled={disabled}
           onPress={() => onConfigure(String(item.serverId ?? item.productId))}
@@ -228,14 +236,17 @@ export const CartItemCard = memo(function CartItemCard({
           <View className="flex-1 flex-row items-center gap-2">
             <CalendarDays aria-hidden color={colors.brandStrong} size={16} />
             <View className="flex-1">
-              <Text className="font-sans-medium text-xs text-brand-strong">
-                {item.rentalDraft
-                  ? `${displayDraftDate(item.rentalDraft.startDate)} al ${displayDraftDate(item.rentalDraft.endDate)}${remote ? '' : ' · Borrador'}`
-                  : 'Configurar renta'}
-                {product.prescription ? ' · Requiere receta' : ''}
-              </Text>
+              <View className="flex-row flex-wrap items-center gap-1.5">
+                <Text className="font-sans-medium text-xs text-brand-strong">
+                  {item.rentalDraft
+                    ? `${displayDraftDate(item.rentalDraft.startDate)} al ${displayDraftDate(item.rentalDraft.endDate)}${remote ? '' : ' · Borrador'}`
+                    : 'Configurar renta'}
+                  {product.prescription ? ' · Requiere receta' : ''}
+                </Text>
+              </View>
             </View>
           </View>
+          {isRentalIncomplete ? <RentalPendingDot /> : null}
           <ChevronRight aria-hidden color={colors.brandStrong} size={16} />
         </AppButton>
       ) : null}

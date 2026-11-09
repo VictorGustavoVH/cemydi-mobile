@@ -14,6 +14,7 @@ import { createAuthService, type AuthChallenge } from '@/features/auth/services/
 import { authSession } from '@/features/auth/services/auth-session';
 import { releaseNativePush } from '@/features/notifications/native-push';
 import { configureHttpAuth } from '@/services/http/client';
+import { initializePrescriptionCache } from '@/services/prescriptions/prescription-cache';
 
 function useAuthState(session: typeof authSession) {
   const queryClient = useQueryClient();
@@ -41,6 +42,14 @@ function useAuthState(session: typeof authSession) {
     await logoutDetailed();
   }, [logoutDetailed]);
   useEffect(() => {
+    try {
+      initializePrescriptionCache();
+    } catch {
+      // Login remains available; attaching a prescription retries cleanup and reports failure.
+      console.warn(
+        'No se pudo limpiar la caché de recetas al iniciar. Se reintentará al adjuntar.',
+      );
+    }
     configureHttpAuth({
       getAccessToken: session.getAccessToken,
       getVersion: session.getVersion,

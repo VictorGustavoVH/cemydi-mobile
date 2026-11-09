@@ -15,15 +15,28 @@ export function ServerCartSummary({
   onCoupon: () => void;
 }) {
   const summary = cart.summary;
+  const hasRentalItems = cart.items.some((item) => item.mode === 'RENTA');
+  const hasPurchaseItems = cart.items.some((item) => item.mode === 'VENTA');
+
   const rows = [
-    ['Subtotal de compra', summary.saleSubtotal],
-    ['Subtotal de renta', summary.rentalSubtotal],
-    ['Depósitos de renta', summary.rentalDepositTotal],
-    ['Descuentos por promociones', summary.promotionDiscountTotal],
-    ['Descuento por cupón', summary.couponDiscountTotal],
-  ] as const;
+    ...(hasPurchaseItems || summary.saleSubtotal > 0
+      ? [['Subtotal de compra', summary.saleSubtotal] as const]
+      : []),
+    ...(hasRentalItems || summary.rentalSubtotal > 0
+      ? [['Subtotal de renta', summary.rentalSubtotal] as const]
+      : []),
+    ...(hasRentalItems || summary.rentalDepositTotal > 0
+      ? [['Depósitos de renta', summary.rentalDepositTotal] as const]
+      : []),
+    ...(summary.promotionDiscountTotal > 0
+      ? [['Descuentos por promociones', summary.promotionDiscountTotal] as const]
+      : []),
+    ...(summary.couponDiscountTotal > 0
+      ? [['Descuento por cupón', summary.couponDiscountTotal] as const]
+      : []),
+  ];
   return (
-    <View className="mx-5 mt-6 gap-4 border-t border-border/50 pb-6 pt-5">
+    <View className="mx-5 mt-auto gap-4 border-t border-border/50 pb-6 pt-5">
       <CartCouponButton
         label={cart.appliedCoupon ? `Cupón: ${cart.appliedCoupon.code}` : 'Aplicar cupón'}
         disabled={disabled}
@@ -55,10 +68,11 @@ export function ServerCartSummary({
         ) : null}
         {partialSelection ? (
           <Text className="font-sans text-sm text-secondary">
-            La selección solo cambia la revisión. Este total incluye todos los productos guardados.
+            Este total incluye todo el carrito. Al solicitar la renta se incluirán todos los equipos
+            para rentar, aunque selecciones solo algunos.
           </Text>
         ) : null}
-        {summary.hasUnconfiguredRentalItems ? (
+        {hasRentalItems && summary.hasUnconfiguredRentalItems ? (
           <Text className="font-sans text-sm text-secondary">
             El total está incompleto: configura las fechas de las rentas pendientes.
           </Text>

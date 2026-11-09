@@ -7,7 +7,7 @@ import { Inter_500Medium } from '@expo-google-fonts/inter/500Medium';
 import { Inter_600SemiBold } from '@expo-google-fonts/inter/600SemiBold';
 import { Inter_700Bold } from '@expo-google-fonts/inter/700Bold';
 import { Platform, StatusBar as RNStatusBar, View } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, usePathname } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 
@@ -27,6 +27,7 @@ SplashScreen.preventAutoHideAsync().catch(() => {
 });
 
 export default function RootLayout() {
+  const pathname = usePathname();
   const [fontsLoaded, fontError] = useFonts({
     Inter_400Regular,
     Inter_500Medium,
@@ -57,7 +58,15 @@ export default function RootLayout() {
           <SafeAreaProvider>
             <ToastProvider>
               <AuthProvider>
-                <CartProvider>
+                <CartProvider
+                  syncScreen={
+                    pathname === '/carrito'
+                      ? 'cart'
+                      : pathname === '/solicitar-renta'
+                        ? 'rental-request'
+                        : undefined
+                  }
+                >
                   <NotificationLifecycle />
                   <FavoritesLifecycle />
                   <View style={{ flex: 1, backgroundColor: colors.background }}>

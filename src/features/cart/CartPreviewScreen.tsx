@@ -6,6 +6,7 @@ import ArrowRight from 'lucide-react-native/icons/arrow-right';
 import Check from 'lucide-react-native/icons/check';
 import Minus from 'lucide-react-native/icons/minus';
 import ShoppingBag from 'lucide-react-native/icons/shopping-bag';
+import ShoppingCart from 'lucide-react-native/icons/shopping-cart';
 import CalendarDays from 'lucide-react-native/icons/calendar-days';
 import { type PreviewCartItem } from '@/providers/catalog-preview-provider';
 import { useCart } from '@/providers/cart-provider';
@@ -47,7 +48,7 @@ function CartSummary({ sections, onCoupon }: CartSummaryProps) {
   const purchaseSummary = useMemo(() => getPreviewSummary(purchase?.data ?? []), [purchase]);
   const rentalSummary = useMemo(() => getPreviewSummary(rentals?.data ?? []), [rentals]);
   return (
-    <View className="mx-5 gap-4 pb-4 pt-3">
+    <View className="mx-5 mt-auto gap-4 pb-4 pt-3">
       <CartCouponButton label="Aplicar cupón" onPress={onCoupon} />
       <View className="gap-2 border-t border-border/40 pt-3">
         <Text accessibilityRole="header" className="font-sans-semibold text-base text-primary">
@@ -174,11 +175,13 @@ export function CartPreviewScreen() {
     },
     [removeItem, restoreItem, toast, connected, userId, authVersion, isCurrent],
   );
+  // SectionList entrega índices por sección; Deshacer necesita el orden original del carrito.
+  const itemIndexes = useMemo(() => new Map(items.map((item, index) => [item, index])), [items]);
   const renderItem = useCallback(
     ({ item: entry }: { item: CartPreviewEntry }) => (
       <CartItemCard
         {...entry}
-        index={items.indexOf(entry.item)}
+        index={itemIndexes.get(entry.item) ?? 0}
         selectionMode={selectionMode}
         disabled={disabled}
         onStartSelection={startSelection}
@@ -187,7 +190,7 @@ export function CartPreviewScreen() {
         onRemove={remove}
       />
     ),
-    [items, selectionMode, startSelection, openProduct, remove, disabled],
+    [itemIndexes, selectionMode, startSelection, openProduct, remove, disabled],
   );
   const renderSectionHeader = useCallback(
     ({ section }: { section: CartSection }) => (
@@ -209,8 +212,8 @@ export function CartPreviewScreen() {
       </View>
       {!connected && items.some((item) => item.productSnapshot) ? (
         <Text className="px-5 pb-2 font-sans text-xs leading-5 text-secondary">
-          Carrito temporal de esta sesión. Importes estimados; disponibilidad y precios finales
-          pendientes de confirmación.
+          Inicia sesión para guardar tus productos. Confirmaremos los precios y la disponibilidad
+          antes de solicitar la renta.
         </Text>
       ) : null}
       {connected && guestItems.length > 0 ? (
@@ -275,8 +278,9 @@ export function CartPreviewScreen() {
           <LoadingState label="Cargando carrito" />
         )
       ) : entries.length > 0 ? (
-        <>
+        <View className="flex-1">
           <SectionList<CartPreviewEntry, CartSection>
+            className="flex-1"
             refreshControl={
               connected ? (
                 <AppRefreshControl refreshing={refreshing} onRefresh={onRefresh} />
@@ -288,10 +292,11 @@ export function CartPreviewScreen() {
             extraData={selectionMode}
             stickySectionHeadersEnabled={false}
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ paddingTop: 4, paddingBottom: 4 }}
+            contentContainerStyle={{ paddingTop: 4, paddingBottom: 16, flexGrow: 1 }}
             keyExtractor={cartKey}
             renderSectionHeader={renderSectionHeader}
             renderItem={renderItem}
+            ListFooterComponentStyle={{ flexGrow: 1, justifyContent: 'flex-end' }}
             ListFooterComponent={
               connected && cart ? (
                 <ServerCartSummary
@@ -314,9 +319,12 @@ export function CartPreviewScreen() {
             <AppButton
               label="Revisar carrito"
               className="rounded-full"
-              disabled={summary.units === 0}
+              disabled={summary.units === 0 || (connected && disabled)}
               onPress={() => {
-                if (requestAccess('/carrito')) setPanel('review');
+                if (!requestAccess('/carrito')) return;
+                if (connected && sections.some((section) => section.mode === 'rental')) {
+                  router.push('/solicitar-renta');
+                } else setPanel('review');
               }}
               rightIcon={
                 <ArrowRight
@@ -327,9 +335,14 @@ export function CartPreviewScreen() {
               }
             />
           </View>
-        </>
+        </View>
       ) : (
         <EmptyState
+          icon={
+            <View className="items-center justify-center pb-1">
+              <ShoppingCart aria-hidden size={56} color={colors.disabled} strokeWidth={1.5} />
+            </View>
+          }
           title="Tu carrito está vacío"
           description="Encuentra lo que necesitas para compra o renta y añádelo aquí."
           actionLabel="Explorar catálogo"
@@ -381,7 +394,7 @@ export function CartPreviewScreen() {
                   <Text className="font-sans text-sm leading-6 text-secondary">
                     {section.mode === 'rental'
                       ? connected
-                        ? 'Las fechas se guardan en el carrito. Esta revisión no envía una solicitud. El envío de solicitudes y la carga móvil de recetas siguen pendientes.'
+                        ? 'Las fechas y recetas se revisan antes de enviar todas las rentas del carrito.'
                         : 'Las fechas son borradores. La disponibilidad, la receta y el envío de la solicitud se habilitarán con tu cuenta. Esta revisión no envía una solicitud.'
                       : 'La compra y los pagos todavía no están habilitados.'}
                   </Text>
@@ -390,11 +403,13 @@ export function CartPreviewScreen() {
             })}
           </>
         )}
-        <AppButton
-          label="Volver al carrito"
-          className="rounded-full"
-          onPress={() => setPanel(null)}
-        />
+        {panel === 'review' ? (
+          <AppButton
+            label="Volver al carrito"
+            className="rounded-full"
+            onPress={() => setPanel(null)}
+          />
+        ) : null}
       </AppSheet>
     </AppScreen>
   );

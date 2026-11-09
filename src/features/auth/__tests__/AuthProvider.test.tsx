@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AppState } from 'react-native';
 import { AuthProvider, useAuth } from '@/providers/auth-provider';
 import { createAuthSession } from '../services/auth-session';
+import * as prescriptionCache from '@/services/prescriptions/prescription-cache';
 import * as nativePush from '@/features/notifications/native-push';
 import {
   AUTH_ACCOUNT,
@@ -56,6 +57,40 @@ describe('Ciclo del AuthProvider', () => {
     await view.unmount();
     client.clear();
     cleanup.mockRestore();
+  });
+  it('limpia recetas residuales antes de restaurar la sesión y no bloquea el acceso si falla', async () => {
+    const steps: string[] = [];
+    const cleanup = jest
+      .spyOn(prescriptionCache, 'initializePrescriptionCache')
+      .mockImplementation(() => {
+        steps.push('cleanup');
+        throw new Error('cleanup unavailable');
+      });
+    const warning = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const session = createAuthSession({
+      get: async () => {
+        steps.push('restore');
+        return null;
+      },
+      set: async () => undefined,
+      remove: async () => undefined,
+    });
+    const client = new QueryClient();
+    const view = await renderHook(() => useAuth(), {
+      wrapper: ({ children }) => (
+        <QueryClientProvider client={client}>
+          <AuthProvider session={session}>{children}</AuthProvider>
+        </QueryClientProvider>
+      ),
+    });
+    await waitFor(() => expect(view.result.current.status).toBe('guest'));
+    expect(steps).toEqual(['cleanup', 'restore']);
+    expect(cleanup).toHaveBeenCalledTimes(1);
+    expect(warning).toHaveBeenCalledWith(
+      'No se pudo limpiar la caché de recetas al iniciar. Se reintentará al adjuntar.',
+    );
+    await view.unmount();
+    client.clear();
   });
   it('retira la identidad y la caché privada si la cuenta está inactiva al volver', async () => {
     const remove = jest.fn(async () => undefined);

@@ -130,6 +130,6 @@ describe('Acceso como invitado', () => {
       expect(screen.queryByLabelText('Guardar productos de invitado')).toBeNull(),
     );
     await fireEvent.press(screen.getByLabelText('Revisar carrito'));
-    expect(screen.getByLabelText('Cerrar')).toBeTruthy();
+    expect(mockRouter.push).toHaveBeenCalledWith('/solicitar-renta');
   });
 });

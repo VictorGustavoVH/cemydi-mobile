@@ -1,3 +1,4 @@
+import { selectCalendarDate } from '../support/select-calendar-date';
 import { useEffect } from 'react';
 import { act, fireEvent, screen, waitFor } from '@testing-library/react-native';
 import {
@@ -6,7 +7,7 @@ import {
   useQueryClient,
   type QueryClient,
 } from '@tanstack/react-query';
-import { CART_SYNC_INTERVAL_MS, useCart } from '@/providers/cart-provider';
+import { CART_SYNC_INTERVAL_MS, useCart, type CartSyncScreen } from '@/providers/cart-provider';
 import { AppButton } from '@/components/ui/AppButton';
 import { render } from '../support/render-with-toast';
 import { AUTH_ACCOUNT, installAuthApiMock } from '../support/auth-api-mock';
@@ -55,9 +56,12 @@ function ConnectedCart({ detail = false }: { detail?: boolean }) {
     <CartPreviewScreen />
   );
 }
-const show = ({ refresher = false }: { refresher?: boolean } = {}) =>
+const show = ({
+  refresher = false,
+  syncScreen,
+}: { refresher?: boolean; syncScreen?: CartSyncScreen } = {}) =>
   render(
-    <CatalogPreviewProvider>
+    <CatalogPreviewProvider syncScreen={syncScreen}>
       <ConnectedCart />
       {refresher ? <CartRefresher /> : null}
     </CatalogPreviewProvider>,
@@ -150,10 +154,10 @@ describe('Carrito conectado', () => {
     await show();
     await screen.findByText('Total: $1,000.00 MXN');
     await fireEvent.press(screen.getByLabelText('Configurar renta de Silla de ruedas'));
-    await fireEvent.changeText(screen.getByLabelText('Fecha de inicio'), '01032027');
-    await fireEvent.changeText(screen.getByLabelText('Fecha de devolución'), '10032027');
-    await fireEvent.press(screen.getByLabelText('Guardar fechas'));
-    await waitFor(() => expect(screen.queryByLabelText('Guardar fechas')).toBeNull());
+    await selectCalendarDate('Fecha de inicio', '2027-03-01');
+    await selectCalendarDate('Fecha de devolución', '2027-03-10');
+    await fireEvent.press(screen.getByLabelText('Guardar configuración'));
+    await waitFor(() => expect(screen.queryByLabelText('Guardar configuración')).toBeNull());
     expect(fetch).toHaveBeenCalledWith(
       'https://cemydi.test.invalid/cart/items/8',
       expect.objectContaining({
@@ -200,25 +204,91 @@ describe('Carrito conectado', () => {
     });
     expect(await screen.findByLabelText('Cantidad de Silla de ruedas, compra: 4')).toBeTruthy();
   });
-  it('actualiza cambios externos cada diez segundos y pausa las lecturas en segundo plano', async () => {
+  it.each(['cart', 'rental-request'] as const)(
+    'actualiza cambios externos con foco en %s y pausa en segundo plano',
+    async (syncScreen) => {
+      jest.useFakeTimers();
+      const server = installCartApiMock();
+      const read = jest.spyOn(cartService, 'get');
+      await show({ syncScreen });
+      await screen.findByLabelText('Cantidad de Silla de ruedas, compra: 2');
+      server.read().items[0].quantity = 5;
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(CART_SYNC_INTERVAL_MS);
+      });
+      expect(await screen.findByLabelText('Cantidad de Silla de ruedas, compra: 5')).toBeTruthy();
+      await act(async () => {
+        focusManager.setFocused(false);
+      });
+      const calls = read.mock.calls.length;
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(CART_SYNC_INTERVAL_MS * 2);
+      });
+      expect(read).toHaveBeenCalledTimes(calls);
+    },
+  );
+  it('no sondea fuera del carrito y revalida al entrar aunque los datos sigan frescos', async () => {
     jest.useFakeTimers();
     const server = installCartApiMock();
     const read = jest.spyOn(cartService, 'get');
-    await show();
+    const view = await show();
     await screen.findByLabelText('Cantidad de Silla de ruedas, compra: 2');
-    server.read().items[0].quantity = 5;
-    await act(async () => {
-      await jest.advanceTimersByTimeAsync(CART_SYNC_INTERVAL_MS);
-    });
-    expect(await screen.findByLabelText('Cantidad de Silla de ruedas, compra: 5')).toBeTruthy();
-    await act(async () => {
-      focusManager.setFocused(false);
-    });
     const calls = read.mock.calls.length;
     await act(async () => {
-      await jest.advanceTimersByTimeAsync(CART_SYNC_INTERVAL_MS * 2);
+      await jest.advanceTimersByTimeAsync(CART_SYNC_INTERVAL_MS * 6);
     });
     expect(read).toHaveBeenCalledTimes(calls);
+    server.read().items[0].quantity = 4;
+    await view.rerender(
+      <CatalogPreviewProvider syncScreen="cart">
+        <ConnectedCart />
+      </CatalogPreviewProvider>,
+    );
+    expect(await screen.findByLabelText('Cantidad de Silla de ruedas, compra: 4')).toBeTruthy();
+    expect(read).toHaveBeenCalledTimes(calls + 1);
+    server.read().items[0].quantity = 5;
+    await view.rerender(
+      <CatalogPreviewProvider syncScreen="rental-request">
+        <ConnectedCart />
+      </CatalogPreviewProvider>,
+    );
+    expect(await screen.findByLabelText('Cantidad de Silla de ruedas, compra: 5')).toBeTruthy();
+    expect(read).toHaveBeenCalledTimes(calls + 2);
+    await view.rerender(
+      <CatalogPreviewProvider>
+        <ConnectedCart />
+      </CatalogPreviewProvider>,
+    );
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(CART_SYNC_INTERVAL_MS * 6);
+    });
+    expect(read).toHaveBeenCalledTimes(calls + 2);
+  });
+  it('detiene el sondeo ante 429 y permite recuperar al volver a la pantalla', async () => {
+    jest.useFakeTimers();
+    const read = jest
+      .spyOn(cartService, 'get')
+      .mockRejectedValueOnce(
+        new ApiError('Demasiadas solicitudes.', { kind: 'http', status: 429 }),
+      );
+    const view = await show({ syncScreen: 'cart' });
+    await screen.findByText('No pudimos cargar la información');
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(CART_SYNC_INTERVAL_MS * 6);
+    });
+    expect(read).toHaveBeenCalledTimes(1);
+    await view.rerender(
+      <CatalogPreviewProvider>
+        <ConnectedCart />
+      </CatalogPreviewProvider>,
+    );
+    await view.rerender(
+      <CatalogPreviewProvider syncScreen="cart">
+        <ConnectedCart />
+      </CatalogPreviewProvider>,
+    );
+    expect(await screen.findByText('Total: $1,000.00 MXN')).toBeTruthy();
+    expect(read).toHaveBeenCalledTimes(2);
   });
   it('espera confirmación del servidor y bloquea envíos repetidos', async () => {
     let finish!: (cart: typeof CART_RESPONSE) => void;
@@ -257,12 +327,14 @@ describe('Carrito conectado', () => {
     await show();
     await screen.findByText('Total: $1,000.00 MXN');
     await fireEvent.press(screen.getByLabelText('Configurar renta de Silla de ruedas'));
-    await fireEvent.changeText(screen.getByLabelText('Fecha de inicio'), '01032027');
-    await fireEvent.changeText(screen.getByLabelText('Fecha de devolución'), '02032027');
-    await fireEvent.press(screen.getByLabelText('Guardar fechas'));
+    await selectCalendarDate('Fecha de inicio', '2027-03-01');
+    await selectCalendarDate('Fecha de devolución', '2027-03-02');
+    await fireEvent.press(screen.getByLabelText('Guardar configuración'));
     expect(await screen.findByText('La renta mínima es de 3 días')).toBeTruthy();
-    expect(screen.getByLabelText('Fecha de inicio')).toHaveProp('value', '01/03/2027');
-    expect(screen.getByLabelText('Guardar fechas')).toBeTruthy();
+    expect(screen.getByLabelText('Fecha de inicio')).toHaveProp('accessibilityValue', {
+      text: '01/03/2027',
+    });
+    expect(screen.getByLabelText('Guardar configuración')).toBeTruthy();
   });
   it('obliga a comprobar el resultado después de perder una respuesta', async () => {
     jest
