@@ -260,3 +260,19 @@ AppScreen scroll es el único responsable del ajuste y del desplazamiento al cam
 
 Los tests de componentes, contraste y limpieza de QueryClient no sustituyen la
 aceptación visual de Android/iOS, TalkBack/VoiceOver ni pruebas de rendimiento nativo.
+
+## Componentes de cuenta — 8 de noviembre de 2026
+
+- `AccountLayout` y `AccountAccessBoundary` concentran encabezado, acceso y
+  restauración de sesión sin duplicar la política de Perfil en cada pantalla.
+- `AccountSection`, `AccountMenuItem`, `AccountStatusBadge` y
+  `FormStepProgress` reutilizan AppButton/AppSheet y tokens semánticos; los
+  estados de renta y reseña se etiquetan con texto, no solo con color.
+- `AccountResourceState` comparte loading, vacío, error, offline y reintento.
+- `UnsavedAccountChanges` advierte cambios sin guardar al salir sin bloquear
+  el cierre de sesión.
+- `FrequentlyAskedQuestions` es el acordeón común de ayuda, con estado
+  expandido anunciado por accesibilidad.
+
+Estos componentes no modifican endpoints. La aceptación visual y con lector de
+pantalla en Android/iOS queda pendiente.
