@@ -147,20 +147,27 @@ jobs:
       - name: Setup Gradle cache
         uses: gradle/actions/setup-gradle@v6.4.0
         with:
-          build-root-directory: android
           cache-read-only: ${{ github.event_name == 'pull_request' }}
-      - name: Pre-fetch Gradle wrapper distribution
+      - name: Provision Gradle wrapper distribution
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           DIST_DIR="$HOME/.gradle/wrapper/dists/gradle-9.3.1-bin/23ovyewtku6u96viwx3xl3oks"
           mkdir -p "$DIST_DIR"
-          if [ ! -f "$DIST_DIR/gradle-9.3.1-bin.zip.ok" ] && [ ! -f "$DIST_DIR/gradle-9.3.1-bin.zip" ]; then
-            echo "Pre-fetching Gradle 9.3.1 distribution..."
-            curl -fL --retry 5 --retry-delay 3 --retry-all-errors \
-              -o "$DIST_DIR/gradle-9.3.1-bin.zip" \
-              "https://github.com/gradle/gradle-distributions/releases/download/v9.3.1/gradle-9.3.1-bin.zip" || \
-            curl -fL --retry 5 --retry-delay 3 --retry-all-errors \
-              -o "$DIST_DIR/gradle-9.3.1-bin.zip" \
-              "https://services.gradle.org/distributions/gradle-9.3.1-bin.zip" || true
+          if [ ! -f "$DIST_DIR/gradle-9.3.1-bin.zip.ok" ]; then
+            echo "Provisioning Gradle 9.3.1 distribution..."
+            if [ ! -f "$DIST_DIR/gradle-9.3.1-bin.zip" ]; then
+              gh release download v9.3.1 --repo gradle/gradle-distributions --pattern "gradle-9.3.1-bin.zip" --dir "$DIST_DIR" || \
+              curl -fL --retry 3 --retry-delay 3 -o "$DIST_DIR/gradle-9.3.1-bin.zip" "https://services.gradle.org/distributions/gradle-9.3.1-bin.zip"
+            fi
+            if [ -f "$DIST_DIR/gradle-9.3.1-bin.zip" ]; then
+              echo "Extracting Gradle 9.3.1..."
+              unzip -q -o "$DIST_DIR/gradle-9.3.1-bin.zip" -d "$DIST_DIR"
+              touch "$DIST_DIR/gradle-9.3.1-bin.zip.ok"
+              echo "Gradle 9.3.1 provisioned successfully."
+            else
+              echo "Warning: Gradle zip could not be provisioned in advance; wrapper will attempt direct download."
+            fi
           fi
       - name: Build development APK for x86_64
         run: |
