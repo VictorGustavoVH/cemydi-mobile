@@ -1,4 +1,5 @@
-import { homeProducts, type HomeProduct } from './catalog-preview';
+import type { HomeProduct } from './catalog-preview';
+import { homeProducts } from './catalog-fixtures';
 
 export type ProductDetailPreview = HomeProduct & {
   images?: { id: string; source: HomeProduct['image']; blurhash?: string }[];

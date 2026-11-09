@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { productRepository, type ProductRepository } from '@/services/products/product-repository';
 import {
   CATALOG_PAGE_SIZE,
@@ -15,6 +15,9 @@ export function useCatalog(
   const query = useQuery({
     queryKey: ['products', 'list', normalized, page, CATALOG_PAGE_SIZE],
     queryFn: ({ signal }) => repository.list(normalized, page, CATALOG_PAGE_SIZE, signal),
+    // La página anterior permanece visible mientras llega la nueva: evita el
+    // parpadeo del skeleton y que el footer de paginación desaparezca.
+    placeholderData: keepPreviousData,
     staleTime: 30_000,
   });
   return {

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
-import { onlineManager } from '@tanstack/react-query';
-import { renderHook, waitFor } from '@testing-library/react-native';
+import { onlineManager, QueryClient } from '@tanstack/react-query';
+import { act, renderHook, waitFor } from '@testing-library/react-native';
 import { QueryTestProvider } from '../../../tests/support/query-wrapper';
 import { productService } from '@/services/products/product-service';
 import { useProductRatings } from '../useProductRatings';
@@ -10,6 +10,34 @@ const wrapper = ({ children }: { children: ReactNode }) => (
 );
 
 describe('useProductRatings', () => {
+  it('conserva la identidad durante un refetch y publica un resumen modificado', async () => {
+    const client = new QueryClient({
+      defaultOptions: { queries: { gcTime: Infinity, retry: false } },
+    });
+    const data = { reviews: [], summary: { count: 2, averageRating: 4 } };
+    client.setQueryData(['reviews', 'product', '1'], data);
+    let finish!: (value: typeof data) => void;
+    jest.spyOn(productService, 'reviews').mockReturnValue(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    const { result } = await renderHook(() => useProductRatings(['1']), {
+      wrapper: ({ children }) => <QueryTestProvider client={client}>{children}</QueryTestProvider>,
+    });
+    const before = result.current;
+    let refresh!: Promise<void>;
+    await act(() => {
+      refresh = client.invalidateQueries({ queryKey: ['reviews', 'product', '1'] });
+    });
+    expect(result.current).toBe(before);
+    await act(async () => {
+      finish({ reviews: [], summary: { count: 3, averageRating: 5 } });
+      await refresh;
+    });
+    await waitFor(() => expect(result.current['1'].summary?.count).toBe(3));
+    expect(result.current).not.toBe(before);
+  });
   it('deduplica ids remotos y deja fuera los fixtures locales', async () => {
     const reviews = jest.spyOn(productService, 'reviews').mockResolvedValue({
       reviews: [],

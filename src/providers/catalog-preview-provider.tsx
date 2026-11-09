@@ -17,6 +17,7 @@ type CatalogPreviewState = {
   favorites: string[];
   items: PreviewCartItem[];
   toggleFavorite: (id: string) => void;
+  removeFavorite: (id: string) => void;
   addItem: (
     productId: string,
     mode: PreviewCartItem['mode'],
@@ -44,6 +45,7 @@ export function CatalogPreviewProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<PreviewCartItem[]>([]);
   const actions = useMemo<CatalogPreviewActions>(
     () => ({
+      removeFavorite: (id) => setFavorites((current) => current.filter((value) => value !== id)),
       toggleFavorite: (id) =>
         setFavorites((current) =>
           current.includes(id) ? current.filter((value) => value !== id) : [...current, id],

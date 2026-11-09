@@ -1,4 +1,36 @@
-import type { Product, ProductList, ProductOffer } from '@/services/products/product-schemas';
+import type {
+  Product,
+  ProductList,
+  ProductOffer,
+  ProductReviews,
+} from '@/services/products/product-schemas';
+
+export function productReviewPage(page = 1, total = 12): ProductReviews {
+  return {
+    reviews: Array.from(
+      { length: Math.max(0, Math.min(10, total - (page - 1) * 10)) },
+      (_, index) => {
+        const id = (page - 1) * 10 + index + 1;
+        return {
+          id,
+          rating: 4,
+          comment: `Reseña paginada ${id}`,
+          createdAt: '2026-01-01T00:00:00.000Z',
+          user: { id, nombre: `Cliente ${id}` },
+        };
+      },
+    ),
+    summary: { count: total, averageRating: total ? 4 : 0 },
+    pagination: {
+      page,
+      pageSize: 10,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / 10)),
+      hasPreviousPage: page > 1,
+      hasNextPage: page < Math.max(1, Math.ceil(total / 10)),
+    },
+  };
+}
 
 export function productFixture(id = 1, changes: Partial<Product> = {}): Product {
   return {

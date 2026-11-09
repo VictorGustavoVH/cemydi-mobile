@@ -1,5 +1,6 @@
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { FlatList, Keyboard, Text, View, useWindowDimensions } from 'react-native';
+import { FrequentlyAskedQuestions } from '@/components/support/FrequentlyAskedQuestions';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { FlatList, Keyboard, Text, View } from 'react-native';
 import Animated, { cubicBezier, useReducedMotion } from 'react-native-reanimated';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
@@ -16,19 +17,21 @@ import { CatalogModeFilter } from './components/CatalogModeFilter';
 import { CatalogSearch } from '@/components/ui/CatalogSearch';
 import { CategoryCarousel } from './components/CategoryCarousel';
 import { HomeHeader } from './components/HomeHeader';
-import { ProductCard } from '@/components/ui/ProductCard';
+import { ProductGridItem, ProductGridSeparator } from '@/components/ui/ProductGridItem';
+import { useProductGridMetrics } from '@/hooks/useProductGridMetrics';
 import type { CatalogMode, HomeProduct } from '@/data/catalog-preview';
 import {
   homeBanners as editorialBanners,
   homeCategories as editorialCategories,
 } from '@/data/catalog-preview';
 import { useHome } from './hooks/useHome';
+import { homeCategoryClassifications } from './home-category-filters';
 import { useAccountAccess } from '@/hooks/useAccountAccess';
 import { useRouteCallback } from '@/hooks/useRouteCallback';
 import { getFriendlyErrorMessage } from '@/services/http/api-error';
 import { useToastScroll } from '@/hooks/useToast';
 import { useProductOffers } from '@/hooks/useProductOffers';
-import { useProductRatings, type ProductRatingState } from '@/hooks/useProductRatings';
+import { useProductRatings } from '@/hooks/useProductRatings';
 import { withProductOffer } from '@/services/products/product-adapter';
 import { prefetchProductDetail } from '@/services/products/product-cache';
 import { HOME_PRODUCT_LIMIT } from '@/services/products/product-service';
@@ -43,29 +46,6 @@ const sectionReveal = {
 } as const;
 const categoryReveal = { ...sectionReveal, animationDelay: 40 };
 const filtersReveal = { ...sectionReveal, animationDelay: 80 };
-function ProductSeparator() {
-  return <View className="h-4" />;
-}
-
-type ProductItemProps = {
-  product: HomeProduct;
-  mode: CatalogMode;
-  ratingState?: ProductRatingState;
-  onOpen: (productId: string, mode: CatalogMode | undefined) => void;
-};
-
-const ProductItem = memo(function ProductItem({
-  product,
-  mode,
-  ratingState,
-  onOpen,
-}: ProductItemProps) {
-  const handlePress = useCallback(() => {
-    onOpen(product.id, mode === 'all' ? product.modes[0] : mode);
-  }, [onOpen, product.id, product.modes, mode]);
-  return <ProductCard product={product} ratingState={ratingState} onPress={handlePress} />;
-});
-
 export function HomeScreen() {
   const router = useRouter();
   const { requestAccess } = useAccountAccess();
@@ -75,7 +55,8 @@ export function HomeScreen() {
   const restoreScroll = useRef(false);
   const previousColumns = useRef(2);
   const reducedMotion = useReducedMotion();
-  const { width, fontScale } = useWindowDimensions();
+  const grid = useProductGridMetrics();
+  const { columns } = grid;
   const [search, setSearch] = useState('');
   const [suggestionsInteracting, setSuggestionsInteracting] = useState(false);
   const [searchDismissSignal, setSearchDismissSignal] = useState(0);
@@ -103,12 +84,13 @@ export function HomeScreen() {
       Promise.allSettled([
         queryClient.invalidateQueries({ queryKey: ['home', 'products'] }),
         queryClient.invalidateQueries({ queryKey: ['promotions', 'active'] }),
+        queryClient.invalidateQueries({ queryKey: ['reviews', 'product'] }),
       ]),
     [queryClient],
   );
-  const { refreshing, onRefresh } = usePullToRefresh(refresh);
-  const oneColumn = width < 350 || fontScale > 1.3;
-  const columns = oneColumn ? 1 : 2;
+  const refreshEnabled = isOnline !== false;
+  const { refreshing, onRefresh } = usePullToRefresh(refresh, { enabled: refreshEnabled });
+  const oneColumn = columns === 1;
   useLayoutEffect(() => {
     if (previousColumns.current !== columns) restoreScroll.current = true;
     previousColumns.current = columns;
@@ -154,26 +136,21 @@ export function HomeScreen() {
 
   const renderProduct = useCallback(
     ({ item }: { item: HomeProduct }) => (
-      <View
-        style={{
-          width: (width - 40 - (columns - 1) * 12) / columns,
-          marginHorizontal: columns === 1 ? 20 : 0,
-        }}
-      >
-        <ProductItem
-          product={item}
-          mode="all"
-          ratingState={ratings[item.id]}
-          onOpen={openProduct}
-        />
-      </View>
+      <ProductGridItem
+        product={item}
+        ratingState={ratings[item.id]}
+        onOpen={openProduct}
+        width={grid.itemWidth}
+        marginHorizontal={grid.itemMargin}
+      />
     ),
-    [columns, openProduct, ratings, width],
+    [openProduct, ratings, grid.itemWidth, grid.itemMargin],
   );
 
   return (
     <AppScreen edges={['top', 'left', 'right']}>
       <FlatList
+        onLayout={grid.onLayout}
         accessibilityLabel="Contenido de inicio"
         ref={scrollRef}
         scrollEnabled={!suggestionsInteracting}
@@ -195,14 +172,20 @@ export function HomeScreen() {
         renderItem={renderProduct}
         keyExtractor={productKey}
         numColumns={columns}
-        columnWrapperStyle={columns > 1 ? { gap: 12, paddingHorizontal: 20 } : undefined}
-        ItemSeparatorComponent={ProductSeparator}
+        columnWrapperStyle={grid.columnWrapperStyle}
+        ItemSeparatorComponent={ProductGridSeparator}
         contentContainerStyle={{ flexGrow: 1, paddingBottom: 24 }}
         keyboardShouldPersistTaps="handled"
         nestedScrollEnabled
         keyboardDismissMode="on-drag"
         showsVerticalScrollIndicator={false}
-        refreshControl={<AppRefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        refreshControl={
+          <AppRefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            enabled={refreshEnabled}
+          />
+        }
         ListHeaderComponent={
           <>
             <HomeHeader
@@ -246,10 +229,11 @@ export function HomeScreen() {
                   categories={homeCategories}
                   onSelect={(id) => {
                     const category = homeCategories.find((item) => item.id === id);
-                    if (category)
+                    const clasificacion = homeCategoryClassifications[id];
+                    if (category && clasificacion)
                       router.navigate({
                         pathname: '/catalogo',
-                        params: { search: category.label, t: String(Date.now()) },
+                        params: { clasificacion, t: String(Date.now()) },
                       });
                   }}
                   selectedId={null}
@@ -318,18 +302,26 @@ export function HomeScreen() {
           )
         }
         ListFooterComponent={
-          data ? (
-            <View className="gap-3 px-5 pt-6">
-              {offers.isError && isOnline !== false ? (
-                <ErrorState
-                  title="No pudimos consultar las ofertas"
-                  description="Se muestran los precios base de los productos."
-                  onRetry={() => void offers.refetch()}
-                />
-              ) : null}
-              <AppButton label="Ver catálogo completo" onPress={explore} variant="outline" />
-            </View>
-          ) : null
+          <View className="gap-8 px-5 pt-6">
+            {data ? (
+              <View className="gap-3">
+                {offers.isError && isOnline !== false ? (
+                  <ErrorState
+                    title="No pudimos consultar las ofertas"
+                    description="Se muestran los precios base de los productos."
+                    onRetry={() => void offers.refetch()}
+                  />
+                ) : null}
+                <AppButton label="Ver catálogo completo" onPress={explore} variant="outline" />
+              </View>
+            ) : null}
+            <FrequentlyAskedQuestions />
+            <AppButton
+              label="Ayuda y contacto"
+              variant="ghost"
+              onPress={() => router.push('/perfil/ayuda')}
+            />
+          </View>
         }
       />
     </AppScreen>

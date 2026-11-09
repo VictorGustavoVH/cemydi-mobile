@@ -4,22 +4,29 @@ import { addRecentSearch, clearRecentSearches } from '@/hooks/useRecentSearches'
 import { render } from '../../../../tests/support/render-with-toast';
 
 import { HomeScreen } from '../HomeScreen';
+import { Platform } from 'react-native';
+import { homeService } from '../services/homeService.api';
 import { CatalogPreviewProvider } from '../../../../tests/support/catalog-cart-provider';
 import { productService } from '@/services/products/product-service';
 import { installHomePreviewApiMock } from '../../../../tests/support/home-preview-api-mock';
+
+const mockRouter = {
+  back: jest.fn(),
+  push: jest.fn(),
+  replace: jest.fn(),
+  navigate: jest.fn(),
+  setParams: jest.fn(),
+};
+jest.mock('react-native/Libraries/Components/RefreshControl/RefreshControl', () =>
+  jest.requireActual('react-native/Libraries/Components/RefreshControl/RefreshControl'),
+);
 
 jest.mock('expo-router', () => {
   const { useEffect } = require('react');
 
   return {
     useFocusEffect: (callback: () => void | (() => void)) => useEffect(callback, [callback]),
-    useRouter: () => ({
-      back: jest.fn(),
-      push: jest.fn(),
-      replace: jest.fn(),
-      navigate: jest.fn(),
-      setParams: jest.fn(),
-    }),
+    useRouter: () => mockRouter,
     useLocalSearchParams: () => ({}),
   };
 });
@@ -87,6 +94,56 @@ describe('HomeScreen', () => {
     installHomePreviewApiMock();
     clearRecentSearches();
   });
+  it.each([
+    ['Movilidad', 'Movilidad'],
+    ['Descanso', 'Cuidado en cama'],
+    ['Soportes', 'Soporte'],
+    ['Apoyo', 'Apoyo para caminar'],
+  ])(
+    'conserva la categoría editorial %s y navega usando su clasificación exacta',
+    async (label, clasificacion) => {
+      await render(
+        <CatalogPreviewProvider>
+          <HomeScreen />
+        </CatalogPreviewProvider>,
+      );
+      await fireEvent.press(screen.getByRole('button', { name: label }));
+      expect(mockRouter.navigate).toHaveBeenCalledWith({
+        pathname: '/catalogo',
+        params: { clasificacion, t: expect.any(String) },
+      });
+      for (const category of ['Movilidad', 'Descanso', 'Soportes', 'Apoyo'])
+        expect(screen.getByRole('button', { name: category })).toBeTruthy();
+    },
+  );
+  it('el gesto nativo de Android consulta de nuevo y mantiene el indicador hasta terminar', async () => {
+    jest.replaceProperty(Platform, 'OS', 'android');
+    const view = await render(
+      <CatalogPreviewProvider>
+        <HomeScreen />
+      </CatalogPreviewProvider>,
+    );
+    await screen.findByText('Ver catálogo completo');
+    const initial = await jest.mocked(homeService.getHome).mock.results[0].value;
+    let finish!: (value: typeof initial) => void;
+    jest.mocked(homeService.getHome).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const control = () =>
+      view.container.queryAll((node) =>
+        ['AndroidSwipeRefreshLayout', 'RCTRefreshControl'].includes(node.type),
+      )[0];
+    expect(control()).toBeTruthy();
+    expect(control().props.refreshing).toBe(false);
+    await fireEvent(control(), 'refresh');
+    await waitFor(() => expect(homeService.getHome).toHaveBeenCalledTimes(2));
+    expect(control().props.refreshing).toBe(true);
+    await act(async () => finish(initial));
+    await waitFor(() => expect(control().props.refreshing).toBe(false));
+  });
   it('muestra como máximo seis productos y acceso al catálogo completo', async () => {
     await render(
       <CatalogPreviewProvider>
@@ -99,6 +156,23 @@ describe('HomeScreen', () => {
     await waitFor(() =>
       expect(screen.getAllByRole('button', { name: /Ver producto$/ })).toHaveLength(6),
     );
+  });
+  it('permite desplegar preguntas frecuentes al final de Inicio y abrir ayuda', async () => {
+    await render(
+      <CatalogPreviewProvider>
+        <HomeScreen />
+      </CatalogPreviewProvider>,
+    );
+    expect(screen.getByRole('header', { name: 'Preguntas frecuentes' })).toBeTruthy();
+    expect(screen.queryByText(/En Perfil, abre Mis rentas y selecciona/)).toBeNull();
+    const question = screen.getByRole('button', { name: '¿Dónde consulto mis rentas?' });
+    await fireEvent.press(question);
+    expect(screen.getByText(/En Perfil, abre Mis rentas y selecciona/)).toBeTruthy();
+    expect(question).toHaveProp('accessibilityState', expect.objectContaining({ expanded: true }));
+    await fireEvent.press(question);
+    expect(screen.queryByText(/En Perfil, abre Mis rentas y selecciona/)).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: 'Ayuda y contacto' }));
+    expect(mockRouter.push).toHaveBeenCalledWith('/perfil/ayuda');
   });
 
   it('aísla el scroll de Home durante el gesto y la inercia de sugerencias', async () => {

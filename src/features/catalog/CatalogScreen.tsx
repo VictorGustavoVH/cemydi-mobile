@@ -1,5 +1,5 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { FlatList, Keyboard, Text, View, useWindowDimensions } from 'react-native';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { FlatList, Keyboard, Text, View } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { AppButton } from '@/components/ui/AppButton';
@@ -9,14 +9,16 @@ import { AppScreen } from '@/components/ui/AppScreen';
 import { BackButton } from '@/components/ui/BackButton';
 import { CatalogSearch } from '@/components/ui/CatalogSearch';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { EmptyProductIcon } from '@/components/ui/EmptyProductIcon';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { OfflineState } from '@/components/ui/OfflineState';
-import { ProductCard } from '@/components/ui/ProductCard';
+import { ProductGridItem, ProductGridSeparator } from '@/components/ui/ProductGridItem';
+import { useProductGridMetrics } from '@/hooks/useProductGridMetrics';
 import { ProductGridSkeleton } from '@/components/ui/ProductGridSkeleton';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { useProductOffers } from '@/hooks/useProductOffers';
-import { useProductRatings, type ProductRatingState } from '@/hooks/useProductRatings';
+import { useProductRatings } from '@/hooks/useProductRatings';
 import { useRouteCallback } from '@/hooks/useRouteCallback';
 import { useToastScroll } from '@/hooks/useToast';
 import { toProductCard } from '@/services/products/product-adapter';
@@ -29,27 +31,6 @@ import { CatalogFiltersSheet } from './components/CatalogFiltersSheet';
 import { CatalogQuickFilters } from './components/CatalogQuickFilters';
 
 const productKey = (item: HomeProduct) => item.id;
-function ProductSeparator() {
-  return <View className="h-4" />;
-}
-const CatalogItem = memo(function CatalogItem({
-  product,
-  ratingState,
-  onOpen,
-  width,
-}: {
-  product: HomeProduct;
-  ratingState?: ProductRatingState;
-  onOpen: (id: string) => void;
-  width: number;
-}) {
-  return (
-    <View style={{ width }}>
-      <ProductCard product={product} ratingState={ratingState} onPress={() => onOpen(product.id)} />
-    </View>
-  );
-});
-
 export function CatalogScreen() {
   const params = useLocalSearchParams<{
     search?: string;
@@ -60,8 +41,8 @@ export function CatalogScreen() {
   }>();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { width, fontScale } = useWindowDimensions();
-  const columns = width < 350 || fontScale > 1.3 ? 1 : 2;
+  const grid = useProductGridMetrics();
+  const { columns } = grid;
   const list = useRef<FlatList<HomeProduct>>(null);
   const onToastScroll = useToastScroll();
   const { isOnline } = useNetworkStatus();
@@ -107,16 +88,43 @@ export function CatalogScreen() {
               : [],
       });
       setSheetOpen(params.filters === '1');
+      list.current?.scrollToOffset({ offset: 0, animated: false });
     }, [incoming, params.search, params.clasificacion, params.mode, params.filters]),
   );
   const query = useCatalog(filters, page);
   const offers = useProductOffers();
+  const loadedPage = query.data?.pagination.page;
+  const totalPages = query.data?.pagination.totalPages;
+  // Al cambiar de página se conserva la anterior mientras llega la nueva, así
+  // que el salto al inicio se hace cuando el servidor confirma la página.
+  const lastLoadedPage = useRef(loadedPage);
+  useLayoutEffect(() => {
+    if (loadedPage === undefined) return;
+    const previous = lastLoadedPage.current;
+    lastLoadedPage.current = loadedPage;
+    if (previous !== undefined && previous !== loadedPage) {
+      list.current?.scrollToOffset({ offset: 0, animated: false });
+    }
+  }, [loadedPage]);
+  const changePage = useCallback(
+    (next: number) => {
+      setPage(totalPages ? Math.min(Math.max(1, next), totalPages) : next);
+      list.current?.scrollToOffset({ offset: 0, animated: false });
+    },
+    [totalPages],
+  );
 
   const refresh = useCallback(
-    () => Promise.allSettled([query.refetch(), offers.refetch()]),
-    [query, offers],
+    () =>
+      Promise.allSettled([
+        query.refetch(),
+        offers.refetch(),
+        queryClient.invalidateQueries({ queryKey: ['reviews', 'product'] }),
+      ]),
+    [query, offers, queryClient],
   );
-  const { refreshing, onRefresh } = usePullToRefresh(refresh);
+  const refreshEnabled = isOnline !== false;
+  const { refreshing, onRefresh } = usePullToRefresh(refresh, { enabled: refreshEnabled });
   useEffect(() => {
     const timeout = setTimeout(
       () => {
@@ -133,7 +141,7 @@ export function CatalogScreen() {
   const isFirstMount = useRef(true);
   const prevFiltersRef = useRef(filters);
   const prevColumnsRef = useRef(columns);
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (isFirstMount.current) {
       isFirstMount.current = false;
       return;
@@ -173,17 +181,17 @@ export function CatalogScreen() {
   );
   const renderProduct = useCallback(
     ({ item }: { item: HomeProduct }) => (
-      <View style={{ marginHorizontal: columns === 1 ? 20 : 0 }}>
-        <CatalogItem
-          product={item}
-          ratingState={ratings[item.id]}
-          onOpen={openProduct}
-          width={(width - 40 - (columns - 1) * 12) / columns}
-        />
-      </View>
+      <ProductGridItem
+        product={item}
+        ratingState={ratings[item.id]}
+        onOpen={openProduct}
+        width={grid.itemWidth}
+        marginHorizontal={grid.itemMargin}
+      />
     ),
-    [openProduct, ratings, width, columns],
+    [openProduct, ratings, grid.itemWidth, grid.itemMargin],
   );
+
   const clear = () => {
     setPage(1);
     setSearch('');
@@ -201,10 +209,12 @@ export function CatalogScreen() {
     Keyboard.dismiss();
     setPage(1);
     setFilters({ ...next, search: search.trim() });
+    list.current?.scrollToOffset({ offset: 0, animated: false });
   };
   return (
     <AppScreen edges={['top', 'left', 'right']}>
       <FlatList
+        onLayout={grid.onLayout}
         ref={list}
         scrollEnabled={!suggestionsInteracting}
         onScrollBeginDrag={() => setSearchDismissSignal((signal) => signal + 1)}
@@ -213,19 +223,24 @@ export function CatalogScreen() {
         importantForAccessibility={sheetOpen ? 'no-hide-descendants' : 'auto'}
         key={columns}
         numColumns={columns}
-        data={products}
+        data={query.isPlaceholderData ? [] : products}
         keyExtractor={productKey}
         renderItem={renderProduct}
-        columnWrapperStyle={columns > 1 ? { gap: 12, paddingHorizontal: 20 } : undefined}
+        columnWrapperStyle={grid.columnWrapperStyle}
         contentContainerStyle={{ flexGrow: 1, paddingBottom: 24 }}
-        ItemSeparatorComponent={ProductSeparator}
+        ItemSeparatorComponent={ProductGridSeparator}
         keyboardShouldPersistTaps="handled"
-        nestedScrollEnabled
         keyboardDismissMode="on-drag"
         onScroll={onToastScroll}
         scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
-        refreshControl={<AppRefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        refreshControl={
+          <AppRefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            enabled={refreshEnabled}
+          />
+        }
         ListHeaderComponent={
           <>
             <View className="flex-row items-center gap-3 px-5 py-2">
@@ -301,7 +316,9 @@ export function CatalogScreen() {
           </>
         }
         ListEmptyComponent={
-          isOnline === false && !query.data ? null : query.isPending || !offers.ready ? (
+          isOnline === false && !query.data ? null : query.isPending ||
+            !offers.ready ||
+            query.isPlaceholderData ? (
             <View>
               <ProductGridSkeleton columns={columns} />
             </View>
@@ -309,9 +326,19 @@ export function CatalogScreen() {
             <View className="px-5">
               <ErrorState description={getFriendlyErrorMessage(query.error)} onRetry={onRefresh} />
             </View>
+          ) : query.data && query.data.pagination.total > 0 ? (
+            <View className="px-5">
+              <EmptyState
+                title="Esta página ya no está disponible"
+                description="El catálogo cambió mientras navegabas. Vuelve a la primera página para seguir explorando."
+                actionLabel="Volver a la primera página"
+                onAction={() => changePage(1)}
+              />
+            </View>
           ) : (
             <View className="px-5">
               <EmptyState
+                icon={<EmptyProductIcon />}
                 title="No encontramos productos"
                 description="Prueba otra búsqueda o cambia los filtros."
                 actionLabel="Limpiar filtros"
@@ -321,16 +348,15 @@ export function CatalogScreen() {
           )
         }
         ListFooterComponent={
-          query.data ? (
-            <View className="gap-3 px-5 pt-6">
-              {query.pagination && products.length ? (
-                <AppPagination
-                  page={page}
-                  totalPages={query.pagination.totalPages}
-                  disabled={query.isFetching || isOnline === false}
-                  onPageChange={setPage}
-                />
-              ) : null}
+          query.data && query.data.pagination.totalPages > 1 ? (
+            <View className="px-5 pt-4">
+              <AppPagination
+                page={Math.min(query.data.pagination.page, query.data.pagination.totalPages)}
+                totalPages={query.data.pagination.totalPages}
+                disabled={query.isFetching || isOnline === false}
+                loading={false}
+                onPageChange={changePage}
+              />
             </View>
           ) : null
         }
@@ -338,7 +364,7 @@ export function CatalogScreen() {
       {sheetOpen ? (
         <CatalogFiltersSheet
           applied={filters}
-          options={query.filters}
+          options={query.isPlaceholderData ? undefined : query.filters}
           onClose={() => setSheetOpen(false)}
           onChange={updateFilters}
         />

@@ -24,6 +24,7 @@ export function seedProductDetail(
   product: Product,
   sourceUpdatedAt = Date.now(),
 ) {
+  if (product.activo !== true) return;
   const key = productDetailKey(product.id);
   const current = queryClient.getQueryState(key);
   if (current && current.dataUpdatedAt >= sourceUpdatedAt) return;
