@@ -24,7 +24,7 @@ import { notificationTime } from './notification-presentation';
 
 const categories = {
   SYSTEM: { Icon: BellRing, color: colors.info },
-  RENTAL: { Icon: PackageCheck, color: colors.brand },
+  RENTAL: { Icon: PackageCheck, color: colors.warning },
   OFFER: { Icon: Tag, color: colors.danger },
 };
 const previewLines = 2;
@@ -65,6 +65,12 @@ export function NotificationRow({
     }),
     [unread, duration],
   );
+  const contentStyle = useAnimatedStyle(
+    () => ({
+      opacity: withTiming(unread ? 1 : 0.55, { duration }),
+    }),
+    [unread, duration],
+  );
   const dotStyle = useAnimatedStyle(
     () => ({ opacity: withTiming(unread ? 1 : 0, { duration }) }),
     [unread, duration],
@@ -78,7 +84,7 @@ export function NotificationRow({
   const revealFirst = destination && overflows && !expanded;
   return (
     <Animated.View
-      className="border-b border-border"
+      className="-mx-5 border-b border-border"
       layout={LinearTransition.duration(reducedMotion ? 0 : 220)}
       style={surfaceStyle}
     >
@@ -97,10 +103,7 @@ export function NotificationRow({
         style={{
           alignSelf: 'stretch',
           minHeight: 88,
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: 12,
-          paddingHorizontal: 8,
+          paddingHorizontal: 20,
           paddingVertical: 14,
         }}
         onPress={() => {
@@ -112,114 +115,127 @@ export function NotificationRow({
           if (!expanded && unread && !readDisabled) onRead();
         }}
       >
-        <View
-          style={{
-            width: 44,
-            height: 44,
-            borderRadius: 22,
-            backgroundColor: `${color}12`,
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexShrink: 0,
-          }}
+        <Animated.View
+          style={[
+            contentStyle,
+            {
+              flex: 1,
+              alignSelf: 'stretch',
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 12,
+            },
+          ]}
         >
-          <Icon size={23} strokeWidth={1.8} color={color} aria-hidden />
-        </View>
-        <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
-          <Text
-            numberOfLines={expanded ? undefined : previewLines}
-            ellipsizeMode="tail"
-            className={titleClassName}
+          <View
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: 22,
+              backgroundColor: `${color}12`,
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}
           >
-            {item.title}
-          </Text>
-          <Text
-            numberOfLines={expanded ? undefined : previewLines}
-            ellipsizeMode="tail"
-            className={bodyClassName}
-          >
-            {item.body}
-          </Text>
-          <Text
-            accessible={false}
-            aria-hidden
-            importantForAccessibility="no-hide-descendants"
-            onTextLayout={titleLines.measure}
-            className={titleClassName}
-            style={probeStyle}
-            testID="notification-title-measure"
-          >
-            {item.title}
-          </Text>
-          <Text
-            accessible={false}
-            aria-hidden
-            importantForAccessibility="no-hide-descendants"
-            onTextLayout={bodyLines.measure}
-            className={bodyClassName}
-            style={probeStyle}
-            testID="notification-body-measure"
-          >
-            {item.body}
-          </Text>
-        </View>
-        <View
-          style={{
-            alignSelf: 'stretch',
-            minHeight: 52,
-            minWidth: 48,
-            maxWidth: 80,
-            flexShrink: 0,
-            alignItems: 'flex-end',
-            justifyContent: 'space-between',
-            gap: 6,
-          }}
-        >
-          <Animated.View
-            accessible={false}
-            style={[
-              dotStyle,
-              { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.info },
-            ]}
-          />
-          {preview?.imageUrl ? (
-            <View
-              style={{
-                width: 36,
-                height: 36,
-                borderRadius: 8,
-                overflow: 'hidden',
-                backgroundColor: colors.background,
-              }}
+            <Icon size={23} strokeWidth={1.8} color={color} aria-hidden />
+          </View>
+          <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
+            <Text
+              numberOfLines={expanded ? undefined : previewLines}
+              ellipsizeMode="tail"
+              className={titleClassName}
             >
-              <CatalogImage
-                source={{ uri: preview.imageUrl }}
-                label={item.title}
-                accessible={false}
-                compact
-              />
-            </View>
-          ) : preview?.discountPercent ? (
-            <View
-              style={{
-                minWidth: 36,
-                minHeight: 30,
-                borderRadius: 8,
-                backgroundColor: colors.background,
-                alignItems: 'center',
-                justifyContent: 'center',
-                paddingHorizontal: 4,
-              }}
+              {item.title}
+            </Text>
+            <Text
+              numberOfLines={expanded ? undefined : previewLines}
+              ellipsizeMode="tail"
+              className={bodyClassName}
             >
-              <Text className="font-sans-semibold text-xs" style={{ color }}>
-                -{preview.discountPercent}%
-              </Text>
-            </View>
-          ) : null}
-          <Text className="font-sans text-[10px] text-secondary" style={{ textAlign: 'right' }}>
-            {notificationTime(item.createdAt)}
-          </Text>
-        </View>
+              {item.body}
+            </Text>
+            <Text
+              accessible={false}
+              aria-hidden
+              importantForAccessibility="no-hide-descendants"
+              onTextLayout={titleLines.measure}
+              className={titleClassName}
+              style={probeStyle}
+              testID="notification-title-measure"
+            >
+              {item.title}
+            </Text>
+            <Text
+              accessible={false}
+              aria-hidden
+              importantForAccessibility="no-hide-descendants"
+              onTextLayout={bodyLines.measure}
+              className={bodyClassName}
+              style={probeStyle}
+              testID="notification-body-measure"
+            >
+              {item.body}
+            </Text>
+          </View>
+          <View
+            style={{
+              alignSelf: 'stretch',
+              minHeight: 52,
+              minWidth: 48,
+              maxWidth: 80,
+              flexShrink: 0,
+              alignItems: 'flex-end',
+              justifyContent: 'space-between',
+              gap: 6,
+            }}
+          >
+            <Animated.View
+              accessible={false}
+              style={[
+                dotStyle,
+                { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.info },
+              ]}
+            />
+            {preview?.imageUrl ? (
+              <View
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 8,
+                  overflow: 'hidden',
+                  backgroundColor: colors.background,
+                }}
+              >
+                <CatalogImage
+                  source={{ uri: preview.imageUrl }}
+                  label={item.title}
+                  accessible={false}
+                  compact
+                />
+              </View>
+            ) : preview?.discountPercent ? (
+              <View
+                style={{
+                  minWidth: 36,
+                  minHeight: 30,
+                  borderRadius: 8,
+                  backgroundColor: colors.background,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  paddingHorizontal: 4,
+                }}
+              >
+                <Text className="font-sans-semibold text-xs" style={{ color }}>
+                  -{preview.discountPercent}%
+                </Text>
+              </View>
+            ) : null}
+            <Text className="font-sans text-xs text-secondary" style={{ textAlign: 'right' }}>
+              {notificationTime(item.createdAt)}
+            </Text>
+          </View>
+        </Animated.View>
       </AppButton>
     </Animated.View>
   );

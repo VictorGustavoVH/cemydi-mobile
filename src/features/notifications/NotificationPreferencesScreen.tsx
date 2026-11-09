@@ -1,13 +1,13 @@
 import { useCallback, useRef, useState } from 'react';
 import { Linking, Text, View } from 'react-native';
-import Bell from 'lucide-react-native/icons/bell';
 import Smartphone from 'lucide-react-native/icons/smartphone';
 import { useFocusEffect } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AppButton } from '@/components/ui/AppButton';
 import { AppSwitch } from '@/components/ui/AppSwitch';
-import { ProfileLayout } from '@/features/profile/components/ProfileLayout';
-import { AccountResourceState } from '@/features/profile/components/AccountResourceState';
+import { AccountLayout } from '@/components/account/AccountLayout';
+import { AccountSection } from '@/components/account/AccountSection';
+import { AccountResourceState } from '@/components/account/AccountResourceState';
 import { useAuth } from '@/providers/auth-provider';
 import { useToast } from '@/hooks/useToast';
 import { getFriendlyErrorMessage } from '@/services/http/api-error';
@@ -26,7 +26,7 @@ const rows: { key: keyof NotificationPreferences; label: string; description: st
   {
     key: 'system',
     label: 'Sistema y seguridad',
-    description: 'Comunicados y cambios de seguridad de tu cuenta.',
+    description: 'Comunicados, revisión de reseñas y cambios de seguridad de tu cuenta.',
   },
   { key: 'offers', label: 'Ofertas', description: 'Promociones y novedades de CEMYDI.' },
   { key: 'rentals', label: 'Rentas', description: 'Estados de solicitudes y revisión de recetas.' },
@@ -35,9 +35,9 @@ const rows: { key: keyof NotificationPreferences; label: string; description: st
 export function NotificationPreferencesScreen() {
   const { user } = useAuth();
   return (
-    <ProfileLayout title="Ajustes de notificaciones">
+    <AccountLayout title="Ajustes de notificaciones">
       <PreferencesForm key={user?.id ?? 'guest'} />
-    </ProfileLayout>
+    </AccountLayout>
   );
 }
 function PreferencesForm() {
@@ -91,18 +91,12 @@ function PreferencesForm() {
     >
       {preferences && (
         <View className="gap-5 px-5 py-5">
-          <View className="h-14 w-14 items-center justify-center rounded-2xl bg-brand/10">
-            <Bell size={26} color={colors.brandStrong} aria-hidden />
-          </View>
-          <View className="gap-2">
-            <Text className="font-sans-bold text-2xl text-primary">Tú eliges qué recibir</Text>
-          </View>
-          <View className="overflow-hidden rounded-2xl bg-surface-muted px-4">
+          <AccountSection
+            title="Avisos de tu cuenta"
+            description="Los cambios se guardan automáticamente."
+          >
             {rows.map((row) => (
-              <View
-                key={row.key}
-                className={`flex-row items-center justify-between gap-4 py-5 ${row.key === 'pushEnabled' ? 'mb-1 border-b border-border' : ''}`}
-              >
+              <View key={row.key} className="flex-row items-center justify-between gap-4 py-3">
                 <View className="flex-1 gap-1">
                   <Text className="font-sans-semibold text-base text-primary">{row.label}</Text>
                   <Text className="font-sans text-sm leading-5 text-secondary">
@@ -112,15 +106,19 @@ function PreferencesForm() {
                 <AppSwitch
                   label={row.label}
                   value={preferences[row.key]}
-                  disabled={actions.busy || (row.key !== 'pushEnabled' && !preferences.pushEnabled)}
+                  disabled={
+                    actions.busy ||
+                    actions.isOnline === false ||
+                    (row.key !== 'pushEnabled' && !preferences.pushEnabled)
+                  }
                   onValueChange={(value) => {
                     void change(row.key, value);
                   }}
                 />
               </View>
             ))}
-          </View>
-          <View className="gap-3 border-t border-border pt-5">
+          </AccountSection>
+          <View className="gap-3 pt-3">
             <View className="flex-row items-center gap-2">
               <Smartphone size={20} color={colors.brandStrong} aria-hidden />
               <Text
@@ -143,8 +141,9 @@ function PreferencesForm() {
                 !!draft
               }
               onPress={() => {
+                if (!user) return;
                 void actions
-                  .run((isCurrent) => registerNativePush(isCurrent, true))
+                  .run((isCurrent) => registerNativePush(isCurrent, true, user.id))
                   .then(() => toast.success('Este dispositivo está activado para recibir push.'))
                   .catch((error) => toast.error(getFriendlyErrorMessage(error)));
               }}

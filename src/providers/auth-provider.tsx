@@ -1,5 +1,6 @@
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -10,8 +11,8 @@ import {
 import { AppState } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
 import { createAuthService, type AuthChallenge } from '@/features/auth/services/auth-service';
-import type { AuthDestination } from '@/features/auth/auth-destination';
 import { authSession } from '@/features/auth/services/auth-session';
+import { releaseNativePush } from '@/features/notifications/native-push';
 import { configureHttpAuth } from '@/services/http/client';
 
 function useAuthState(session: typeof authSession) {
@@ -22,7 +23,23 @@ function useAuthState(session: typeof authSession) {
   const [rememberedEmail, setRememberedEmail] = useState('');
   const [registrationDraft, setRegistrationDraft] = useState({ nombre: '', correo: '' });
   const [recoveryEmail, setRecoveryEmail] = useState('');
-  const [authDestination, setAuthDestination] = useState<AuthDestination>('/inicio');
+  const logoutDetailed = useCallback(() => {
+    const userId = session.getSnapshot().user?.id;
+    const completion = session.logout();
+    const version = session.getVersion();
+    const cleanup = releaseNativePush(
+      userId,
+      completion,
+      () => session.getVersion() === version && !session.getSnapshot().user,
+    );
+    return Promise.all([completion, cleanup]).then(([result, pushStatus]) => ({
+      ...result,
+      pushStatus,
+    }));
+  }, [session]);
+  const logout = useCallback(async () => {
+    await logoutDetailed();
+  }, [logoutDetailed]);
   useEffect(() => {
     configureHttpAuth({
       getAccessToken: session.getAccessToken,
@@ -57,10 +74,8 @@ function useAuthState(session: typeof authSession) {
       getSession: session.getSnapshot,
       getSessionVersion: session.getVersion,
       updateUser: session.updateUser,
-      logout: async () => {
-        await session.logout();
-      },
-      logoutDetailed: session.logout,
+      logout,
+      logoutDetailed,
       consumeExplicitLogout: session.consumeExplicitLogout,
       challenge,
       setChallenge,
@@ -70,18 +85,17 @@ function useAuthState(session: typeof authSession) {
       setRegistrationDraft,
       recoveryEmail,
       setRecoveryEmail,
-      authDestination,
-      setAuthDestination,
     }),
     [
       service,
       state,
       session,
+      logout,
+      logoutDetailed,
       challenge,
       rememberedEmail,
       registrationDraft,
       recoveryEmail,
-      authDestination,
     ],
   );
 }

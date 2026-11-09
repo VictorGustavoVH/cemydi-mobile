@@ -1,9 +1,11 @@
 import { Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
-import { AppButton } from '@/components/ui/AppButton';
-import { ProfileLayout } from '@/features/profile/components/ProfileLayout';
-import { AccountResourceState } from '@/features/profile/components/AccountResourceState';
+import Package from 'lucide-react-native/icons/package';
+import { AccountMenuItem } from '@/components/account/AccountMenuItem';
+import { AccountSection } from '@/components/account/AccountSection';
+import { AccountLayout } from '@/components/account/AccountLayout';
+import { AccountResourceState } from '@/components/account/AccountResourceState';
 import { useAuth } from '@/providers/auth-provider';
 import { notificationService } from './notification-service';
 import { useNotificationActions } from './useNotifications';
@@ -21,7 +23,7 @@ export function NotificationPromotionScreen({ id }: { id: string }) {
   });
   const promotion = query.data?.promotion;
   return (
-    <ProfileLayout title="Oferta CEMYDI">
+    <AccountLayout title="Oferta CEMYDI">
       <AccountResourceState
         data={query.data}
         error={query.error}
@@ -41,19 +43,24 @@ export function NotificationPromotionScreen({ id }: { id: string }) {
             <Text className="font-sans text-sm text-secondary">
               Hasta {new Date(promotion.endAt).toLocaleDateString('es-MX')}
             </Text>
-            {promotion.products.map((product) => (
-              <AppButton
-                key={product.id}
-                label={product.nombre}
-                variant="outline"
-                onPress={() =>
-                  router.push({ pathname: '/producto/[id]', params: { id: product.id } })
-                }
-              />
-            ))}
+            <AccountSection title="Productos de la oferta">
+              {promotion.products.map((product) => (
+                <AccountMenuItem
+                  key={product.id}
+                  title={product.nombre}
+                  description="Ver producto"
+                  appearance="divided"
+                  iconTone="info"
+                  icon={Package}
+                  onPress={() =>
+                    router.push({ pathname: '/producto/[id]', params: { id: product.id } })
+                  }
+                />
+              ))}
+            </AccountSection>
           </View>
         )}
       </AccountResourceState>
-    </ProfileLayout>
+    </AccountLayout>
   );
 }

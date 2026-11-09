@@ -14,8 +14,8 @@ jest.mock('@/hooks/useToast', () => ({ useToast: () => ({ error: jest.fn() }) })
 jest.mock('../useNotificationPermissionAccess', () => ({
   useNotificationPermissionAccess: () => jest.fn(),
 }));
-jest.mock('@/features/profile/components/ProfileLayout', () => ({
-  ProfileLayout: ({ children }: { children: ReactNode }) => children,
+jest.mock('@/components/account/AccountLayout', () => ({
+  AccountLayout: ({ children }: { children: ReactNode }) => children,
 }));
 jest.mock('../useNotifications', () => ({
   useInfiniteNotifications: jest.fn(),

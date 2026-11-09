@@ -11,6 +11,7 @@ export function useNotificationPermissionAccess() {
     void registerNativePush(
       () => getSessionVersion() === version && getSession().user?.id === id,
       true,
+      id,
     ).catch(() => undefined);
   }, [user, status, getSession, getSessionVersion]);
 }

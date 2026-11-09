@@ -2,8 +2,8 @@ import { useEffect, useRef } from 'react';
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { LoadingState } from '@/components/ui/LoadingState';
-import { ProfileLayout } from '@/features/profile/components/ProfileLayout';
-import { AccountResourceState } from '@/features/profile/components/AccountResourceState';
+import { AccountLayout } from '@/components/account/AccountLayout';
+import { AccountResourceState } from '@/components/account/AccountResourceState';
 import { useAuth } from '@/providers/auth-provider';
 import { notificationService } from './notification-service';
 import { notificationDestination } from './notification-destination';
@@ -12,9 +12,9 @@ import { useNotificationActions } from './useNotifications';
 export function NotificationRedirectScreen({ id }: { id: string }) {
   const { user } = useAuth();
   return (
-    <ProfileLayout title="Notificaciones">
+    <AccountLayout title="Notificaciones">
       <NotificationRedirect key={`${user?.id}:${id}`} id={id} />
-    </ProfileLayout>
+    </AccountLayout>
   );
 }
 
