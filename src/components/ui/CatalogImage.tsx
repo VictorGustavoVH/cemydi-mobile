@@ -14,6 +14,7 @@ type CatalogImageProps = {
   contentFit?: ImageProps['contentFit'];
   style?: ImageProps['style'];
   accessible?: boolean;
+  cachePolicy?: ImageProps['cachePolicy'];
 };
 
 export function CatalogImage(props: CatalogImageProps) {
@@ -30,6 +31,7 @@ function CatalogImageContent({
   contentFit = 'contain',
   style,
   accessible = true,
+  cachePolicy = 'memory-disk',
   identity,
 }: CatalogImageProps & { identity: string }) {
   const [failed, setFailed] = useState(false);
@@ -62,7 +64,7 @@ function CatalogImageContent({
       placeholder={placeholderHash ? { blurhash: placeholderHash } : undefined}
       placeholderContentFit={contentFit}
       recyclingKey={identity}
-      cachePolicy="memory-disk"
+      cachePolicy={cachePolicy}
       transition={(remote || placeholderHash) && !reducedMotion ? 150 : 0}
     />
   );

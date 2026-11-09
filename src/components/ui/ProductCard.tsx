@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, useState } from 'react';
 import { Text, View, useWindowDimensions } from 'react-native';
 import Star from 'lucide-react-native/icons/star';
 
@@ -16,6 +16,8 @@ type ProductCardProps = {
   onPress: () => void;
   className?: string;
   throttleMs?: number;
+  /** Ancho ya medido por la cuadrícula o el carrusel. */
+  imageWidth?: number;
 };
 
 export const ProductCard = memo(function ProductCard({
@@ -24,8 +26,11 @@ export const ProductCard = memo(function ProductCard({
   ratingState,
   onPress,
   throttleMs = 750,
+  imageWidth,
 }: ProductCardProps) {
   const { fontScale } = useWindowDimensions();
+  const [cardWidth, setCardWidth] = useState<number>();
+  const imageHeight = Math.min(160, Math.max(0, ((imageWidth ?? cardWidth ?? 240) * 2) / 3));
 
   const handlePress = useThrottledCallback(onPress, throttleMs);
 
@@ -80,83 +85,82 @@ export const ProductCard = memo(function ProductCard({
 
   return (
     <AppButton
-      className={`w-full grow flex-col items-stretch justify-start overflow-hidden rounded-xl border border-[#e7edef] px-0 py-0 ${unavailable ? 'bg-[#f7f9f9]' : 'bg-white'} ${className} `}
+      className={`w-full grow flex-col items-stretch justify-start overflow-hidden rounded-xl border border-border-subtle px-0 py-0 ${unavailable ? 'bg-surface-muted' : 'bg-surface'} ${className} `}
       label={accessibilityLabel}
       onPress={handlePress}
+      onLayout={(event) => {
+        const nextWidth = event.nativeEvent.layout.width;
+        if (imageWidth === undefined && nextWidth > 0)
+          setCardWidth((current) => (current === nextWidth ? current : nextWidth));
+      }}
       variant="unstyled"
     >
       <View className="w-full grow">
-        {/* IMAGEN DEL PRODUCTO */}
-        <View
-          className="relative w-full overflow-hidden border-b border-[#fff] bg-[#fff]"
-          style={{ aspectRatio: 1 }}
-        >
-          <View className="absolute inset-0 px-1 pb-1 pt-6">
-            <CatalogImage
-              label={product.name}
-              source={product.image}
-              blurhash={product.imageBlurhash}
-              accessible={false}
-              style={unavailable ? { opacity: 0.4 } : undefined}
-            />
-          </View>
+        {/* ETIQUETAS DE ADQUISICIÓN */}
+        <View className="flex-row flex-wrap gap-1 p-2">
+          {hasPurchase ? (
+            <View className="rounded bg-brand-strong px-2 py-1">
+              <Text className="font-sans-semibold text-sm uppercase tracking-wide text-on-brand">
+                Venta
+              </Text>
+            </View>
+          ) : null}
 
-          {/* ETIQUETAS DE ADQUISICIÓN */}
-          <View className="absolute left-2 top-2 flex-row flex-wrap gap-1">
-            {hasPurchase ? (
-              <View className="rounded bg-[#258e8b] px-2 py-1">
-                <Text className="font-sans-semibold text-[9px] uppercase tracking-wide text-white">
-                  Venta
-                </Text>
-              </View>
-            ) : null}
-
-            {hasRental ? (
-              <View className="rounded bg-[#2f6fa3] px-2 py-1">
-                <Text className="font-sans-semibold text-[9px] uppercase tracking-wide text-white">
-                  Renta
-                </Text>
-              </View>
-            ) : null}
-          </View>
-
-          {/* PRODUCTO NO DISPONIBLE */}
-          {unavailable ? (
-            <View className="absolute bottom-2 left-2 rounded bg-white/95 px-2 py-1">
-              <Text className="font-sans-semibold text-[10px] text-secondary">No disponible</Text>
+          {hasRental ? (
+            <View className="rounded bg-rental px-2 py-1">
+              <Text className="font-sans-semibold text-sm uppercase tracking-wide text-on-brand">
+                Renta
+              </Text>
             </View>
           ) : null}
         </View>
 
+        {/* Altura concreta para expo-image; no depende de porcentajes en una capa absoluta. */}
+        <View className="w-full bg-surface" style={{ height: imageHeight, maxHeight: 160 }}>
+          <CatalogImage
+            label={product.name}
+            source={product.image}
+            blurhash={product.imageBlurhash}
+            accessible={false}
+            contentFit="contain"
+            style={{ width: '100%', height: imageHeight, backgroundColor: colors.surface }}
+          />
+        </View>
+
         {/* INFORMACIÓN DEL PRODUCTO */}
         <View className="grow p-3">
-          {/* CAPTION Y CALIFICACIÓN */}
-          <View className="mb-1 flex-row items-center justify-between gap-2">
-            {/* CAPTION */}
-            <Text
-              numberOfLines={1}
-              className="min-w-0 flex-1 font-sans-semibold text-[10px] uppercase tracking-wide text-[#667b84]"
-            >
+          {/* PRODUCTO NO DISPONIBLE */}
+          {unavailable ? (
+            <View className="self-start rounded bg-surface-muted px-2 py-1">
+              <Text className="font-sans-semibold text-sm text-secondary">No disponible</Text>
+            </View>
+          ) : null}
+          <View className="mb-1 flex-row items-start justify-between gap-2">
+            <Text className="min-w-0 flex-1 font-sans-semibold text-sm uppercase tracking-wide text-secondary">
               {product.caption ?? ''}
             </Text>
+            <View style={{ flexShrink: 1, alignItems: 'flex-end', marginLeft: 'auto' }}>
+              <View className="max-w-full flex-row flex-wrap items-center justify-end gap-1">
+                <Star
+                  aria-hidden
+                  size={13}
+                  color={rating ? colors.rating : colors.textSecondary}
+                  fill={rating ? colors.rating : 'none'}
+                  strokeWidth={1.5}
+                />
 
-            {/* ESTRELLA Y CALIFICACIÓN */}
-            <View className="shrink-0 flex-row items-center gap-1">
-              <Star
-                aria-hidden
-                size={13}
-                color={rating ? colors.rating : colors.textSecondary}
-                fill={rating ? colors.rating : 'none'}
-                strokeWidth={1.5}
-              />
-
-              {rating !== undefined ? (
-                <Text className="font-sans-semibold text-xs text-primary">{rating.toFixed(1)}</Text>
-              ) : ratingState?.isFetching && !ratingState.isPaused ? (
-                <SkeletonBlock className="h-3 w-7" />
-              ) : (
-                <Text className="font-sans text-[10px] text-secondary">{ratingLabel}</Text>
-              )}
+                {rating !== undefined ? (
+                  <Text className="font-sans-semibold text-sm text-primary">
+                    {rating.toFixed(1)}
+                  </Text>
+                ) : ratingState?.isFetching && !ratingState.isPaused ? (
+                  <SkeletonBlock className="h-3 w-7" />
+                ) : (
+                  <Text className="shrink text-right font-sans text-sm text-secondary">
+                    {ratingLabel}
+                  </Text>
+                )}
+              </View>
             </View>
           </View>
 
@@ -165,20 +169,20 @@ export const ProductCard = memo(function ProductCard({
             numberOfLines={2}
             style={{ minHeight: 40 * fontScale }}
             className={`font-sans-semibold text-sm leading-5 ${
-              unavailable ? 'text-secondary' : 'text-[#142734]'
+              unavailable ? 'text-secondary' : 'text-primary'
             }`}
           >
             {product.name}
           </Text>
 
           {/* PRECIO Y PROMOCIONES */}
-          <View className="mt-auto pt-3">
+          <View className="pt-3">
             {/* TIPO DE PRECIO */}
-            <Text className="font-sans text-[11px] text-[#71858d]">{priceLabel}</Text>
+            <Text className="font-sans text-sm text-secondary">{priceLabel}</Text>
 
             {/* PRECIO ORIGINAL */}
             {hasDiscount ? (
-              <Text className="mt-1 font-sans text-xs text-[#84959b] line-through">
+              <Text className="mt-1 font-sans text-sm text-secondary line-through">
                 {product.originalPrice}
               </Text>
             ) : null}
@@ -186,26 +190,23 @@ export const ProductCard = memo(function ProductCard({
             {/* PRECIO ACTUAL */}
             <View className="mt-1 flex-row flex-wrap items-baseline gap-x-1">
               <Text
-                numberOfLines={1}
-                adjustsFontSizeToFit
-                minimumFontScale={0.8}
-                className={`font-sans-bold text-lg ${
-                  unavailable ? 'text-secondary' : 'text-[#172f38]'
+                className={`max-w-full shrink font-sans-bold text-lg ${
+                  unavailable ? 'text-secondary' : 'text-primary'
                 }`}
               >
                 {product.price}
               </Text>
 
               {product.priceSuffix ? (
-                <Text className="font-sans text-[10px] text-[#71858d]">{product.priceSuffix}</Text>
+                <Text className="font-sans text-sm text-secondary">{product.priceSuffix}</Text>
               ) : null}
             </View>
 
             {/* DESCUENTO */}
             {hasDiscount ? (
               <View className="mt-2 flex-row">
-                <View className="rounded-full bg-[#e9f5f3] px-2 py-1">
-                  <Text className="font-sans-semibold text-[10px] text-[#258e8b]">
+                <View className="rounded-full bg-brand-muted px-2 py-1">
+                  <Text className="font-sans-semibold text-sm text-brand-strong">
                     -{product.discountPercent}%
                   </Text>
                 </View>
@@ -214,9 +215,7 @@ export const ProductCard = memo(function ProductCard({
 
             {/* RECETA MÉDICA */}
             {product.prescription ? (
-              <Text className="mt-2 font-sans-medium text-[10px] text-[#667b84]">
-                Requiere receta
-              </Text>
+              <Text className="mt-2 font-sans-medium text-sm text-secondary">Requiere receta</Text>
             ) : null}
           </View>
         </View>
