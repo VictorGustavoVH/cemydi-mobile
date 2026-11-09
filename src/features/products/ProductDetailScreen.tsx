@@ -1,10 +1,14 @@
-import { useMemo, useRef, useState, type ReactNode } from 'react';
+import { RatingStars } from '@/components/ui/RatingStars';
+import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Modal, ScrollView, Text, View, useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useContainerWidth } from '@/hooks/useContainerWidth';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
 import ShoppingBag from 'lucide-react-native/icons/shopping-bag';
 import ShoppingCart from 'lucide-react-native/icons/shopping-cart';
 import Star from 'lucide-react-native/icons/star';
+import { ReviewEntryButton } from '@/features/reviews';
 import X from 'lucide-react-native/icons/x';
 import FileText from 'lucide-react-native/icons/file-text';
 import { AppButton } from '@/components/ui/AppButton';
@@ -20,7 +24,6 @@ import {
 } from './components/product-detail-layout';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { SkeletonBlock } from '@/components/ui/Skeleton';
-import { getProductPreview, getRecommendationsPreview } from '@/data/product-detail-preview';
 import type { ProductDetailPreview } from '@/data/product-detail-preview';
 import type { HomeProduct } from '@/data/catalog-preview';
 import type { ProductReviews } from '@/services/products/product-schemas';
@@ -34,30 +37,23 @@ import { useProductRatings } from '@/hooks/useProductRatings';
 import { prefetchProductDetail } from '@/services/products/product-cache';
 import { colors } from '@/theme';
 import { useToast, useToastScroll } from '@/hooks/useToast';
+const EMPTY_RECOMMENDATIONS: HomeProduct[] = [];
+
 type ProductDetailScreenProps = {
   productId: string;
   initialMode?: PreviewCartItem['mode'];
   suppliedProduct?: ProductDetailPreview;
+  productSlug?: string;
   remoteStatus?: ReactNode;
   suppliedReviews?: ProductReviews;
   suppliedRecommendations?: HomeProduct[];
   reviewsStatus?: ReactNode;
+  hasMoreReviews?: boolean;
+  loadingMoreReviews?: boolean;
+  reviewsLoadDisabled?: boolean;
+  onLoadMoreReviews?: () => void;
   recommendationsStatus?: ReactNode;
 };
-const sampleReviews = [
-  {
-    id: '1',
-    author: 'Cliente A',
-    rating: 5,
-    text: 'La información del equipo me ayudó a elegir entre compra y renta.',
-  },
-  {
-    id: '2',
-    author: 'Cliente B',
-    rating: 4,
-    text: 'Me resultó útil revisar las características antes de añadirlo al carrito.',
-  },
-];
 export function ProductDetailScreen(props: ProductDetailScreenProps) {
   // Remontar el contenido cuando cambia de producto, evitando setState en efectos.
   const identity = `${props.productId}:${props.suppliedProduct?.id ?? ''}:${props.initialMode ?? ''}`;
@@ -68,20 +64,28 @@ function ProductDetailContent({
   productId,
   initialMode,
   suppliedProduct,
+  productSlug,
   remoteStatus,
   suppliedReviews,
   suppliedRecommendations,
   reviewsStatus,
+  hasMoreReviews,
+  loadingMoreReviews,
+  reviewsLoadDisabled,
+  onLoadMoreReviews,
   recommendationsStatus,
 }: ProductDetailScreenProps) {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const toast = useToast();
   const onToastScroll = useToastScroll();
-  const { width, fontScale } = useWindowDimensions();
+  const { fontScale } = useWindowDimensions();
+  const { width, onLayout: onGalleryLayout } = useContainerWidth();
+  const { width: zoomWidth, onLayout: onZoomLayout } = useContainerWidth();
   const galleryHeight = productDetailGalleryHeight(width);
-  const product = suppliedProduct ?? getProductPreview(productId);
-  const connected = suppliedProduct !== undefined;
+  const product = suppliedProduct;
+  const connected = /^[1-9]\d*$/.test(productId) && suppliedProduct !== undefined;
   const productImages = useMemo(
     () =>
       product
@@ -97,11 +101,7 @@ function ProductDetailContent({
         : [],
     [product],
   );
-  const recommendations = useMemo(
-    () =>
-      suppliedRecommendations ?? (product && !connected ? getRecommendationsPreview(product) : []),
-    [product, connected, suppliedRecommendations],
-  );
+  const recommendations = suppliedRecommendations ?? EMPTY_RECOMMENDATIONS;
   const recommendationIds = useMemo(
     () => recommendations.map((item) => item.id),
     [recommendations],
@@ -131,6 +131,12 @@ function ProductDetailContent({
   const zoomCarouselRef = useRef<ScrollView>(null);
   const activePhotoIndexRef = useRef(0);
   const targetPhotoIndexRef = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    const index = activePhotoIndexRef.current;
+    targetPhotoIndexRef.current = null;
+    carouselRef.current?.scrollTo({ x: index * width, animated: false });
+    zoomCarouselRef.current?.scrollTo({ x: index * zoomWidth, animated: false });
+  }, [width, zoomWidth, zoomed]);
   const reviewsOffset = useRef(0);
   const contentOffset = useRef(0);
   const centerThumbnail = (index: number) => {
@@ -174,23 +180,18 @@ function ProductDetailContent({
     );
   const rental = mode === 'rental';
   const price = rental ? product.rental?.price : product.price;
-  const reviews = connected
-    ? (suppliedReviews?.reviews.map((review) => ({
-        id: String(review.id),
-        author: review.user.nombre,
-        rating: review.rating,
-        text: review.comment,
-      })) ?? [])
-    : product.id === 'bed' || product.id === 'wheelchair'
-      ? sampleReviews
-      : [];
-  const averageRating = connected
-    ? (suppliedReviews?.summary.averageRating ?? 0)
-    : reviews.length
-      ? 4.5
-      : 0;
+  const reviews =
+    suppliedReviews?.reviews.map((review) => ({
+      id: String(review.id),
+      author: review.user.nombre,
+      rating: review.rating,
+      text: review.comment,
+    })) ?? [];
+  const averageRating = suppliedReviews?.summary.averageRating ?? 0;
+  const reviewCount = suppliedReviews?.summary.count ?? 0;
   const visibleReviews = showAllReviews ? reviews : reviews.slice(0, 2);
   const compact = width < 350 || fontScale > 1.3;
+  const recommendationWidth = Math.min(recommendationCardWidth(compact), Math.max(0, width - 40));
   const cartCount = items.reduce((count, item) => count + item.quantity, 0);
   const atQuantityLimit = items.some(
     (item) =>
@@ -210,6 +211,7 @@ function ProductDetailContent({
       >
         <View className="bg-white">
           <ProductDetailHeader
+            productSlug={productSlug}
             productId={product.id}
             productName={product.name}
             productCaption={product.caption}
@@ -221,7 +223,8 @@ function ProductDetailContent({
             pagingEnabled
             showsHorizontalScrollIndicator={false}
             decelerationRate="fast"
-            className="aspect-square w-full"
+            className="w-full"
+            onLayout={onGalleryLayout}
             style={{ height: galleryHeight }}
             scrollEventThrottle={16}
             onScrollBeginDrag={() => {
@@ -314,7 +317,7 @@ function ProductDetailContent({
                   accessibilityRole="button"
                   accessibilityLabel={
                     reviews.length
-                      ? `Calificación ${averageRating} de 5 estrellas, ${reviews.length} reseñas. Ver reseñas.`
+                      ? `Calificación ${averageRating} de 5 estrellas, ${reviewCount} reseñas. Ver reseñas.`
                       : 'Sin reseñas. Ver reseñas.'
                   }
                 >
@@ -329,7 +332,7 @@ function ProductDetailContent({
                   </Text>
                   {reviews.length > 0 ? (
                     <Text numberOfLines={1} className="font-sans text-xs text-secondary">
-                      ({reviews.length})
+                      ({reviewCount})
                     </Text>
                   ) : null}
                 </AppButton>
@@ -401,9 +404,11 @@ function ProductDetailContent({
               <Text className="font-sans-bold text-3xl text-primary">
                 {price ?? 'Consultar tarifa'}
               </Text>
-              <Text className="font-sans text-sm text-secondary">
-                {rental ? 'MXN / día' : 'MXN'}
-              </Text>
+              {price ? (
+                <Text className="font-sans text-sm text-secondary">
+                  {rental ? 'MXN / día' : 'MXN'}
+                </Text>
+              ) : null}
             </View>
             {!connected ? (
               <Text className="font-sans text-sm leading-5 text-secondary">
@@ -502,52 +507,51 @@ function ProductDetailContent({
                 <View className="flex-row items-baseline gap-2">
                   <Text className="font-sans-bold text-3xl text-primary">{averageRating}</Text>
                   <Text className="font-sans text-sm text-secondary">
-                    de 5 · {reviews.length} {reviews.length === 1 ? 'reseña' : 'reseñas'}
+                    de 5 · {reviewCount} {reviewCount === 1 ? 'reseña' : 'reseñas'}
                   </Text>
                 </View>
                 {visibleReviews.map((review) => (
                   <View key={review.id} className="gap-2 border-b border-border/30 pb-4">
                     <View className="flex-row flex-wrap items-center justify-between gap-2">
                       <Text className="font-sans-medium text-sm text-primary">{review.author}</Text>
-                      <View
-                        accessibilityLabel={`${review.rating} de 5 estrellas`}
-                        className="flex-row gap-1"
-                      >
-                        {[1, 2, 3, 4, 5].map((value) => (
-                          <Star
-                            key={value}
-                            aria-hidden
-                            color={value <= review.rating ? colors.rating : colors.disabled}
-                            fill={value <= review.rating ? colors.rating : 'none'}
-                            size={14}
-                          />
-                        ))}
-                      </View>
+                      <RatingStars rating={review.rating} />
                     </View>
                     <Text className="font-sans text-sm leading-6 text-secondary">
                       {review.text}
                     </Text>
                   </View>
                 ))}
-                {reviews.length > 2 ? (
+                {reviews.length > 2 || hasMoreReviews ? (
                   <View className="w-full items-center justify-center pt-2">
                     <AppButton
                       variant="ghost"
                       label={showAllReviews ? 'Ver menos' : 'Ver más'}
                       accessibilityLabel={showAllReviews ? 'Ver menos reseñas' : 'Ver más reseñas'}
                       className="self-center px-6 py-2.5"
-                      labelClassName="font-sans-semibold text-base text-brand"
+                      labelClassName="font-sans-semibold text-base text-brand-strong"
                       onPress={() => setShowAllReviews((current) => !current)}
                     />
                   </View>
                 ) : null}
+                {showAllReviews && hasMoreReviews ? (
+                  <AppButton
+                    label="Cargar más reseñas"
+                    variant="outline"
+                    loading={loadingMoreReviews}
+                    disabled={reviewsLoadDisabled}
+                    onPress={onLoadMoreReviews}
+                  />
+                ) : null}
               </>
             ) : !connected || suppliedReviews ? (
               <EmptyState
+                fill={false}
+                icon={<Star aria-hidden color={colors.disabled} size={40} />}
                 title="Todavía no hay reseñas"
                 description="Las opiniones aparecerán aquí cuando estén disponibles."
               />
             ) : null}
+            <ReviewEntryButton productId={productId} />
           </View>
           {recommendations.length > 0 || connected ? (
             <View className="gap-4">
@@ -566,9 +570,15 @@ function ProductDetailContent({
                 contentContainerStyle={{ gap: 12, paddingBottom: 4, alignItems: 'flex-start' }}
               >
                 {recommendations.map((item) => (
-                  <View key={item.id} style={{ width: recommendationCardWidth(compact) }}>
+                  <View
+                    key={item.id}
+                    style={{
+                      width: recommendationWidth,
+                    }}
+                  >
                     <ProductCard
                       className="w-full"
+                      imageWidth={recommendationWidth}
                       product={item}
                       ratingState={recommendationRatings[item.id]}
                       onPress={() => {
@@ -590,8 +600,15 @@ function ProductDetailContent({
         animationType="fade"
         onRequestClose={() => setZoomed(false)}
       >
-        <View accessibilityViewIsModal className="flex-1 justify-between bg-black/95">
-          <View className="z-20 flex-row items-center justify-end px-5 pt-12">
+        <View
+          accessibilityViewIsModal
+          className="flex-1 justify-between bg-black/95"
+          style={{ paddingLeft: insets.left, paddingRight: insets.right }}
+        >
+          <View
+            className="z-20 flex-row items-center justify-end px-5"
+            style={{ paddingTop: insets.top + 8 }}
+          >
             <AppButton
               hideLabel
               label="Cerrar vista ampliada"
@@ -603,8 +620,13 @@ function ProductDetailContent({
           </View>
           <ScrollView
             ref={zoomCarouselRef}
-            onLayout={() =>
-              zoomCarouselRef.current?.scrollTo({ x: photoIndex * width, animated: false })
+            accessibilityLabel="Galería ampliada"
+            onLayout={onZoomLayout}
+            onContentSizeChange={() =>
+              zoomCarouselRef.current?.scrollTo({
+                x: activePhotoIndexRef.current * zoomWidth,
+                animated: false,
+              })
             }
             horizontal
             pagingEnabled
@@ -612,7 +634,7 @@ function ProductDetailContent({
             className="flex-1"
             onMomentumScrollEnd={(event) => {
               const newIndex = Math.min(
-                Math.max(Math.round(event.nativeEvent.contentOffset.x / width), 0),
+                Math.max(Math.round(event.nativeEvent.contentOffset.x / Math.max(1, zoomWidth)), 0),
                 productImages.length - 1,
               );
               activePhotoIndexRef.current = newIndex;
@@ -628,7 +650,7 @@ function ProductDetailContent({
                     variant="unstyled"
                     label="Cerrar vista ampliada"
                     key={image.id}
-                    style={{ width }}
+                    style={{ width: zoomWidth }}
                     className="flex-1 items-center justify-center p-4"
                     onPress={() => setZoomed(false)}
                     accessibilityLabel="Cerrar vista ampliada"
@@ -644,7 +666,7 @@ function ProductDetailContent({
                 ))
               : null}
           </ScrollView>
-          <View className="pb-6" />
+          <View style={{ height: insets.bottom + 8 }} />
         </View>
       </Modal>
       <View className="gap-2 border-t border-border/40 bg-background px-5 pb-2 pt-3">
@@ -680,7 +702,7 @@ function ProductDetailContent({
             onPress={() => {
               void (async () => {
                 try {
-                  await addItem(product.id, mode, connected ? product : undefined);
+                  await addItem(product.id, mode, product);
                   toast.success('Producto agregado');
                 } catch (error) {
                   toast.error(getFriendlyErrorMessage(error));

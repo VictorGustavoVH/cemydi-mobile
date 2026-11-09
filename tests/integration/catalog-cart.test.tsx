@@ -4,7 +4,7 @@ import { render } from '../support/render-with-toast';
 import { installNetworkMock } from '../support/network-mock';
 import { CatalogPreviewProvider } from '../support/catalog-cart-provider';
 import { HomeScreen } from '@/features/home/HomeScreen';
-import { ProductDetailScreen } from '@/features/products/ProductDetailScreen';
+import { PreviewProductDetailScreen as ProductDetailScreen } from '../support/PreviewProductDetailScreen';
 import { CartPreviewScreen } from '@/features/cart/CartPreviewScreen';
 import { homeService } from '@/features/home/services/homeService.api';
 import { installHomePreviewApiMock } from '../support/home-preview-api-mock';
@@ -90,7 +90,7 @@ describe('Catálogo, detalle y carrito con estado de sesión compartido', () => 
     await fireEvent.press(screen.getByRole('button', { name: 'Movilidad' }));
     expect(mockPush).toHaveBeenLastCalledWith({
       pathname: '/catalogo',
-      params: { search: 'Movilidad', t: expect.any(String) },
+      params: { clasificacion: 'Movilidad', t: expect.any(String) },
     });
     await waitFor(() =>
       expect(screen.getAllByRole('button', { name: /Ver producto$/ })).toHaveLength(6),

@@ -1,6 +1,7 @@
-import { useMemo } from 'react';
+import { useContainerWidth } from '@/hooks/useContainerWidth';
+import { useProductDetail } from './hooks/useProductDetail';
+import { useProductRecommendations } from './hooks/useProductRecommendations';
 import { ScrollView, Text, View, useWindowDimensions } from 'react-native';
-import { useQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query';
 
 import { AppScreen } from '@/components/ui/AppScreen';
 import { ErrorState } from '@/components/ui/ErrorState';
@@ -13,10 +14,6 @@ import { useProductOffers } from '@/hooks/useProductOffers';
 import { useProductReviews } from '@/hooks/useProductReviews';
 
 import { getFriendlyErrorMessage, isApiError } from '@/services/http/api-error';
-import { productDetailKey } from '@/services/products/product-cache';
-import { toProductCard, toProductDetail } from '@/services/products/product-adapter';
-import type { Product, ProductList } from '@/services/products/product-schemas';
-import { productRepository } from '@/services/products/product-repository';
 
 import { ProductDetailScreen } from './ProductDetailScreen';
 import { ProductDetailHeader } from './components/ProductDetailHeader';
@@ -36,7 +33,8 @@ type ConnectedProductDetailScreenProps = {
 // --------------------------------------------------
 
 function ProductDetailSkeleton() {
-  const { width, fontScale } = useWindowDimensions();
+  const { fontScale } = useWindowDimensions();
+  const { width, onLayout } = useContainerWidth();
 
   const compact = width < 350 || fontScale > 1.3;
   const galleryHeight = productDetailGalleryHeight(width);
@@ -44,7 +42,7 @@ function ProductDetailSkeleton() {
   return (
     <Skeleton label="Cargando producto…">
       {/* IMAGEN PRINCIPAL */}
-      <View className="w-full bg-white" style={{ height: galleryHeight }}>
+      <View onLayout={onLayout} className="w-full bg-white" style={{ height: galleryHeight }}>
         <View className="h-full w-full p-6">
           <SkeletonBlock className="h-full w-full rounded-xl" />
         </View>
@@ -161,7 +159,10 @@ function ProductDetailSkeleton() {
                 style={{ width: recommendationCardWidth(compact) }}
                 className="overflow-hidden rounded-xl border border-border/50 bg-white"
               >
-                <SkeletonBlock className="aspect-square w-full rounded-none" />
+                <SkeletonBlock
+                  className="w-full rounded-none"
+                  style={{ aspectRatio: 3 / 2, maxHeight: 160 }}
+                />
 
                 <View className="p-3">
                   <View className="mb-1 flex-row items-center justify-between gap-2">
@@ -196,88 +197,35 @@ export function ConnectedProductDetailScreen({
 }: ConnectedProductDetailScreenProps) {
   const { isOnline } = useNetworkStatus();
 
-  const queryClient = useQueryClient();
-  const cachedProduct = useMemo(() => {
-    let newest: { product: Product; updatedAt: number } | undefined;
-    const lists = queryClient.getQueriesData<InfiniteData<ProductList> | ProductList>({
-      queryKey: ['products', 'list'],
-    });
-    const recommendations = queryClient.getQueriesData<{ recommendations: Product[] }>({
-      queryKey: ['products', 'recommendations'],
-    });
-    for (const [key, data] of lists) {
-      const products = !data
-        ? []
-        : 'pages' in data
-          ? data.pages.flatMap((page) => page.products)
-          : data.products;
-      const product = products.find((item) => String(item.id) === productId);
-      const updatedAt = queryClient.getQueryState(key)?.dataUpdatedAt ?? 0;
-      if (product && (!newest || updatedAt > newest.updatedAt)) newest = { product, updatedAt };
-    }
-    for (const [key, data] of recommendations) {
-      const product = data?.recommendations.find((item) => String(item.id) === productId);
-      const updatedAt = queryClient.getQueryState(key)?.dataUpdatedAt ?? 0;
-      if (product && (!newest || updatedAt > newest.updatedAt)) newest = { product, updatedAt };
-    }
-    return newest;
-  }, [productId, queryClient]);
-
-  // DETALLES DEL PRODUCTO
-  const query = useQuery({
-    queryKey: productDetailKey(productId),
-    queryFn: ({ signal }) => productRepository.detail(productId, signal),
-    enabled: Boolean(productId),
-    staleTime: 30_000,
-    initialData: () => cachedProduct && { product: cachedProduct.product },
-    initialDataUpdatedAt: cachedProduct?.updatedAt,
-  });
-
-  // PROMOCIONES
   const offers = useProductOffers();
-
-  // RESEÑAS
+  const { query, product } = useProductDetail(productId, offers.data?.promotions, offers.ready);
   const reviews = useProductReviews(productId);
-
-  // RECOMENDACIONES
-  const recommendations = useQuery({
-    queryKey: ['products', 'recommendations', productId],
-    queryFn: ({ signal }) => productRepository.recommendations(productId, signal),
-    enabled: Boolean(productId),
-    staleTime: 30_000,
-  });
-
-  // ADAPTAR PRODUCTOS RECOMENDADOS
-  const recommendedProducts = useMemo(
-    () =>
-      recommendations.data?.recommendations.map((item) =>
-        toProductCard(item, offers.data?.promotions),
-      ) ?? [],
-    [recommendations.data, offers.data],
+  const { query: recommendations, products: recommendedProducts } = useProductRecommendations(
+    productId,
+    offers.data?.promotions,
   );
-
-  // ADAPTAR DETALLES DEL PRODUCTO
-  // Las ofertas añaden precio tachado y porcentaje al bloque de precio: no se
-  // pinta la ficha hasta conocerlas para no desplazar el contenido después.
-  const product = useMemo(
-    () =>
-      query.data && offers.ready
-        ? toProductDetail(query.data.product, offers.data?.promotions)
-        : undefined,
-    [query.data, offers.data, offers.ready],
-  );
+  const unavailable =
+    query.data?.product.activo === false || (isApiError(query.error) && query.error.status === 404);
 
   // --------------------------------------------------
   // PRODUCTO CARGADO
   // --------------------------------------------------
 
-  if (product) {
+  if (product && !unavailable) {
     return (
       <ProductDetailScreen
         productId={productId}
         initialMode={initialMode}
         suppliedProduct={product}
+        productSlug={query.data?.product.slug}
         suppliedReviews={reviews.data}
+        hasMoreReviews={reviews.hasNextPage}
+        loadingMoreReviews={reviews.isFetchingNextPage}
+        reviewsLoadDisabled={isOnline === false || reviews.isFetching}
+        onLoadMoreReviews={() => {
+          if (isOnline !== false && reviews.hasNextPage && !reviews.isFetching)
+            void reviews.fetchNextPage({ cancelRefetch: false });
+        }}
         suppliedRecommendations={recommendedProducts}
 
         // ESTADO DE LAS RESEÑAS
@@ -305,6 +253,18 @@ export function ConnectedProductDetailScreen({
                 onRetry={() => void reviews.refetch()}
               />
             )
+          ) : isOnline === false && reviews.hasNextPage ? (
+            <Text className="font-sans text-sm text-secondary">
+              Conéctate para cargar más reseñas.
+            </Text>
+          ) : reviews.isFetchNextPageError ? (
+            <ErrorState
+              description="No pudimos cargar más reseñas."
+              onRetry={() => {
+                if (isOnline !== false && !reviews.isFetching)
+                  void reviews.fetchNextPage({ cancelRefetch: false });
+              }}
+            />
           ) : reviews.isRefetchError ? (
             <ErrorState
               description="No pudimos actualizar las reseñas."
@@ -326,7 +286,10 @@ export function ConnectedProductDetailScreen({
                       key={index}
                       className="w-36 overflow-hidden rounded-xl border border-border/50"
                     >
-                      <SkeletonBlock className="aspect-square w-full rounded-none" />
+                      <SkeletonBlock
+                        className="w-full rounded-none"
+                        style={{ aspectRatio: 3 / 2, maxHeight: 160 }}
+                      />
 
                       <View className="gap-2 p-3">
                         <SkeletonBlock className="h-3 w-2/3 rounded" />
@@ -393,15 +356,15 @@ export function ConnectedProductDetailScreen({
         {/* ENCABEZADO: VOLVER, FAVORITO Y COMPARTIR */}
         <ProductDetailHeader productId={productId} fallbackHref="/catalogo" />
 
-        {isOnline === false ? (
-          <OfflineState />
-        ) : query.isPending || !offers.ready ? (
-          <ProductDetailSkeleton />
-        ) : isApiError(query.error) && query.error.status === 404 ? (
+        {unavailable ? (
           <EmptyState
             title="Producto no disponible"
             description="Este producto ya no está publicado. Regresa al catálogo para consultar otros equipos."
           />
+        ) : isOnline === false ? (
+          <OfflineState />
+        ) : query.isPending || !offers.ready ? (
+          <ProductDetailSkeleton />
         ) : (
           <ErrorState
             description={getFriendlyErrorMessage(query.error)}

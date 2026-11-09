@@ -3,7 +3,7 @@ import { render } from '../../../../tests/support/render-with-toast';
 import { Share } from 'react-native';
 import { CatalogPreviewProvider } from '../../../../tests/support/catalog-cart-provider';
 import { CartPreviewScreen } from '@/features/cart/CartPreviewScreen';
-import { ProductDetailScreen } from '../ProductDetailScreen';
+import { PreviewProductDetailScreen as ProductDetailScreen } from '../../../../tests/support/PreviewProductDetailScreen';
 import * as preview from '@/data/product-detail-preview';
 
 jest.mock('expo-router', () => ({

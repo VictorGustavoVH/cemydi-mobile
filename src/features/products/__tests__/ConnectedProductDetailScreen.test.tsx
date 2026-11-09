@@ -6,6 +6,7 @@ import {
   productFixture,
   productOfferFixture,
   productPage,
+  productReviewPage,
 } from '../../../../tests/support/product-fixtures';
 import { emptyProductFilters, productService } from '@/services/products/product-service';
 import { productDetailKey } from '@/services/products/product-cache';
@@ -32,6 +33,182 @@ describe('Detalle público conectado', () => {
       .spyOn(productService, 'reviews')
       .mockResolvedValue({ reviews: [], summary: { count: 0, averageRating: 0 } });
     jest.spyOn(productService, 'recommendations').mockResolvedValue({ recommendations: [] });
+  });
+  it('muestra el total global, carga más solo al pulsar y bloquea doble envío y carga offline', async () => {
+    const network = installNetworkMock();
+    jest.spyOn(productService, 'detail').mockResolvedValue({ product: productFixture(1) });
+    let finish!: (value: ReturnType<typeof productReviewPage>) => void;
+    const request = jest
+      .spyOn(productService, 'reviews')
+      .mockResolvedValueOnce(productReviewPage(1))
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finish = resolve;
+          }),
+      );
+    await render(
+      <CatalogPreviewProvider>
+        <ConnectedProductDetailScreen productId="1" />
+      </CatalogPreviewProvider>,
+    );
+    await screen.findByText('Reseña paginada 1');
+    expect(screen.getByText('de 5 · 12 reseñas')).toBeTruthy();
+    expect(screen.queryByText('Reseña paginada 10')).toBeNull();
+    await fireEvent.press(screen.getByLabelText('Ver más reseñas'));
+    expect(screen.getByText('Reseña paginada 10')).toBeTruthy();
+    expect(request).toHaveBeenCalledTimes(1);
+    await act(async () => network.emit({ isInternetReachable: false }));
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Cargar más reseñas' })).toBeDisabled(),
+    );
+    await act(async () => network.emit({ isInternetReachable: true }));
+    const load = screen.getByRole('button', { name: 'Cargar más reseñas' });
+    await fireEvent.press(load);
+    await fireEvent.press(load);
+    expect(request).toHaveBeenCalledTimes(2);
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Cargar más reseñas' })).toBeDisabled(),
+    );
+    await act(async () => finish(productReviewPage(2)));
+    await screen.findByText('Reseña paginada 12');
+    expect(screen.queryByRole('button', { name: 'Cargar más reseñas' })).toBeNull();
+  });
+  it('conserva opiniones al fallar la siguiente página y ofrece reintentar', async () => {
+    jest.spyOn(productService, 'detail').mockResolvedValue({ product: productFixture(1) });
+    jest
+      .spyOn(productService, 'reviews')
+      .mockResolvedValueOnce(productReviewPage(1))
+      .mockRejectedValueOnce(new ApiError('No disponible', { kind: 'http', status: 503 }))
+      .mockResolvedValueOnce(productReviewPage(2));
+    await render(
+      <CatalogPreviewProvider>
+        <ConnectedProductDetailScreen productId="1" />
+      </CatalogPreviewProvider>,
+    );
+    await screen.findByText('Reseña paginada 1');
+    await fireEvent.press(screen.getByLabelText('Ver más reseñas'));
+    await fireEvent.press(screen.getByRole('button', { name: 'Cargar más reseñas' }));
+    await screen.findByText('No pudimos cargar más reseñas.');
+    expect(screen.getByText('Reseña paginada 10')).toBeTruthy();
+    await fireEvent.press(screen.getByRole('button', { name: 'Reintentar' }));
+    await screen.findByText('Reseña paginada 12');
+  });
+  it.each(['purchase', 'rental'] as const)(
+    'no muestra la ficha ni permite agregar en modo %s si llega activo=false con HTTP 200',
+    async (initialMode) => {
+      jest
+        .spyOn(productService, 'detail')
+        .mockResolvedValue({ product: productFixture(1, { activo: false }) });
+      await render(
+        <CatalogPreviewProvider>
+          <ConnectedProductDetailScreen productId="1" initialMode={initialMode} />
+        </CatalogPreviewProvider>,
+      );
+      await screen.findByText('Producto no disponible');
+      expect(screen.queryByText('Producto 1')).toBeNull();
+      expect(screen.queryByLabelText('Añadir al carrito')).toBeNull();
+      expect(screen.queryByLabelText('Añadir renta al carrito')).toBeNull();
+      expect(screen.getByLabelText('Compartir producto')).toBeDisabled();
+      expect(screen.getByLabelText('Volver')).toBeTruthy();
+    },
+  );
+  it('respeta una desactivación conocida en caché aunque aún no hayan cargado las ofertas', async () => {
+    jest.spyOn(productService, 'offers').mockReturnValue(new Promise(() => undefined));
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: Infinity } },
+    });
+    client.setQueryData(productDetailKey(1), { product: productFixture(1, { activo: false }) });
+    await render(
+      <CatalogPreviewProvider>
+        <ConnectedProductDetailScreen productId="1" />
+      </CatalogPreviewProvider>,
+      { client },
+    );
+    expect(screen.getByText('Producto no disponible')).toBeTruthy();
+    expect(screen.queryByLabelText('Cargando producto…')).toBeNull();
+    expect(screen.queryByLabelText('Añadir al carrito')).toBeNull();
+  });
+  it.each(['inactive', '404'] as const)(
+    'retira una ficha previamente activa cuando una revalidación devuelve %s',
+    async (result) => {
+      const detail = jest
+        .spyOn(productService, 'detail')
+        .mockResolvedValue({ product: productFixture(1) });
+      const client = new QueryClient({
+        defaultOptions: { queries: { retry: false, gcTime: Infinity } },
+      });
+      await render(
+        <CatalogPreviewProvider>
+          <ConnectedProductDetailScreen productId="1" />
+        </CatalogPreviewProvider>,
+        { client },
+      );
+      await screen.findByLabelText('Añadir al carrito');
+      if (result === 'inactive')
+        detail.mockResolvedValue({ product: productFixture(1, { activo: false }) });
+      else detail.mockRejectedValue(new ApiError('Retirado', { kind: 'http', status: 404 }));
+      await act(async () => {
+        await client.invalidateQueries({ queryKey: productDetailKey(1) });
+      });
+      await screen.findByText('Producto no disponible');
+      expect(screen.queryByText('Producto 1')).toBeNull();
+      expect(screen.queryByLabelText('Añadir al carrito')).toBeNull();
+    },
+  );
+  it('ofrece consultar tarifa sin unidades cuando no existe importe de renta', async () => {
+    jest
+      .spyOn(productService, 'detail')
+      .mockResolvedValue({ product: productFixture(1, { rentalDailyPrice: null }) });
+    await render(
+      <CatalogPreviewProvider>
+        <ConnectedProductDetailScreen productId="1" initialMode="rental" />
+      </CatalogPreviewProvider>,
+    );
+    await screen.findByText('Consultar tarifa');
+    expect(screen.queryByText('MXN / día')).toBeNull();
+    expect(screen.getByLabelText('Añadir renta al carrito')).toBeDisabled();
+  });
+  it('sitúa el cierre del zoom debajo del inset y pagina usando el ancho medido', async () => {
+    jest.spyOn(productService, 'detail').mockResolvedValue({
+      product: productFixture(1, {
+        images: [
+          {
+            id: 1,
+            imageUrl: 'https://images.test/one.png',
+            sortOrder: 0,
+            createdAt: '2026-10-01T00:00:00.000Z',
+          },
+          {
+            id: 2,
+            imageUrl: 'https://images.test/two.png',
+            sortOrder: 1,
+            createdAt: '2026-10-01T00:00:00.000Z',
+          },
+        ],
+      }),
+    });
+    await render(
+      <CatalogPreviewProvider>
+        <ConnectedProductDetailScreen productId="1" />
+      </CatalogPreviewProvider>,
+    );
+    await fireEvent.press(await screen.findByLabelText('Ampliar foto 1 de Producto 1'));
+    expect(screen.getAllByLabelText('Cerrar vista ampliada')[0].parent).toHaveStyle({
+      paddingTop: 52,
+    });
+    const gallery = screen.getByLabelText('Galería ampliada');
+    await fireEvent(gallery, 'layout', {
+      nativeEvent: { layout: { width: 300, height: 500, x: 0, y: 0 } },
+    });
+    await fireEvent(gallery, 'momentumScrollEnd', {
+      nativeEvent: { contentOffset: { x: 300, y: 0 } },
+    });
+    await fireEvent.press(screen.getAllByLabelText('Cerrar vista ampliada')[0]);
+    expect(screen.getByLabelText('Ver foto 2')).toHaveProp(
+      'accessibilityState',
+      expect.objectContaining({ selected: true }),
+    );
   });
   it('muestra información real y bloquea añadir productos agotados', async () => {
     jest
@@ -90,7 +267,6 @@ describe('Detalle público conectado', () => {
     );
     expect(screen.getByLabelText('Cantidad de Producto 1, compra: 1')).toBeTruthy();
     expect(screen.getByLabelText('Cantidad de Producto 1, renta: 1')).toBeTruthy();
-    expect(screen.getByText(/Carrito temporal de esta sesión/)).toBeTruthy();
     await fireEvent.press(screen.getByLabelText('Eliminar Producto 1, compra'));
     expect(screen.queryByLabelText('Cantidad de Producto 1, compra: 1')).toBeNull();
     await fireEvent.press(screen.getByLabelText('Deshacer eliminación del producto'));
