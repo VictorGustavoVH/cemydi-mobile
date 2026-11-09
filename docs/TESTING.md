@@ -375,6 +375,12 @@ Google Play Internal Testing se usará después de las validaciones automáticas
 
 ## Evidencia y límites
 
+El proveedor de pruebas registra queries y mutaciones creadas durante cada montaje,
+incluidas las retiradas por `clear()` al cambiar de cuenta. Tras desmontar sus hijos,
+cancela consultas, destruye los timers pendientes y retira sus suscripciones.
+`query-provider-cleanup.test.tsx` cubre las tres regresiones de GC sin modificar
+el QueryClient de producción ni usar `forceExit`.
+
 Registrar fecha, responsable, dispositivo/OS, commit/build, escenario, pasos, resultado esperado/observado, estado y enlace a evidencia, sin secretos ni datos personales.
 
 Siguen dependiendo de entorno o de funcionalidad:
