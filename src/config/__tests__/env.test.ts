@@ -45,4 +45,12 @@ describe('Configuración pública de entorno', () => {
     process.env.EXPO_PUBLIC_API_URL = 'https://cemydi.test.invalid';
     expect(readEnvironment()?.appEnv).toBe('production');
   });
+
+  it.each(['https://user:password@cemydi.test.invalid', 'https://user@cemydi.test.invalid'])(
+    'rechaza credenciales embebidas en la URL de API: %s',
+    (value) => {
+      process.env.EXPO_PUBLIC_API_URL = value;
+      expect(readEnvironment).toThrow('EXPO_PUBLIC_API_URL no debe incluir credenciales.');
+    },
+  );
 });

@@ -38,6 +38,10 @@ function parseApiUrl(value: string | undefined, appEnvironment: AppEnvironment):
     throw new Error('EXPO_PUBLIC_API_URL debe usar el protocolo http o https.');
   }
 
+  if (parsedUrl.username || parsedUrl.password) {
+    throw new Error('EXPO_PUBLIC_API_URL no debe incluir credenciales.');
+  }
+
   if (appEnvironment === 'production' && parsedUrl.protocol !== 'https:') {
     throw new Error('EXPO_PUBLIC_API_URL debe usar https en production.');
   }

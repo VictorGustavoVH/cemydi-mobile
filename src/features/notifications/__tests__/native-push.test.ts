@@ -207,3 +207,74 @@ it('shares one OS prompt between simultaneous access requests', async () => {
     '1',
   );
 });
+
+it('PUSH-01: solicita permiso nativo una sola vez, persiste intento y registra token cuando el usuario acepta', async () => {
+  let isolatedRegister!: typeof registerNativePush;
+  jest.isolateModules(() => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    isolatedRegister = require('../native-push').registerNativePush;
+  });
+  jest
+    .mocked(notifications.getPermissionsAsync)
+    .mockResolvedValue(undecided as notifications.NotificationPermissionsStatus);
+  jest
+    .mocked(notifications.requestPermissionsAsync)
+    .mockResolvedValue(granted as notifications.NotificationPermissionsStatus);
+
+  const token = await isolatedRegister(() => true, true, 7);
+  expect(explainPermission).toHaveBeenCalledWith('notifications');
+  expect(notifications.requestPermissionsAsync).toHaveBeenCalledTimes(1);
+  expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
+    'cemydi-notification-permission-requested',
+    '1',
+  );
+  expect(notificationService.register).toHaveBeenCalledWith('ExponentPushToken[fixture]');
+  expect(token).toBe('ExponentPushToken[fixture]');
+});
+
+it('PUSH-03: permiso denegado por el usuario no bloquea la app ni intenta registrar en backend', async () => {
+  jest
+    .mocked(notifications.getPermissionsAsync)
+    .mockResolvedValue(denied as notifications.NotificationPermissionsStatus);
+
+  await expect(registerNativePush(() => true, false, 7)).resolves.toBeUndefined();
+  expect(notificationService.register).not.toHaveBeenCalled();
+
+  await expect(registerNativePush(() => true, true, 7)).rejects.toThrow(
+    'Permite las notificaciones de CEMYDI en los ajustes de tu dispositivo.',
+  );
+  expect(notificationService.register).not.toHaveBeenCalled();
+});
+
+it('PUSH-04: permiso revocado en ajustes del dispositivo evita solicitudes redundantes', async () => {
+  const permanentlyDenied = {
+    ...denied,
+    status: 'denied',
+    canAskAgain: false,
+  } as notifications.NotificationPermissionsStatus;
+  jest.mocked(notifications.getPermissionsAsync).mockResolvedValue(permanentlyDenied);
+
+  const status = await requestNativePermissionOnce(notifications);
+  expect(status.status).toBe('denied');
+  expect(explainPermission).not.toHaveBeenCalled();
+  expect(notifications.requestPermissionsAsync).not.toHaveBeenCalled();
+});
+
+it('PUSH-05: fallo de registro de token en backend no expone el token ni rompe la sesión', async () => {
+  jest
+    .mocked(notifications.getPermissionsAsync)
+    .mockResolvedValue(granted as notifications.NotificationPermissionsStatus);
+  jest
+    .mocked(notificationService.register)
+    .mockRejectedValue(new Error('500 Internal Server Error - connection reset'));
+
+  let caughtError: unknown;
+  try {
+    await registerNativePush(() => true, true, 7);
+  } catch (err) {
+    caughtError = err;
+  }
+  expect(caughtError).toBeInstanceOf(Error);
+  expect((caughtError as Error).message).not.toContain('ExponentPushToken');
+  expect((caughtError as Error).message).toContain('500 Internal Server Error');
+});

@@ -117,8 +117,23 @@ export function createAuthSession(
           return;
         }
         refreshToken = result.refreshToken;
-        if (persistent) await writeStorage(() => storage.set(result.refreshToken));
-        if (expected !== revision) return;
+        if (persistent) {
+          try {
+            await writeStorage(() => storage.set(result.refreshToken));
+          } catch {
+            persistent = false;
+            try {
+              await writeStorage(storage.remove);
+            } catch {
+              // La credencial obsoleta no pudo eliminarse de inmediato; al reiniciar,
+              // el servidor rechazará el token invalidado si aún residiera en SecureStore.
+            }
+          }
+        }
+        if (expected !== revision) {
+          if (closingRotation) rotatedDuringLogout = result.refreshToken;
+          return;
+        }
         accessToken = result.accessToken;
         refreshToken = result.refreshToken;
         const user =

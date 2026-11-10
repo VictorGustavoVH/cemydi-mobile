@@ -27,8 +27,13 @@ export function jsonResponse(data: unknown, status = 200) {
 }
 
 // Stateful fake server, only installed explicitly by auth integration tests.
-export function installAuthApiMock() {
-  const accounts = new Map([[AUTH_ACCOUNT.correo, { ...AUTH_ACCOUNT }]]);
+export function installAuthApiMock(
+  extraAccounts: { nombre: string; correo: string; password: string }[] = [],
+) {
+  const accounts = new Map<string, { nombre: string; correo: string; password: string }>([
+    [AUTH_ACCOUNT.correo, { ...AUTH_ACCOUNT }],
+    ...extraAccounts.map((a) => [a.correo, { ...a }] as const),
+  ]);
   let currentUser = {
     ...AUTH_USER,
     nombre: String(AUTH_USER.nombre),
