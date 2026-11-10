@@ -4,6 +4,19 @@ Estado: 24 de octubre de 2026. Rama `test/mobile-quality`, basada en
 `feature/cart-rentals`. No se añadieron dependencias ni se modificaron contratos
 de autenticación, catálogo, carrito o rentas.
 
+## Onboarding de una sola vez — noviembre de 2026
+
+La ruta `/` comprueba una marca local en el directorio de documentos de la app
+antes de mostrar una pantalla. En la primera apertura presenta las tres páginas
+de introducción; al terminar, omitir o elegir login, escribe la marca antes de
+navegar. En aperturas posteriores sustituye `/` por `/inicio` sin mostrar
+diapositivas. Cerrar la app antes de elegir un destino no marca el recorrido como
+terminado. La marca es del dispositivo/instalación, no de la cuenta: cerrar sesión
+no la borra. Una lectura o escritura fallida informa del error y permite reintentar,
+en lugar de asumir que el usuario ya completó la introducción. En una instalación
+existente sin marca se mostrará una vez tras actualizar. Enlaces directos a otras
+rutas conservan su destino; la comprobación solo se hace al entrar a `/`.
+
 ## Navegación
 
 `src/app/(tabs)` aloja Inicio, Catálogo, Carrito y Perfil. Las URLs públicas

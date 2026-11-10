@@ -1,5 +1,5 @@
-import { OnboardingScreen } from '@/features/onboarding/OnboardingScreen';
+import { OnboardingGate } from '@/features/onboarding/OnboardingGate';
 
 export default function IndexScreen() {
-  return <OnboardingScreen />;
+  return <OnboardingGate />;
 }
