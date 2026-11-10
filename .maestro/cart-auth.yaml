@@ -1,0 +1,38 @@
+appId: ${APP_ID}
+name: NOV-05 - Carrito sincronizado de usuario autenticado
+---
+- runFlow: support/open-catalog.yaml
+- runFlow: support/login.yaml
+
+# E2E-CART-01: Carrito remoto - adición y actualización
+- tapOn: Explorar
+- extendedWaitUntil:
+    visible: Equipo E2E 1.*Ver producto
+    timeout: 30000
+- tapOn: Equipo E2E 1.*Ver producto
+- extendedWaitUntil:
+    visible: Añadir al carrito
+    timeout: 15000
+- tapOn: Añadir al carrito
+- tapOn: Ver carrito.*
+- extendedWaitUntil:
+    visible: Mi carrito
+    timeout: 15000
+- assertVisible: 'Cantidad de Equipo E2E 1, compra: 1'
+- tapOn: Aumentar cantidad de Equipo E2E 1, compra
+- assertVisible: 'Cantidad de Equipo E2E 1, compra: 2'
+- takeScreenshot: E2E-CART-01-carrito-remoto
+
+# E2E-CART-02: Eliminación y estado vacío
+- tapOn:
+    text: Eliminar Equipo E2E 1, compra
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 100
+- assertVisible: Tu carrito está vacío
+- extendedWaitUntil:
+    notVisible: Producto eliminado
+    timeout: 10000
+- assertVisible: Tu carrito está vacío
+- takeScreenshot: E2E-CART-02-carrito-vacio
+
+- runFlow: support/logout.yaml

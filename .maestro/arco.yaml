@@ -1,0 +1,70 @@
+appId: ${APP_ID}
+name: NOV-05 - Ejercicio de derechos ARCO y consentimiento
+---
+- runFlow: support/open-catalog.yaml
+- runFlow: support/login.yaml
+
+# E2E-ARCO-01 & ARCO-02: Acceso y Rectificación en Perfil
+- extendedWaitUntil:
+    visible: Datos personales
+    timeout: 15000
+- takeScreenshot: E2E-ARCO-01-acceso-rectificacion
+- tapOn: Datos personales
+- extendedWaitUntil:
+    visible: Nombre completo
+    timeout: 15000
+- assertVisible: Nombre completo
+- back
+
+# E2E-ARCO-04: Oposición a tratamiento promocional
+- extendedWaitUntil:
+    visible: Abrir ajustes de notificaciones
+    timeout: 15000
+- tapOn: Abrir ajustes de notificaciones
+- extendedWaitUntil:
+    visible: Ofertas
+    timeout: 15000
+- assertVisible: Ofertas
+- takeScreenshot: E2E-ARCO-04-oposicion-ofertas
+- back
+
+# E2E-ARCO-03: Cancelación / eliminación de cuenta
+- extendedWaitUntil:
+    visible: '.*Seguridad.*'
+    timeout: 15000
+- tapOn: '.*Seguridad.*'
+- extendedWaitUntil:
+    visible: Eliminar mi cuenta
+    timeout: 15000
+- takeScreenshot: E2E-ARCO-03-cancelacion-cuenta
+- tapOn: Eliminar mi cuenta
+- extendedWaitUntil:
+    visible: Enviar código para eliminar mi cuenta
+    timeout: 15000
+- assertVisible: Enviar código para eliminar mi cuenta
+- back
+- back
+- runFlow: support/logout.yaml
+
+# E2E-ARCO-05: Consentimiento y aviso en registro
+- tapOn: Perfil
+- extendedWaitUntil:
+    visible: Regístrate
+    timeout: 15000
+- tapOn: Regístrate
+- extendedWaitUntil:
+    visible: Crea tu cuenta
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      text: '.*Acepto los términos y condiciones.*'
+    direction: DOWN
+- assertVisible: '.*Acepto los términos y condiciones.*'
+- back
+- tapOn:
+    text: Inicio
+    optional: true
+- extendedWaitUntil:
+    visible: Para tu bienestar
+    timeout: 15000
+- takeScreenshot: E2E-ARCO-05-consentimiento-registro

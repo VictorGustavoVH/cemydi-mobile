@@ -1,0 +1,27 @@
+appId: ${APP_ID}
+name: Microfono - revocado desde Ajustes conserva alternativa escrita
+---
+- extendedWaitUntil:
+    visible: '.*(bienestar|explorar|CEMYDI).*'
+    timeout: 120000
+- runFlow:
+    when:
+      visible: Omitir introducción y explorar catálogo
+    commands:
+      - tapOn: Omitir introducción y explorar catálogo
+- tapOn: Explorar
+- tapOn: Buscar por voz
+- extendedWaitUntil:
+    visible: Buscar con tu voz
+    timeout: 15000
+- tapOn: Ahora no
+- tapOn:
+    point: 40%, 14%
+- inputText: Equipo E2E 1
+- assertVisible: Borrar búsqueda
+- hideKeyboard
+- extendedWaitUntil:
+    visible: Equipo E2E 1.*Ver producto
+    timeout: 15000
+- takeScreenshot: microphone-revoked-written-search
+- tapOn: Borrar búsqueda

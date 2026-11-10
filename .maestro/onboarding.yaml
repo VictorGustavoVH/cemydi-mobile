@@ -3,11 +3,16 @@ name: Introducción y acceso público
 ---
 - runFlow: support/open-app.yaml
 - assertVisible: Tu bienestar empieza aquí.
-- tapOn: Ir a la siguiente pantalla
-- assertVisible: Muévete con confianza.
-- tapOn: Ir a la siguiente pantalla
-- assertVisible: Cuidado a tu medida.
+- tapOn: Siguiente
+- extendedWaitUntil:
+    visible: Muévete con confianza.
+    timeout: 10000
+- tapOn: Siguiente
+- extendedWaitUntil:
+    visible: Cuidado a tu medida.
+    timeout: 10000
 - tapOn: Explorar catálogo sin iniciar sesión
 - extendedWaitUntil:
     visible: Buscar equipo ortopédico
     timeout: 30000
+- takeScreenshot: E2E-onboarding-completo

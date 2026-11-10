@@ -1,0 +1,24 @@
+appId: ${APP_ID}
+name: Documentos - abrir selector desde receta sintetica
+---
+- tapOn: Explorar
+- extendedWaitUntil:
+    visible: Equipo E2E 1.*Ver producto
+    timeout: 15000
+- tapOn: Equipo E2E 1.*Ver producto
+- scrollUntilVisible:
+    element:
+      text: Renta
+    direction: DOWN
+- tapOn: Renta
+- tapOn: Añadir renta al carrito
+- tapOn: Ver carrito.*
+- extendedWaitUntil:
+    visible: '.*Configurar renta.*'
+    timeout: 15000
+- tapOn: '.*Configurar renta.*'
+- scrollUntilVisible:
+    element:
+      text: 'Adjuntar receta de Equipo E2E 1'
+    direction: DOWN
+- tapOn: 'Adjuntar receta de Equipo E2E 1'

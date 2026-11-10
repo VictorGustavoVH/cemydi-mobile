@@ -1,0 +1,20 @@
+appId: ${APP_ID}
+name: SecureStore - identidad restaurada sin nuevo login
+---
+- extendedWaitUntil:
+    visible: '.*(bienestar|explorar|CEMYDI).*'
+    timeout: 120000
+- runFlow:
+    when:
+      visible: Omitir introducción y explorar catálogo
+    commands:
+      - tapOn: Omitir introducción y explorar catálogo
+- extendedWaitUntil:
+    visible: Para tu bienestar
+    timeout: 120000
+- tapOn: Perfil
+- extendedWaitUntil:
+    visible: Cliente CEMYDI
+    timeout: 15000
+- assertNotVisible: Iniciar sesión
+- takeScreenshot: session-restaurada

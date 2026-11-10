@@ -31,8 +31,7 @@ cemydi-mobile/
 ├── assets/
 │   ├── branding/
 │   ├── icons/
-│   ├── images/
-│   └── legacy/expo-template/
+│   └── images/
 ├── plugins/                    # Config plugins de CNG
 ├── tests/                      # Integración y soporte compartido
 ├── app.json

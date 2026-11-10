@@ -1,0 +1,18 @@
+appId: ${APP_ID}
+name: Microfono - concesion fisica y retorno seguro sin dictado
+---
+- tapOn: Buscar por voz
+- extendedWaitUntil:
+    visible: Buscar con tu voz
+    timeout: 15000
+- tapOn: Continuar
+- extendedWaitUntil:
+    visible:
+      id: '.*:id/permission_allow_button'
+    timeout: 15000
+- tapOn:
+    id: '.*:id/permission_allow_button'
+- extendedWaitUntil:
+    visible: Buscar por voz
+    timeout: 20000
+- takeScreenshot: microphone-granted-idle

@@ -1,0 +1,21 @@
+appId: ${APP_ID}
+name: NOV-05 - Conectividad, estados fuera de línea y errores controlados
+---
+- runFlow: support/open-catalog.yaml
+
+# E2E-OFFLINE-01: Estado inicial y manejo de navegación
+- tapOn: Explorar
+- extendedWaitUntil:
+    visible: Catálogo
+    timeout: 15000
+- assertVisible: Equipo E2E 1.*Ver producto
+- takeScreenshot: E2E-OFFLINE-01-navegacion-controlada
+
+# Intento de acceso a sección privada
+- tapOn: Perfil
+- extendedWaitUntil:
+    visible: Iniciar sesión
+    timeout: 15000
+- assertVisible: Iniciar sesión
+- back
+- assertVisible: '.*(Para tu bienestar|Catálogo|Buscar equipo ortopédico).*'

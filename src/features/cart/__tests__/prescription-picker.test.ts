@@ -38,7 +38,7 @@ describe('Selector de recetas', () => {
     await expect(pickPrescription()).rejects.toThrow('No pudimos limpiar');
     expect(getDocumentAsync).not.toHaveBeenCalled();
   });
-  it('permite cancelar sin crear un envío', async () => {
+  it('DOC-01: permite cancelar sin crear un envío ni mostrar error', async () => {
     jest.mocked(getDocumentAsync).mockResolvedValueOnce({ canceled: true, assets: null });
     expect(await pickPrescription()).toBeNull();
   });
@@ -86,7 +86,7 @@ describe('Selector de recetas', () => {
       else Reflect.deleteProperty(globalThis, 'TextEncoder');
     }
   });
-  it('rechaza archivos vacíos, mayores de 8 MB y tipos inconsistentes antes de subir', () => {
+  it('DOC-02: rechaza archivos vacíos, mayores de 8 MB y tipos inconsistentes antes de subir', () => {
     expect(() => prescriptionFormData({ ...asset, size: 0 })).toThrow('8 MB');
     expect(() => prescriptionFormData({ ...asset, size: 8 * 1024 * 1024 + 1 })).toThrow('8 MB');
     expect(() => prescriptionFormData({ ...asset, name: 'receta.exe' })).toThrow('PDF');
@@ -112,7 +112,7 @@ describe('Selector de recetas', () => {
     prepared.dispose();
     expect(mockFile.delete).toHaveBeenCalledTimes(2);
   });
-  it('rechaza contenido renombrado como PDF y limpia su copia temporal', () => {
+  it('DOC-02b: rechaza contenido renombrado como PDF y limpia su copia temporal verificando magic bytes', () => {
     mockHandle.readBytes.mockReturnValue(new Uint8Array([60, 104, 116, 109, 108, 62]));
     expect(() => preparePrescription(asset)).toThrow('contenido');
     expect(mockHandle.close).toHaveBeenCalled();
@@ -137,7 +137,7 @@ describe('Selector de recetas', () => {
     expect(mockFile.delete).toHaveBeenCalledTimes(1);
     expect(mockFile.open).not.toHaveBeenCalled();
   });
-  it('rechaza inconsistencias MIME y cierra el descriptor incluso si falla la lectura', () => {
+  it('DOC-03: rechaza inconsistencias MIME y cierra el descriptor incluso si falla la lectura', () => {
     expect(() => preparePrescription({ ...asset, mimeType: 'text/html' })).toThrow('Selecciona');
     mockHandle.readBytes.mockImplementationOnce(() => {
       throw new Error('read failed');

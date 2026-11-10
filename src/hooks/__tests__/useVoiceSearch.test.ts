@@ -1,4 +1,5 @@
 import { act, renderHook } from '@testing-library/react-native';
+import { AppState } from 'react-native';
 import type { ExpoSpeechRecognitionResultEvent } from 'expo-speech-recognition';
 import { useVoiceSearch } from '../useVoiceSearch';
 import { explainPermission } from '@/services/permission-rationale';
@@ -138,5 +139,72 @@ describe('useVoiceSearch', () => {
     });
     await act(() => onError?.({ error: 'busy', message: 'Busy' } as never));
     expect(result.current.error).toMatch(/ocupado por otra aplicación/);
+  });
+
+  it('MIC-05: informa que debe habilitarse en ajustes cuando el permiso está bloqueado permanentemente (canAskAgain: false)', async () => {
+    mockSpeech.getPermissionsAsync.mockResolvedValue({ granted: false, canAskAgain: false });
+    const { result } = await renderHook(() => useVoiceSearch(jest.fn()));
+    await act(async () => {
+      await result.current.start();
+    });
+    expect(explainPermission).not.toHaveBeenCalled();
+    expect(mockSpeech.requestPermissionsAsync).not.toHaveBeenCalled();
+    expect(mockSpeech.start).not.toHaveBeenCalled();
+    expect(result.current.error).toBe(
+      'Permite el micrófono y el reconocimiento de voz en los ajustes del dispositivo.',
+    );
+    expect(result.current.requesting).toBe(false);
+    expect(result.current.listening).toBe(false);
+  });
+
+  it('MIC-06: detecta la revocación del permiso en una búsqueda posterior tras haber sido concedido', async () => {
+    mockSpeech.getPermissionsAsync.mockResolvedValueOnce({ granted: true, canAskAgain: true });
+    const { result } = await renderHook(() => useVoiceSearch(jest.fn()));
+    await act(async () => {
+      await result.current.start();
+    });
+    expect(mockSpeech.start).toHaveBeenCalledTimes(1);
+    await act(() => result.current.cancel());
+
+    mockSpeech.getPermissionsAsync.mockResolvedValueOnce({ granted: false, canAskAgain: true });
+    mockSpeech.requestPermissionsAsync.mockResolvedValueOnce({ granted: false });
+    await act(async () => {
+      await result.current.start();
+    });
+    expect(explainPermission).toHaveBeenCalledTimes(1);
+    expect(mockSpeech.requestPermissionsAsync).toHaveBeenCalledTimes(1);
+    expect(result.current.error).toMatch(/Permite el micrófono/);
+    expect(result.current.listening).toBe(false);
+  });
+
+  it('MIC-07: cancela la escucha y libera recursos cuando la app pasa a segundo plano (background)', async () => {
+    let appStateListener: ((state: string) => void) | undefined;
+    const addEventListenerSpy = jest
+      .spyOn(AppState, 'addEventListener')
+      .mockImplementation((event: string, handler: unknown) => {
+        if (event === 'change') {
+          appStateListener = handler as (state: string) => void;
+        }
+        return { remove: jest.fn() } as never;
+      });
+
+    mockSpeech.getPermissionsAsync.mockResolvedValue({ granted: true, canAskAgain: true });
+    const { result } = await renderHook(() => useVoiceSearch(jest.fn()));
+    await act(async () => {
+      await result.current.start();
+    });
+    const onStart = mockSpeech.addListener.mock.calls.find(([event]) => event === 'start')?.[1];
+    await act(() => onStart?.({ isFinal: false, results: [] }));
+    expect(result.current.listening).toBe(true);
+
+    await act(() => {
+      appStateListener?.('background');
+    });
+
+    expect(mockSpeech.abort).toHaveBeenCalled();
+    expect(result.current.listening).toBe(false);
+    expect(result.current.requesting).toBe(false);
+
+    addEventListenerSpy.mockRestore();
   });
 });

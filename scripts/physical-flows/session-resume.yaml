@@ -1,0 +1,8 @@
+appId: ${APP_ID}
+name: SecureStore - regreso al mismo proceso
+---
+- extendedWaitUntil:
+    visible: Cliente CEMYDI
+    timeout: 30000
+- assertNotVisible: Iniciar sesión
+- takeScreenshot: session-regreso-mismo-proceso

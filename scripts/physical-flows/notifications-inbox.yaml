@@ -1,0 +1,17 @@
+appId: ${APP_ID}
+name: Notificaciones - bandeja disponible con estado OS controlado
+---
+- tapOn: Perfil
+- extendedWaitUntil:
+    visible: Cliente CEMYDI
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      text: Notificaciones
+    direction: DOWN
+- tapOn: Notificaciones
+- extendedWaitUntil:
+    visible: No tienes notificaciones en esta sección
+    timeout: 15000
+- takeScreenshot: notifications-inbox-os-state
+- back

@@ -1,0 +1,16 @@
+appId: ${APP_ID}
+name: Documentos - seleccion explicita y subida sintetica
+---
+- scrollUntilVisible:
+    element:
+      text: CEMYDI_SYNTHETIC_ONLY.png
+    direction: DOWN
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      text: Quitar receta de Equipo E2E 1
+    direction: DOWN
+- assertVisible: Quitar receta de Equipo E2E 1
+- assertVisible: Archivo adjunto. CEMYDI lo revisará al recibir tu solicitud.
+- tapOn: Cerrar
+- takeScreenshot: document-authorized-upload-cart

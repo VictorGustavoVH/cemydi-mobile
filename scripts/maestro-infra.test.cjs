@@ -82,7 +82,7 @@ test('fixture: detalle y auxiliares públicos sin imágenes remotas', async (t) 
 test('fixture: rechaza escrituras, credenciales, rutas y filtros imprevistos', async (t) => {
   const { request, rejected } = await fixture(t);
   for (const [url, options, status] of [
-    ['/auth/mobile/login', { method: 'POST', body: 'ficticio' }, 405],
+    ['/unexpected-route', { method: 'POST' }, 405],
     ['/products', { headers: { authorization: 'Bearer ficticio' } }, 405],
     ['/products', { headers: { cookie: 'ficticio=1' } }, 405],
     ['/products/999', undefined, 404],
@@ -96,13 +96,79 @@ test('fixture: rechaza escrituras, credenciales, rutas y filtros imprevistos', a
   assert.ok(!JSON.stringify(rejected).includes('ficticio'));
 });
 
-test('YAML: valida los cinco escenarios y referencias de soporte', () => {
+test('fixture: reseñas paginadas respetan el contrato público actual y rechazan parámetros ajenos', async (t) => {
+  const { request } = await fixture(t);
+  const page = await request('/reviews/product/1?page=1&pageSize=10');
+  assert.equal(page.status, 200);
+  assert.deepEqual(page.body.pagination, {
+    page: 1,
+    pageSize: 10,
+    total: 0,
+    totalPages: 1,
+    hasPreviousPage: false,
+    hasNextPage: false,
+  });
+  assert.deepEqual(page.body.reviews, []);
+  assert.equal(page.body.summary.count, 0);
+  assert.equal((await request('/reviews/product/1?page=1&pageSize=51')).status, 400);
+  assert.equal((await request('/reviews/product/1?page=1&pageSize=10&other=1')).status, 400);
+});
+
+test('fixture: endpoints sintéticos de autenticación, perfil, carrito, rentas y ARCO', async (t) => {
+  const { request, rejected } = await fixture(t);
+  const loginOk = await request('/auth/mobile/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ correo: 'cliente@cemydi.test', password: 'FixturePassword1!' }),
+  });
+  assert.equal(loginOk.status, 200);
+  assert.equal(loginOk.body.user.nombre, 'Cliente CEMYDI');
+
+  const loginBad = await request('/auth/mobile/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ correo: 'erroneo@cemydi.test', password: 'Mal!' }),
+  });
+  assert.equal(loginBad.status, 401);
+
+  const me = await request('/users/me');
+  assert.equal(me.status, 200);
+  assert.equal(me.body.user.correo, 'cliente@cemydi.test');
+
+  const cart = await request('/cart');
+  assert.equal(cart.status, 200);
+  assert.ok(Array.isArray(cart.body.items));
+
+  const prefs = await request('/notifications/preferences');
+  assert.equal(prefs.status, 200);
+  assert.equal(prefs.body.preferences.pushEnabled, true);
+
+  const rentals = await request('/rentals');
+  assert.equal(rentals.status, 200);
+  assert.equal(rentals.body.rentals[0].folio, 'REN-2026-001');
+
+  const arco = await request('/account-deletion/me');
+  assert.equal(arco.status, 200);
+  assert.equal(arco.body.pendingObligations, 0);
+
+  assert.deepEqual(rejected, []);
+});
+
+test('YAML: valida los trece escenarios y referencias de soporte', () => {
   assert.deepEqual(checkFlows(), [
     'catalog.yaml',
     'product-detail.yaml',
     'cart.yaml',
     'onboarding.yaml',
     'tabs.yaml',
+    'auth.yaml',
+    'profile.yaml',
+    'cart-auth.yaml',
+    'rental.yaml',
+    'arco.yaml',
+    'notifications.yaml',
+    'offline.yaml',
+    'permissions.yaml',
   ]);
 });
 
@@ -136,4 +202,29 @@ test('runner: validación sin ADB y rechazo de overrides o flujos ajenos', () =>
     assert.equal(result.status, 1);
     assert.match(result.stderr, /No se admiten overrides/);
   }
+});
+
+test('runner físico: exige un flujo aislado y rechaza un puerto de driver inválido antes de ADB', () => {
+  const cli = path.join(
+    path.dirname(require.resolve('../package.json')),
+    'scripts/maestro-e2e.cjs',
+  );
+  const options = {
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      CEMYDI_ADB: 'herramienta-inexistente-e2e',
+      CEMYDI_E2E_DEVICE: 'synthetic-device',
+      CEMYDI_E2E_PRELAUNCH_DEVICE: 'synthetic-device',
+    },
+  };
+  const suite = spawnSync(process.execPath, [cli], options);
+  assert.equal(suite.status, 1);
+  assert.match(suite.stderr, /requiere un único --flow/);
+  const invalidPort = spawnSync(process.execPath, [cli, '--flow', 'onboarding.yaml'], {
+    ...options,
+    env: { ...options.env, CEMYDI_E2E_DRIVER_PORT: '0' },
+  });
+  assert.equal(invalidPort.status, 1);
+  assert.match(invalidPort.stderr, /CEMYDI_E2E_DRIVER_PORT debe ser un puerto/);
 });

@@ -25,3 +25,4 @@ name: Pestañas conservan búsqueda y evitan pantallas duplicadas
     timeout: 15000
 - back
 - assertVisible: Para tu bienestar
+- takeScreenshot: E2E-tabs-completo

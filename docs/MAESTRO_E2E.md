@@ -1,5 +1,50 @@
 # Maestro E2E en Android — Windows 11
 
+## Diagnóstico físico con Metro existente — noviembre de 2026
+
+Si otro Metro ocupa 8091, conservarlo y elegir dos puertos libres para el runner.
+No reutilizar un bundler sin comprobar su configuración de API. El runner crea
+su propio entorno con `.env` deshabilitado y fixture local; no contacta NestJS.
+
+El modo opcional `CEMYDI_E2E_PRELAUNCH_DEVICE` admite un solo `--flow` y exige
+el mismo serial autorizado que `CEMYDI_E2E_DEVICE`. Conserva la autorización
+obligatoria `CEMYDI_E2E_ALLOW_CLEAR`; verifica nuevamente `get-state` antes de
+la limpieza. Está destinado exclusivamente a una instalación desechable cuyo
+propietario ya autorizó borrar sus datos.
+
+```powershell
+adb devices -l
+adb -s SERIAL_AUTORIZADO get-state
+$env:JAVA_HOME = 'C:/Program Files/Android/Android Studio/jbr'
+$env:CEMYDI_E2E_DEVICE = 'SERIAL_AUTORIZADO'
+$env:CEMYDI_E2E_ALLOW_CLEAR = 'SERIAL_AUTORIZADO'
+$env:CEMYDI_E2E_METRO_PORT = '8092'
+$env:CEMYDI_E2E_API_PORT = '4199'
+$env:CEMYDI_E2E_DRIVER_PORT = '7001'
+$env:CEMYDI_E2E_PRELAUNCH_DEVICE = 'SERIAL_AUTORIZADO'
+node scripts/maestro-e2e.cjs --flow onboarding.yaml
+```
+
+La limpieza Maestro se ejecuta en un proceso previo, ADB abre únicamente el
+enlace local verificado y consultas de `hierarchy` esperan reconocer onboarding.
+Después se copia `.maestro` al directorio temporal de resultados y se sustituye
+solo `support/open-app.yaml` por una espera de la pantalla inicial. Las acciones
+y aserciones del escenario se mantienen. El modo físico conserva la caché Metro
+para no vaciar la caché compartida de otro bundler. Cada invocación inicia un
+fixture nuevo, aislando perfil, carrito y preferencias entre flujos.
+
+`CEMYDI_E2E_DRIVER_PORT` pasa la opción `--driver-host-port` de la CLI instalada;
+en prearranque se usa 7001 por defecto, también durante la preparación. Mantener
+un único dispositivo y un único proceso Maestro. El modo normal/CI conserva su
+arranque original. Estos ajustes permiten diagnosticar el arranque separado de
+las interacciones; no garantizan resolver un timeout posterior de `viewHierarchy`.
+
+`run.json` distingue `prelaunch` y `driverPort`. Un bootstrap o una consulta
+`hierarchy` aprobados no cuentan como un escenario funcional aprobado. Los fallos
+de preparación pueden dejar `run.json` sin JUnit funcional. Conservar intentos
+fallidos y sanear los logcat y comandos que puedan contener entradas de formulario
+antes de copiar evidencias a documentación.
+
 ## Pipeline Android en GitHub Actions
 
 `.github/workflows/tests.yml` conserva la matriz Jest y encadena mediante `needs`:
@@ -462,11 +507,21 @@ Google Sign-In, identificadores ni backend.
 | `.maestro/catalog.yaml`                                        | E2E-01: abrir, explorar, dos productos, buscar uno, búsqueda vacía, borrar búsqueda y solo disponibles.                       |
 | `.maestro/product-detail.yaml`                                 | E2E-02: abrir producto numérico desde catálogo, nombre, descripción, compra/renta, acciones y características.                |
 | `.maestro/cart.yaml`                                           | E2E-03: producto, agregar, abrir carrito, aumentar cantidad, eliminar, vacío y deshacer.                                      |
+| `.maestro/auth.yaml`                                           | NOV-04 (E2E-AUTH-01, 02, 04, 05): login válido, credenciales incorrectas, logout y aislamiento entre cuentas A y B.           |
+| `.maestro/profile.yaml`                                        | NOV-04 (E2E-PROFILE-01..04): consulta de perfil, edición de nombre/contacto, descarte de borrador y cambio de contraseña.     |
+| `.maestro/cart-auth.yaml`                                      | NOV-05 (E2E-CART-01, 02): carrito sincronizado en usuario autenticado, incremento y vaciado.                                  |
+| `.maestro/rental.yaml`                                         | NOV-05 (E2E-RENTAL-01..03): historial de rentas, detalle por folio y navegación a solicitud de renta.                         |
+| `.maestro/arco.yaml`                                           | NOV-05 (E2E-ARCO-01..05): acceso, rectificación, cancelación, oposición a ofertas y consentimiento en registro.               |
+| `.maestro/notifications.yaml`                                  | NOV-05 (E2E-NOTIF-01): preferencias de notificaciones con independencia promocional.                                          |
+| `.maestro/offline.yaml`                                        | NOV-05 (E2E-OFFLINE-01): navegación controlada y recuperación ante conectividad no disponible.                                |
+| `.maestro/permissions.yaml`                                    | NOV-06 (E2E-PERM-01..06): permisos runtime de micrófono/voz, push, bandeja sin push y adjuntar receta en carrito.             |
 | `.maestro/support/open-test-product.yaml`                      | Sustituye `open-preview-product.yaml`; abre `Equipo E2E 1` mediante la navegación existente de Expo Router.                   |
 | `.maestro/support/open-app.yaml`                               | Inicio limpio; documenta la condición de ejecución desde el runner.                                                           |
+| `.maestro/support/login.yaml`                                  | Subflujo de inicio de sesión con credenciales sintéticas reutilizables.                                                       |
+| `.maestro/support/logout.yaml`                                 | Subflujo de cierre de sesión y confirmación desde Perfil.                                                                     |
 | `.maestro/onboarding.yaml`, `.maestro/tabs.yaml` (conservados) | Introducción y conservación de búsqueda/navegación entre pestañas.                                                            |
 
-`config.yaml` conserva los cinco escenarios. `APP_ID` se inyecta desde `app.json`,
+`config.yaml` declara los trece escenarios funcionales de caja negra. `APP_ID` se inyecta desde `app.json`,
 con comprobación de `com.cemydi.app`; `DEV_CLIENT_URL` apunta al Metro de esta
 sesión mediante `exp+cemydi-mobile://expo-development-client/?url=...`.
 El inicio espera explícitamente el botón `Connect` del Dev Launcher antes de abrir

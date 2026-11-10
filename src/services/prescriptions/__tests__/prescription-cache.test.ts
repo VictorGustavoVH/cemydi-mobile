@@ -35,7 +35,7 @@ beforeEach(() => {
   });
 });
 
-it('elimina las copias residuales de un proceso anterior, incluidos archivos parciales', () => {
+it('DOC-04: elimina las copias residuales de un proceso anterior, incluidos archivos parciales', () => {
   const pdf = new FileType('file:///cache/DocumentPicker/orphan.pdf');
   const partial = new FileType('file:///cache/DocumentPicker/incomplete.tmp');
   mockEntries = [pdf, partial];

@@ -31,8 +31,14 @@ test('Expo 57 CNG generates system TLS policy and migrates the previous native p
       expo: {
         name: 'CEMYDI TLS Check',
         slug: 'cemydi-tls-check',
-        android: { package: 'com.cemydi.tlscheck' },
+        android: {
+          package: 'com.cemydi.tlscheck',
+          blockedPermissions: require('../../app.json').expo.android.blockedPermissions,
+        },
         plugins: [
+          'expo-secure-store',
+          'expo-speech-recognition',
+          'expo-notifications',
           path.join(root, 'plugins/with-android-java.cjs'),
           path.join(root, 'plugins/with-android-security.cjs'),
         ],
@@ -96,10 +102,60 @@ test('Expo 57 CNG generates system TLS policy and migrates the previous native p
   assert.match(application, /followRedirects\(false\)/);
   assert.match(gradle, /Release requires a dedicated signing key/);
   assert.match(gradle, /enableMinifyInReleaseBuilds/);
+  // Check both values and their consumers: merely mentioning the property can
+  // pass even when Release silently falls back to the template's false default.
+  assert.match(gradleProperties, /^android.enableMinifyInReleaseBuilds=true$/m);
+  assert.match(gradleProperties, /^android.enableShrinkResourcesInReleaseBuilds=true$/m);
+  assert.match(gradle, /minifyEnabled enableMinifyInReleaseBuilds/);
+  assert.match(gradle, /shrinkResources enableShrinkResources.toBoolean\(\)/);
+  assert.match(gradle, /proguardFiles getDefaultProguardFile\("proguard-android-optimize.txt"\)/);
   assert.match(manifest, /android:networkSecurityConfig="@xml\/cemydi_network_security_config"/);
   assert.match(manifest, /android:allowBackup="false"/);
   assert.match(manifest, /android:usesCleartextTraffic="false"/);
   assert.doesNotMatch(manifest, /android.permission.SYSTEM_ALERT_WINDOW/);
+  assert.match(manifest, /android.permission.RECORD_AUDIO/);
+  // POST_NOTIFICATIONS comes from the library manifest during Gradle merge,
+  // not from the application manifest produced by Expo prebuild.
+  assert.match(
+    readFileSync(
+      path.join(root, 'node_modules/expo-notifications/android/src/main/AndroidManifest.xml'),
+      'utf8',
+    ),
+    /android.permission.POST_NOTIFICATIONS/,
+  );
+  // Blocked permissions may remain as tools:node="remove" entries, not grants.
+  const permissionTags = manifest.match(/<uses-permission\b[^>]*>/g) ?? [];
+  for (const permission of require('../../app.json').expo.android.blockedPermissions) {
+    assert.ok(
+      permissionTags.every(
+        (tag) => !tag.includes(permission) || tag.includes('tools:node="remove"'),
+      ),
+      `${permission} must not be granted by the generated manifest`,
+    );
+  }
+  assert.match(manifest, /android:fullBackupContent="@xml\/secure_store_backup_rules"/);
+  assert.match(manifest, /android:dataExtractionRules="@xml\/secure_store_data_extraction_rules"/);
+  // Inspect the actual resources supplied by the installed SecureStore library,
+  // not just manifest references. Device transfer also needs an exclusion.
+  const secureStoreResources = path.join(
+    root,
+    'node_modules/expo-secure-store/android/src/main/res/xml',
+  );
+  const backup = readFileSync(
+    path.join(secureStoreResources, 'secure_store_backup_rules.xml'),
+    'utf8',
+  );
+  const extraction = readFileSync(
+    path.join(secureStoreResources, 'secure_store_data_extraction_rules.xml'),
+    'utf8',
+  );
+  const exclusion = /<exclude\s+domain="sharedpref"\s+path="SecureStore"\s*\/>/;
+  assert.match(backup, exclusion);
+  for (const section of ['cloud-backup', 'device-transfer']) {
+    const body = extraction.match(new RegExp(`<${section}>([\\s\\S]*?)</${section}>`))?.[1];
+    assert.ok(body, `Missing ${section} rules`);
+    assert.match(body, exclusion);
+  }
   for (const variant of ['main', 'debug', 'debugOptimized']) {
     const xml = readFileSync(
       path.join(project, 'android/app/src', variant, 'res/xml/cemydi_network_security_config.xml'),

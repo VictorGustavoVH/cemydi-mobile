@@ -50,6 +50,16 @@ Maestro es una CLI externa, no una dependencia npm. Android Studio, emuladores, 
   cart.yaml
   onboarding.yaml
   tabs.yaml
+  auth.yaml
+  profile.yaml
+  cart-auth.yaml
+  rental.yaml
+  arco.yaml
+  notifications.yaml
+  offline.yaml
+  permissions.yaml
+  support/login.yaml
+  support/logout.yaml
   support/open-app.yaml
   support/open-catalog.yaml
   support/open-test-product.yaml

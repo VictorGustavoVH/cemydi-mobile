@@ -103,7 +103,6 @@ assets/
 ├── branding/     # Logotipos y emblema de CEMYDI
 ├── icons/        # Icono de aplicación y favicon activos
 ├── images/       # Imágenes agrupadas por experiencia
-└── legacy/       # Recursos anteriores conservados, no activos
 
 src/
 ├── app/          # Rutas y layouts de Expo Router
@@ -149,9 +148,9 @@ Consulta [PROJECT_CONTEXT.md](docs/PROJECT_CONTEXT.md) para el alcance completo 
 - [EAS Android](docs/EAS_ANDROID.md)
 - [Workflow Git](docs/GIT_WORKFLOW.md)
 - [Workflow para IA](docs/AI_WORKFLOW.md)
-- [Historial de documentos archivados](docs/archive/)
+- [Historial de pruebas archivado](docs/archive/TESTING_HISTORY.md)
 
-Los documentos en `docs/archive/` son históricos y no describen necesariamente el comportamiento actual.
+El historial de pruebas es histórico y no describe necesariamente el comportamiento actual.
 
 ## Flujo Git
 
