@@ -1,0 +1,22 @@
+appId: ${APP_ID}
+---
+- tapOn: Perfil
+- extendedWaitUntil:
+    visible: Iniciar sesión
+    timeout: 15000
+- tapOn: Correo electrónico
+- inputText: cliente@cemydi.test
+- hideKeyboard
+- tapOn: Contraseña
+- inputText: FixturePassword1!
+- hideKeyboard
+- tapOn: Iniciar sesión
+- extendedWaitUntil:
+    visible: '.*(Mi perfil|Para tu bienestar).*'
+    timeout: 30000
+- tapOn:
+    text: Perfil
+    optional: true
+- extendedWaitUntil:
+    visible: Mi perfil
+    timeout: 30000

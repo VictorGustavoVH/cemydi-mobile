@@ -4,3 +4,14 @@ flows:
   - cart.yaml
   - onboarding.yaml
   - tabs.yaml
+  - auth.yaml
+  - profile.yaml
+  - cart-auth.yaml
+  - rental.yaml
+  - arco.yaml
+  - notifications.yaml
+  - offline.yaml
+  - permissions.yaml
+platform:
+  android:
+    disableAnimations: true

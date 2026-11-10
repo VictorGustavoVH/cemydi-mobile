@@ -1,0 +1,13 @@
+appId: ${APP_ID}
+---
+- tapOn: Perfil
+- scrollUntilVisible:
+    element:
+      text: Cerrar sesión
+    direction: DOWN
+- tapOn: Cerrar sesión
+- assertVisible: ¿Cerrar sesión?
+- tapOn: Salir
+- extendedWaitUntil:
+    visible: Para tu bienestar
+    timeout: 30000

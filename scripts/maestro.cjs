@@ -19,6 +19,7 @@ const java = process.env.JAVA_HOME
 const result = spawnSync(
   java,
   [
+    '-Dfile.encoding=UTF-8',
     '--enable-native-access=ALL-UNNAMED',
     '-classpath',
     classpath,

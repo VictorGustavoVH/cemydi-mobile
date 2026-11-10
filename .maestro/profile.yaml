@@ -1,0 +1,62 @@
+appId: ${APP_ID}
+name: NOV-04 - Consulta, edición de perfil y recuperación de contraseña
+---
+- runFlow: support/open-catalog.yaml
+- runFlow: support/login.yaml
+
+# E2E-PROFILE-01: Consulta de datos de perfil
+- extendedWaitUntil:
+    visible: Datos personales
+    timeout: 15000
+- assertVisible: Cliente CEMYDI
+- takeScreenshot: E2E-PROFILE-01-consulta
+
+# E2E-PROFILE-02: Edición del perfil y guardado
+- tapOn: Datos personales
+- extendedWaitUntil:
+    visible: Modificar datos
+    timeout: 15000
+- tapOn: Modificar datos
+- tapOn: Nombre completo
+- eraseText
+- inputText: Cliente CEMYDI Actualizado
+- hideKeyboard
+- tapOn: Guardar cambios
+- extendedWaitUntil:
+    visible: Tus datos se guardaron correctamente
+    timeout: 15000
+- extendedWaitUntil:
+    notVisible: Tus datos se guardaron correctamente
+    timeout: 15000
+- assertVisible: Modificar datos
+
+# E2E-PROFILE-03: Cancelación / descarte de borrador
+- tapOn: Modificar datos
+- tapOn: Nombre completo
+- inputText: Texto descartable
+- hideKeyboard
+- tapOn: Cancelar
+- assertVisible: Cliente CEMYDI Actualizado
+
+# E2E-PROFILE-04: Verificación de acceso a cambio de contraseña
+- back
+- extendedWaitUntil:
+    visible: Cliente CEMYDI Actualizado
+    timeout: 15000
+- takeScreenshot: E2E-PROFILE-02-edicion-exitosa
+- extendedWaitUntil:
+    visible: '.*Seguridad.*'
+    timeout: 15000
+- tapOn: '.*Seguridad.*'
+- extendedWaitUntil:
+    visible: Cambiar contraseña
+    timeout: 15000
+- takeScreenshot: E2E-PROFILE-04-cambio-contrasena
+- tapOn: Cambiar contraseña
+- extendedWaitUntil:
+    visible: Contraseña actual
+    timeout: 15000
+- back
+- back
+
+- runFlow: support/logout.yaml

@@ -1,0 +1,87 @@
+appId: ${APP_ID}
+name: NOV-04 - Autenticación, sesión y aislamiento de cuentas
+---
+- runFlow: support/open-catalog.yaml
+
+# E2E-AUTH-01: Inicio de sesión válido
+- tapOn: Perfil
+- extendedWaitUntil:
+    visible: Iniciar sesión
+    timeout: 15000
+- tapOn: Correo electrónico
+- inputText: cliente@cemydi.test
+- hideKeyboard
+- tapOn: Contraseña
+- inputText: FixturePassword1!
+- hideKeyboard
+- tapOn: Iniciar sesión
+- extendedWaitUntil:
+    visible: '.*(Mi perfil|Para tu bienestar).*'
+    timeout: 30000
+- tapOn:
+    text: Perfil
+    optional: true
+- extendedWaitUntil:
+    visible: Mi perfil
+    timeout: 30000
+- assertVisible: Datos personales
+- takeScreenshot: E2E-AUTH-01-login-exitoso
+
+# E2E-AUTH-04: Cierre de sesión
+- scrollUntilVisible:
+    element:
+      text: Cerrar sesión
+    direction: DOWN
+- tapOn: Cerrar sesión
+- assertVisible: ¿Cerrar sesión?
+- tapOn: Salir
+- extendedWaitUntil:
+    visible: Para tu bienestar
+    timeout: 30000
+- takeScreenshot: E2E-AUTH-04-cierre-sesion
+
+# E2E-AUTH-02: Credenciales incorrectas
+- tapOn: Perfil
+- extendedWaitUntil:
+    visible: Iniciar sesión
+    timeout: 15000
+- tapOn: Correo electrónico
+- inputText: erróneo@cemydi.test
+- hideKeyboard
+- tapOn: Contraseña
+- inputText: PasswordInvalido99!
+- hideKeyboard
+- tapOn: Iniciar sesión
+- extendedWaitUntil:
+    visible: '.*(Credenciales|invalidas|inválidas|validar el acceso|Error).*'
+    timeout: 15000
+- assertVisible: Iniciar sesión
+- back
+- extendedWaitUntil:
+    visible: Para tu bienestar
+    timeout: 15000
+
+# E2E-AUTH-05: Aislamiento entre cuentas
+- tapOn: Perfil
+- extendedWaitUntil:
+    visible: Iniciar sesión
+    timeout: 15000
+- tapOn: Correo electrónico
+- inputText: usuario2@cemydi.test
+- hideKeyboard
+- tapOn: Contraseña
+- inputText: FixturePassword2!
+- hideKeyboard
+- tapOn: Iniciar sesión
+- extendedWaitUntil:
+    visible: '.*(Mi perfil|Para tu bienestar).*'
+    timeout: 30000
+- tapOn:
+    text: Perfil
+    optional: true
+- extendedWaitUntil:
+    visible: Mi perfil
+    timeout: 30000
+- assertVisible: Segundo Cliente E2E
+- takeScreenshot: E2E-AUTH-05-aislamiento-cuentas
+- runFlow: support/logout.yaml

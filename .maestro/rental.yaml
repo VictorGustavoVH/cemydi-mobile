@@ -1,0 +1,42 @@
+appId: ${APP_ID}
+name: NOV-05 - Solicitudes y seguimiento de rentas
+---
+- runFlow: support/open-catalog.yaml
+- runFlow: support/login.yaml
+
+# E2E-RENTAL-02: Consulta de historial y detalle de rentas
+- scrollUntilVisible:
+    element:
+      text: Mis rentas
+    direction: DOWN
+- tapOn: Mis rentas
+- extendedWaitUntil:
+    visible: Historial de rentas|Mis rentas
+    timeout: 15000
+- assertVisible: REN-2026-001
+- takeScreenshot: E2E-RENTAL-02-historial-rentas
+
+# E2E-RENTAL-03: Detalle de renta
+- tapOn: REN-2026-001
+- extendedWaitUntil:
+    visible: Detalle de renta|Estado de renta
+    timeout: 15000
+- takeScreenshot: E2E-RENTAL-03-detalle-renta
+- back
+- back
+
+# E2E-RENTAL-01: Navegación a solicitud de renta desde producto
+- tapOn: Explorar
+- extendedWaitUntil:
+    visible: Equipo E2E 1.*Ver producto
+    timeout: 30000
+- tapOn: Equipo E2E 1.*Ver producto
+- extendedWaitUntil:
+    visible: Renta
+    timeout: 15000
+- tapOn: Renta
+- assertVisible: Añadir renta al carrito
+- takeScreenshot: E2E-RENTAL-01-solicitud-renta
+- back
+
+- runFlow: support/logout.yaml

@@ -1,0 +1,21 @@
+appId: ${APP_ID}
+name: NOV-05 - Preferencias de notificaciones y configuración
+---
+- runFlow: support/open-catalog.yaml
+- runFlow: support/login.yaml
+
+# E2E-NOTIF-01: Ajustes de notificaciones
+- extendedWaitUntil:
+    visible: Abrir ajustes de notificaciones
+    timeout: 15000
+- tapOn: Abrir ajustes de notificaciones
+- extendedWaitUntil:
+    visible: Ajustes de notificaciones
+    timeout: 15000
+- assertVisible: Recibir notificaciones push
+- assertVisible: Sistema y seguridad
+- assertVisible: Ofertas
+- assertVisible: Rentas
+- takeScreenshot: E2E-NOTIF-01-preferencias-notificaciones
+- back
+- runFlow: support/logout.yaml

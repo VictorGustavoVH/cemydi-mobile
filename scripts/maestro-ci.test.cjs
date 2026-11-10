@@ -104,7 +104,11 @@ test('CI: conserva el fallo E2E aunque falle la recolección de logcat', (t) => 
 
 test('CI: autoriza solo su emulador, ejecuta la suite y conserva logcat', (t) => {
   const result = run(t);
-  assert.equal(result.status, 0, result.stderr);
+  assert.equal(
+    result.status,
+    0,
+    JSON.stringify({ stderr: result.stderr, stdout: result.stdout, calls: result.calls }),
+  );
   assert.match(result.calls, /-s emulator-5554 install test-results\/apk\/app-debug.apk/);
   assert.match(result.calls, /npm run test:e2e/);
   assert.equal(readFileSync(result.log, 'utf8'), 'fixture log');

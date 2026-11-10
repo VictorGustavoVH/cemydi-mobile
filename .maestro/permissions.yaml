@@ -1,0 +1,106 @@
+appId: ${APP_ID}
+name: NOV-06 - Validación integral de permisos Runtime
+---
+- runFlow: support/open-catalog.yaml
+
+# E2E-PERM-01 y E2E-PERM-02: Búsqueda por voz y alternativa por texto
+- tapOn: Explorar
+- extendedWaitUntil:
+    visible: Catálogo
+    timeout: 15000
+- assertVisible: Buscar por voz
+- takeScreenshot: E2E-PERM-01-busqueda-voz-disponible
+
+# A fresh test installation has no microphone grant. Cancel the rationale before
+# the OS prompt; do not start recording or depend on a speech provider response.
+- tapOn: Buscar por voz
+- extendedWaitUntil:
+    visible: Buscar con tu voz
+    timeout: 15000
+- assertVisible: '.*Puedes continuar buscando por escrito.*'
+- tapOn: Ahora no
+- assertNotVisible: Buscar con tu voz
+- assertVisible: Buscar por voz
+- takeScreenshot: E2E-PERM-01-explicacion-cancelada
+
+# Alternativa funcional por texto (fallback ante denegación o preferencia de teclado)
+- tapOn: Buscar equipo ortopédico
+- inputText: Equipo E2E 1
+- hideKeyboard
+- extendedWaitUntil:
+    visible: Equipo E2E 1.*Ver producto
+    timeout: 30000
+- takeScreenshot: E2E-PERM-02-fallback-texto
+- tapOn: Borrar búsqueda
+
+# Autenticación para probar permisos de notificaciones y recetas
+- runFlow: support/login.yaml
+
+# E2E-PERM-03: Preferencias de notificaciones y explicación previa
+- extendedWaitUntil:
+    visible: Abrir ajustes de notificaciones
+    timeout: 15000
+- tapOn: Abrir ajustes de notificaciones
+- extendedWaitUntil:
+    visible: Ajustes de notificaciones
+    timeout: 15000
+- assertVisible: Recibir notificaciones push
+- assertVisible: Sistema y seguridad
+- assertVisible: Ofertas
+- assertVisible: Rentas
+- takeScreenshot: E2E-PERM-03-explicacion-notificaciones
+- back
+
+# E2E-PERM-04: Bandeja interna de notificaciones accesible sin push
+- scrollUntilVisible:
+    element:
+      text: Notificaciones
+    direction: DOWN
+- tapOn: Notificaciones
+- extendedWaitUntil:
+    visible: Avisos y notificaciones|Bandeja de notificaciones|Notificaciones
+    timeout: 15000
+- takeScreenshot: E2E-PERM-04-bandeja-interna-sin-push
+- back
+
+# E2E-PERM-05 y E2E-PERM-06: Adjuntar receta en carrito (cancelación sin error y validación)
+- tapOn: Explorar
+- extendedWaitUntil:
+    visible: Equipo E2E 1.*Ver producto
+    timeout: 30000
+- tapOn: Equipo E2E 1.*Ver producto
+- extendedWaitUntil:
+    visible: Añadir al carrito|Añadir renta al carrito
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      text: Renta
+    direction: DOWN
+- tapOn: Renta
+- extendedWaitUntil:
+    visible: Añadir renta al carrito
+    timeout: 15000
+- tapOn: Añadir renta al carrito
+- tapOn:
+    text: Ver carrito.*
+    optional: true
+- tapOn:
+    text: Carrito
+    optional: true
+- extendedWaitUntil:
+    visible: Mi carrito|Tu carrito|Carrito
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      text: '.*Configurar renta.*'
+    direction: DOWN
+- tapOn: '.*Configurar renta.*'
+- scrollUntilVisible:
+    element:
+      text: PDF, JPG, PNG o WebP · Hasta 8 MB|Receta médica|Adjuntar receta
+    direction: DOWN
+- assertVisible: PDF, JPG, PNG o WebP · Hasta 8 MB|Receta médica|Adjuntar receta
+- takeScreenshot: E2E-PERM-05-06-adjuntar-receta
+- tapOn: Cerrar
+
+- runFlow: support/logout.yaml
