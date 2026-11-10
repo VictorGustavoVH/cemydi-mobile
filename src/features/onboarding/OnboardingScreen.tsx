@@ -26,6 +26,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppButton } from '@/components/ui/AppButton';
 import { CatalogImage } from '@/components/ui/CatalogImage';
 import { colors } from '@/theme';
+import { completeOnboarding } from './onboarding-progress';
 
 type OnboardingPage = {
   image: ImageSourcePropType;
@@ -170,6 +171,9 @@ export function OnboardingScreen() {
   const flatListRef = useRef<FlatList<OnboardingPage>>(null);
   const { height, width } = useWindowDimensions();
   const [currentPage, setCurrentPage] = useState(0);
+  const [isCompleting, setIsCompleting] = useState(false);
+  const [completionError, setCompletionError] = useState(false);
+  const completingRef = useRef(false);
   const scrollX = useSharedValue(0);
   const reducedMotion = useReducedMotion();
 
@@ -197,10 +201,25 @@ export function OnboardingScreen() {
     }
   };
 
+  const finish = async (destination: '/inicio' | '/login') => {
+    if (completingRef.current) return;
+    completingRef.current = true;
+    setIsCompleting(true);
+    setCompletionError(false);
+    try {
+      await completeOnboarding();
+      router.replace(destination);
+    } catch {
+      setCompletionError(true);
+      completingRef.current = false;
+      setIsCompleting(false);
+    }
+  };
+
   const handleContinue = () => {
     if (currentPage === pages.length - 1) {
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
-      router.replace('/inicio');
+      void finish('/inicio');
       return;
     }
 
@@ -209,7 +228,7 @@ export function OnboardingScreen() {
 
   const handleSkip = () => {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
-    router.replace('/inicio');
+    void finish('/inicio');
   };
 
   return (
@@ -228,6 +247,7 @@ export function OnboardingScreen() {
             label="Omitir introducción y explorar catálogo"
             accessibilityRole="button"
             className="min-h-11 min-w-[64px] items-center justify-center rounded-lg px-2 active:opacity-60"
+            disabled={isCompleting}
             hitSlop={{ bottom: 8, left: 8, right: 8, top: 8 }}
             onPress={handleSkip}
           >
@@ -290,6 +310,12 @@ export function OnboardingScreen() {
           ))}
         </View>
 
+        {completionError ? (
+          <Text accessibilityLiveRegion="assertive" className="text-center text-sm text-danger">
+            No pudimos guardar tu progreso. Intenta de nuevo.
+          </Text>
+        ) : null}
+
         <AppButton
           accessibilityLabel={
             currentPage === pages.length - 1
@@ -299,6 +325,7 @@ export function OnboardingScreen() {
           className="min-h-14 rounded-2xl"
           label={currentPage === pages.length - 1 ? 'Explorar catálogo' : 'Siguiente'}
           labelClassName="font-sans-semibold text-base"
+          loading={isCompleting}
           onPress={handleContinue}
           rightIcon={
             <ChevronRight aria-hidden color={colors.onBrand} size={16} strokeWidth={2.5} />
@@ -319,8 +346,9 @@ export function OnboardingScreen() {
               label="Inicia sesión"
               variant="ghost"
               className="px-1"
+              disabled={isCompleting}
               labelClassName="text-sm text-brand-strong"
-              onPress={() => router.replace('/login')}
+              onPress={() => void finish('/login')}
             />
           </View>
         </View>
