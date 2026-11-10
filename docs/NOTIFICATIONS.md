@@ -116,8 +116,10 @@ Si el id no cumple el formato, la fila no navega y muestra su contenido en la ba
 }
 ```
 
-- `pushEnabled` es el interruptor general.
-- `system`, `offers` y `rentals` se deshabilitan cuando `pushEnabled` es falso.
+- `pushEnabled` es el interruptor general para la recepción de avisos push.
+- `offers` opera de manera independiente: el usuario puede ejercer su derecho de oposición a notificaciones promocionales en cualquier momento, incluso si `pushEnabled` está desactivado. Si posteriormente se activa `pushEnabled`, la decisión previamente guardada sobre ofertas se conserva sin reactivarse automáticamente.
+- La preferencia `offers` rige exclusivamente la entrega del canal push para campañas promocionales; no altera ni elimina automáticamente comunicados en la bandeja interna del usuario en el servidor.
+- `system` y `rentals` permanecen deshabilitados cuando `pushEnabled` es falso al ser categorías operativas dependientes del canal push.
 - Cada cambio guarda el objeto completo de inmediato, sin botón de guardar.
 - Mientras hay un guardado en curso no se permite otro.
 - La pantalla refresca cada 30 segundos y al recuperar foco, salvo que exista un cambio local pendiente.

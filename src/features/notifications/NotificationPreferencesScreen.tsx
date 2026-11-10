@@ -28,7 +28,11 @@ const rows: { key: keyof NotificationPreferences; label: string; description: st
     label: 'Sistema y seguridad',
     description: 'Comunicados, revisión de reseñas y cambios de seguridad de tu cuenta.',
   },
-  { key: 'offers', label: 'Ofertas', description: 'Promociones y novedades de CEMYDI.' },
+  {
+    key: 'offers',
+    label: 'Ofertas',
+    description: 'Controla si deseas recibir notificaciones push sobre promociones y ofertas.',
+  },
   { key: 'rentals', label: 'Rentas', description: 'Estados de solicitudes y revisión de recetas.' },
 ];
 
@@ -109,7 +113,7 @@ function PreferencesForm() {
                   disabled={
                     actions.busy ||
                     actions.isOnline === false ||
-                    (row.key !== 'pushEnabled' && !preferences.pushEnabled)
+                    (row.key !== 'pushEnabled' && row.key !== 'offers' && !preferences.pushEnabled)
                   }
                   onValueChange={(value) => {
                     void change(row.key, value);
