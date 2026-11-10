@@ -1,21 +1,32 @@
 const { spawn, spawnSync } = require('node:child_process');
 const { createServer } = require('node:net');
-const { createWriteStream, mkdirSync, writeFileSync, existsSync } = require('node:fs');
+const {
+  createWriteStream,
+  mkdirSync,
+  writeFileSync,
+  existsSync,
+  cpSync,
+  rmSync,
+} = require('node:fs');
 const path = require('node:path');
+const os = require('node:os');
 const { expo } = require('../app.json');
 const { createFixtureApi } = require('./maestro-api.cjs');
 const { checkFlows } = require('./maestro-check.cjs');
 
-function adb(args) {
+function adb(args, binary = false) {
   const sdk = process.env.ANDROID_HOME || process.env.ANDROID_SDK_ROOT;
   const candidate =
     sdk && path.join(sdk, 'platform-tools', process.platform === 'win32' ? 'adb.exe' : 'adb');
   const executable =
     process.env.CEMYDI_ADB || (candidate && existsSync(candidate) ? candidate : 'adb');
-  const result = spawnSync(executable, args, { encoding: 'utf8', timeout: 15000 });
+  const result = spawnSync(executable, args, {
+    encoding: binary ? undefined : 'utf8',
+    timeout: 30000,
+  });
   if (result.error || result.status !== 0)
-    throw new Error(result.error?.message || result.stderr || 'Falló ADB.');
-  return result.stdout.trim();
+    throw new Error(result.error?.message || result.stderr?.toString() || 'Falló ADB.');
+  return binary ? result.stdout : result.stdout.trim();
 }
 function portNumber(name, fallback) {
   const value = process.env[name] || String(fallback);
@@ -76,6 +87,13 @@ async function main() {
   const apiPort = portNumber('CEMYDI_E2E_API_PORT', 4198);
   if (metroPort === apiPort) throw new Error('Metro y API necesitan puertos distintos.');
   const serial = process.env.CEMYDI_E2E_DEVICE;
+  const prelaunch = Boolean(serial) && process.env.CEMYDI_E2E_PRELAUNCH_DEVICE === serial;
+  const driverPort =
+    process.env.CEMYDI_E2E_DRIVER_PORT || prelaunch
+      ? portNumber('CEMYDI_E2E_DRIVER_PORT', 7001)
+      : undefined;
+  if (prelaunch && args[0] !== '--flow')
+    throw new Error('El prearranque físico requiere un único --flow para aislar fixture y sesión.');
   const devices = adb(['devices'])
     .split(/\r?\n/)
     .map((line) => line.match(/^(\S+)\s+device$/)?.[1])
@@ -150,6 +168,8 @@ async function main() {
   let interrupted = false;
   let failure;
   const cleanupFailures = [];
+  const evidenceWarnings = [];
+  let adbScreenshot;
   let code = 1;
   const reversed = [];
   const onSignal = () => {
@@ -189,7 +209,7 @@ async function main() {
         'start',
         '--dev-client',
         '--localhost',
-        '--clear',
+        ...(prelaunch ? [] : ['--clear']),
         '--port',
         String(metroPort),
         '--max-workers',
@@ -228,6 +248,108 @@ async function main() {
       throw new Error(
         metroError?.message || 'Metro E2E no arrancó o se interrumpió. Revisa metro.log.',
       );
+    if (prelaunch) {
+      if (adb(['-s', serial, 'get-state']) !== 'device')
+        throw new Error('El dispositivo perdió su autorización antes de limpiar.');
+
+      // Limpieza autorizada de CEMYDI mediante ADB directo sin arranques intermedios de Maestro.
+      adb(['-s', serial, 'shell', 'pm', 'clear', appId]);
+
+      // Desactivar animaciones y optimizaciones agresivas de batería (Huawei EMUI / PowerGenie).
+      try {
+        adb(['-s', serial, 'shell', 'settings', 'put', 'global', 'window_animation_scale', '0']);
+        adb([
+          '-s',
+          serial,
+          'shell',
+          'settings',
+          'put',
+          'global',
+          'transition_animation_scale',
+          '0',
+        ]);
+        adb(['-s', serial, 'shell', 'settings', 'put', 'global', 'animator_duration_scale', '0']);
+        adb(['-s', serial, 'shell', 'dumpsys', 'deviceidle', 'whitelist', '+dev.mobile.maestro']);
+        adb(['-s', serial, 'shell', 'dumpsys', 'deviceidle', 'whitelist', `+${appId}`]);
+        const pkgs = adb(['-s', serial, 'shell', 'pm', 'list', 'packages']);
+        if (pkgs.includes('package:com.huawei.powergenie')) {
+          adb([
+            '-s',
+            serial,
+            'shell',
+            'pm',
+            'disable-user',
+            '--user',
+            '0',
+            'com.huawei.powergenie',
+          ]);
+        }
+      } catch {}
+
+      // Lanzamiento confiable de la app mediante ADB hacia el Dev Client con el bundle local.
+      adb([
+        '-s',
+        serial,
+        'shell',
+        'am',
+        'start',
+        '-W',
+        '-a',
+        'android.intent.action.VIEW',
+        '-d',
+        `'${devClientUrl}'`,
+        appId,
+      ]);
+
+      // Esperar a que CEMYDI esté en primer plano en dumpsys window
+      const prelaunchDeadline = Date.now() + 60_000;
+      let appFocused = false;
+      while (!interrupted && Date.now() < prelaunchDeadline) {
+        try {
+          const focus = adb(['-s', serial, 'shell', 'dumpsys', 'window']);
+          if (focus.includes('mCurrentFocus=Window{') && focus.includes(`${appId}/`)) {
+            appFocused = true;
+            break;
+          }
+        } catch {
+          // Reintentar si adb responde con demora
+        }
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+      if (!appFocused)
+        throw new Error('El prearranque por ADB no logró poner CEMYDI en primer plano.');
+
+      // Pausa para que React Native monte el bundle y renderice la pantalla de onboarding
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+
+      writeFileSync(
+        path.join(output, 'prelaunch.txt'),
+        'ADB abrió el Dev Client local; CEMYDI está en primer plano.\n',
+      );
+      const staged = path.join(output, 'flows');
+      cpSync(path.resolve('.maestro'), staged, { recursive: true });
+      writeFileSync(
+        path.join(staged, 'support/open-app.yaml'),
+        'appId: ${APP_ID}\n---\n- extendedWaitUntil:\n    visible: ".*(bienestar|explorar|CEMYDI).*"\n    timeout: 30000\n',
+      );
+      target = path.join(staged, args[1]);
+      console.log('Prearranque físico verificado; iniciando las interacciones Maestro.');
+    }
+    const driverInstalled = (() => {
+      try {
+        return adb(['-s', serial, 'shell', 'pm', 'path', 'dev.mobile.maestro']).includes(
+          'package:',
+        );
+      } catch {
+        return false;
+      }
+    })();
+    const sessionsFile = path.join(os.homedir(), '.maestro', 'sessions');
+    if (existsSync(sessionsFile)) {
+      try {
+        rmSync(sessionsFile, { force: true });
+      } catch {}
+    }
     runner = spawn(
       process.execPath,
       [
@@ -235,6 +357,8 @@ async function main() {
         '--device',
         serial,
         'test',
+        ...(prelaunch && driverInstalled ? ['--no-reinstall-driver'] : []),
+        ...(driverPort ? ['--driver-host-port', String(driverPort)] : []),
         '--format',
         'junit',
         '--output',
@@ -266,6 +390,22 @@ async function main() {
     if (code !== 0)
       failure = `Maestro terminó con código ${code}. Consulta results.xml y maestro-console.log.`;
     if (unexpected.length || interrupted) code = 1;
+    try {
+      const focus = adb(['-s', serial, 'shell', 'dumpsys', 'window'])
+        .split(/\r?\n/)
+        .find((line) => line.includes('mCurrentFocus='));
+      // Never collect the notification shade, launcher or another app's window.
+      if (focus?.includes(`${appId}/`)) {
+        adbScreenshot = 'device-final-adb.png';
+        writeFileSync(
+          path.join(output, adbScreenshot),
+          adb(['-s', serial, 'exec-out', 'screencap', '-p'], true),
+        );
+      }
+    } catch (error) {
+      adbScreenshot = undefined;
+      evidenceWarnings.push(error.message);
+    }
   } catch (error) {
     failure = error.message;
     code = 1;
@@ -308,6 +448,23 @@ async function main() {
         code = 1;
       }
     }
+    if (prelaunch) {
+      try {
+        adb(['-s', serial, 'shell', 'settings', 'put', 'global', 'window_animation_scale', '1']);
+        adb([
+          '-s',
+          serial,
+          'shell',
+          'settings',
+          'put',
+          'global',
+          'transition_animation_scale',
+          '1',
+        ]);
+        adb(['-s', serial, 'shell', 'settings', 'put', 'global', 'animator_duration_scale', '1']);
+        adb(['-s', serial, 'shell', 'pm', 'enable', 'com.huawei.powergenie']);
+      } catch {}
+    }
     metro?.stdout?.unpipe(log);
     metro?.stderr?.unpipe(log);
     runner?.stdout?.unpipe(maestroLog);
@@ -324,6 +481,8 @@ async function main() {
           appId,
           serial,
           target,
+          prelaunch,
+          ...(driverPort ? { driverPort } : {}),
           startedAt: started.toISOString(),
           durationMs: Date.now() - started.getTime(),
           exitCode: code,
@@ -331,6 +490,8 @@ async function main() {
           unexpected,
           failure,
           cleanupFailures,
+          adbScreenshot,
+          evidenceWarnings,
         },
         null,
         2,

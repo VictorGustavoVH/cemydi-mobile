@@ -1,0 +1,30 @@
+appId: ${APP_ID}
+name: SecureStore - login persistente sintetico
+---
+- extendedWaitUntil:
+    visible: '.*(bienestar|explorar|CEMYDI).*'
+    timeout: 120000
+- runFlow:
+    when:
+      visible: Omitir introducción y explorar catálogo
+    commands:
+      - tapOn: Omitir introducción y explorar catálogo
+- tapOn: Perfil
+- extendedWaitUntil:
+    visible: Iniciar sesión
+    timeout: 15000
+- tapOn: Correo electrónico
+- inputText: cliente@cemydi.test
+- tapOn: Contraseña
+- inputText: FixturePassword1!
+- hideKeyboard
+- tapOn: Mantener sesión iniciada
+- tapOn: Iniciar sesión
+- extendedWaitUntil:
+    visible: Para tu bienestar
+    timeout: 30000
+- tapOn: Perfil
+- extendedWaitUntil:
+    visible: Cliente CEMYDI
+    timeout: 15000
+- takeScreenshot: session-login-persistente

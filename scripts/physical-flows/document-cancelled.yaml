@@ -1,0 +1,9 @@
+appId: ${APP_ID}
+name: Documentos - cancelacion sin subida
+---
+- extendedWaitUntil:
+    visible: Adjuntar receta de Equipo E2E 1
+    timeout: 15000
+- assertNotVisible: Quitar receta de Equipo E2E 1
+- assertVisible: PDF, JPG, PNG o WebP · Hasta 8 MB
+- tapOn: Adjuntar receta de Equipo E2E 1

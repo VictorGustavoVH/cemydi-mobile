@@ -1,0 +1,23 @@
+appId: ${APP_ID}
+name: SecureStore - logout y retirada de identidad
+---
+- tapOn: Perfil
+- extendedWaitUntil:
+    visible: Cliente CEMYDI
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      text: Cerrar sesión
+    direction: DOWN
+- tapOn: Cerrar sesión
+- tapOn: Salir
+- extendedWaitUntil:
+    visible: Para tu bienestar
+    timeout: 30000
+- tapOn: Perfil
+- extendedWaitUntil:
+    visible: Iniciar sesión
+    timeout: 15000
+- assertNotVisible: Cliente CEMYDI
+- back
+- takeScreenshot: session-logout-sin-identidad

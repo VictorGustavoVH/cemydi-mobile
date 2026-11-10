@@ -1,0 +1,21 @@
+appId: ${APP_ID}
+name: Notificaciones - permiso OS denegado informa ajustes
+---
+- scrollUntilVisible:
+    element:
+      text: Abrir ajustes de notificaciones
+    direction: UP
+- tapOn: Abrir ajustes de notificaciones
+- extendedWaitUntil:
+    visible: Ajustes de notificaciones
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      text: Activar en este dispositivo
+    direction: DOWN
+- tapOn: Activar en este dispositivo
+- extendedWaitUntil:
+    visible: '.*Permite las notificaciones de CEMYDI.*'
+    timeout: 10000
+- takeScreenshot: notifications-permission-denied
+- back

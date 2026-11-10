@@ -1,0 +1,37 @@
+appId: ${APP_ID}
+name: Microfono - explicacion y rechazo fisico
+---
+- tapOn: Explorar
+- extendedWaitUntil:
+    visible: Catálogo
+    timeout: 15000
+- extendedWaitUntil:
+    visible: Buscar por voz
+    timeout: 15000
+- tapOn: Buscar por voz
+- extendedWaitUntil:
+    visible: Buscar con tu voz
+    timeout: 15000
+- assertVisible: '.*Puedes continuar buscando por escrito.*'
+- takeScreenshot: microphone-rationale
+- tapOn: Continuar
+- extendedWaitUntil:
+    visible:
+      id: '.*:id/permission_deny_button'
+    timeout: 15000
+- takeScreenshot: microphone-os-prompt
+- tapOn:
+    id: '.*:id/permission_deny_button'
+- extendedWaitUntil:
+    visible: '.*Permite el micrófono.*'
+    timeout: 10000
+- takeScreenshot: microphone-denied
+- tapOn:
+    point: 40%, 14%
+- inputText: Equipo E2E 1
+- assertVisible: Borrar búsqueda
+- hideKeyboard
+- extendedWaitUntil:
+    visible: Equipo E2E 1.*Ver producto
+    timeout: 15000
+- takeScreenshot: microphone-written-fallback
