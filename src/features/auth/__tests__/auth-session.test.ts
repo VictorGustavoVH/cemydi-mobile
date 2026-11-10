@@ -398,4 +398,295 @@ describe('Sesión móvil y cliente autenticado', () => {
     await expect(request).rejects.toMatchObject({ kind: 'abort' });
     expect(session.getSnapshot().status).toBe('authenticated');
   });
+
+  describe('NOV-01: Renovación JWT y SecureStore', () => {
+    it('TEST-01. Renovación exitosa: backend devuelve nuevas credenciales y SecureStore las guarda', async () => {
+      const { session, storage, saved } = setup();
+      await login(session, true);
+      expect(saved()).toBe(AUTH_SESSION.refreshToken);
+      const rotated = 'b'.repeat(64);
+      jest.mocked(fetch).mockResolvedValueOnce(
+        jsonResponse({
+          ...AUTH_SESSION,
+          accessToken: 'new-access-token',
+          refreshToken: rotated,
+        }),
+      );
+      await session.refresh();
+      expect(session.getSnapshot().status).toBe('authenticated');
+      expect(session.getAccessToken()).toBe('new-access-token');
+      expect(saved()).toBe(rotated);
+      expect(storage.set).toHaveBeenLastCalledWith(rotated);
+    });
+
+    it('TEST-02. Fallo de escritura tras rotación exitosa: mantiene sesión en memoria y elimina token obsoleto de SecureStore sin falsa persistencia', async () => {
+      const { session, storage, saved } = setup();
+      await login(session, true);
+      const rotated = 'b'.repeat(64);
+      storage.set.mockRejectedValueOnce(new Error('SecureStore disk error'));
+      jest.mocked(fetch).mockResolvedValueOnce(
+        jsonResponse({
+          ...AUTH_SESSION,
+          accessToken: 'rotated-access',
+          refreshToken: rotated,
+        }),
+      );
+      await session.refresh();
+      expect(session.getSnapshot().status).toBe('authenticated');
+      expect(session.getSnapshot().user).toEqual(AUTH_USER);
+      expect(session.getSnapshot().error).toBeNull();
+      expect(session.getAccessToken()).toBe('rotated-access');
+      expect(storage.set).toHaveBeenCalledWith(rotated);
+      expect(storage.remove).toHaveBeenCalledTimes(1);
+      expect(saved()).toBeNull();
+    });
+
+    it('TEST-03. Reintento posterior al fallo de almacenamiento: utiliza exclusivamente la credencial vigente en memoria', async () => {
+      const { session, storage } = setup();
+      await login(session, true);
+      // login llamó a storage.set 1 vez
+      expect(storage.set).toHaveBeenCalledTimes(1);
+
+      const rotated = 'b'.repeat(64);
+      storage.set.mockRejectedValueOnce(new Error('SecureStore write failed'));
+      jest.mocked(fetch).mockResolvedValueOnce(
+        jsonResponse({
+          ...AUTH_SESSION,
+          accessToken: 'rotated-access',
+          refreshToken: rotated,
+        }),
+      );
+      await session.refresh();
+      expect(session.getAccessToken()).toBe('rotated-access');
+      // Primer refresh intentó guardar y falló (segunda llamada a storage.set)
+      expect(storage.set).toHaveBeenCalledTimes(2);
+
+      // Segundo refresh en la misma sesión activa
+      const thirdRotated = 'c'.repeat(64);
+      jest.mocked(fetch).mockResolvedValueOnce(
+        jsonResponse({
+          ...AUTH_SESSION,
+          accessToken: 'third-access',
+          refreshToken: thirdRotated,
+        }),
+      );
+      await session.refresh();
+
+      // Comprobar que envió el refresh token vigente en memoria ('b'.repeat(64)), no el inicial
+      const lastFetchCall = jest.mocked(fetch).mock.calls[jest.mocked(fetch).mock.calls.length - 1];
+      expect(lastFetchCall[0]).toBe('https://cemydi.test.invalid/auth/mobile/refresh');
+      expect(JSON.parse(String(lastFetchCall[1]?.body))).toEqual({ refreshToken: rotated });
+      expect(session.getAccessToken()).toBe('third-access');
+      expect(session.getSnapshot().status).toBe('authenticated');
+      // Como la persistencia se deshabilitó tras el fallo previo, no vuelve a intentar escribir en SecureStore
+      expect(storage.set).toHaveBeenCalledTimes(2);
+    });
+
+    it('TEST-04. Reinicio simulado: no restaura indebidamente una sesión mediante un refresh token invalidado', async () => {
+      // Caso 4A: La persistencia falló pero el cleanup eliminó la credencial obsoleta
+      const { session, storage } = setup();
+      await login(session, true);
+      const rotated = 'b'.repeat(64);
+      storage.set.mockRejectedValueOnce(new Error('SecureStore write failed'));
+      jest.mocked(fetch).mockResolvedValueOnce(
+        jsonResponse({
+          ...AUTH_SESSION,
+          accessToken: 'rotated-access',
+          refreshToken: rotated,
+        }),
+      );
+      await session.refresh();
+
+      // Simular reinicio de proceso
+      const restartedA = createAuthSession(storage);
+      await restartedA.restore();
+      expect(restartedA.getSnapshot().status).toBe('guest');
+      expect(restartedA.getAccessToken()).toBeNull();
+
+      // Caso 4B: SecureStore falló tanto en escritura como en eliminación (token anterior quedó atrapado en disco)
+      const { session: sessionB, storage: storageB, saved: savedB } = setup();
+      await login(sessionB, true);
+      const initialToken = savedB();
+      storageB.set.mockRejectedValueOnce(new Error('SecureStore set failed'));
+      storageB.remove.mockRejectedValueOnce(new Error('SecureStore remove failed'));
+      jest.mocked(fetch).mockResolvedValueOnce(
+        jsonResponse({
+          ...AUTH_SESSION,
+          accessToken: 'rotated-access-b',
+          refreshToken: 'b'.repeat(64),
+        }),
+      );
+      await sessionB.refresh();
+
+      // El token anterior aún está en el mock porque remove falló
+      expect(savedB()).toBe(initialToken);
+
+      // Simular reinicio: restore intenta usar el token obsoleto, pero el backend lo rechaza
+      const restartedB = createAuthSession(storageB);
+      jest.mocked(fetch).mockResolvedValueOnce(jsonResponse({ message: 'Token invalidado' }, 401));
+      await restartedB.restore();
+      expect(restartedB.getSnapshot().status).toBe('expired');
+      expect(restartedB.getAccessToken()).toBeNull();
+    });
+
+    it('TEST-05. Logout tras renovación con fallo de persistencia: limpia el estado local y revoca la credencial vigente', async () => {
+      const { session, storage, saved } = setup();
+      await login(session, true);
+      const rotated = 'b'.repeat(64);
+      storage.set.mockRejectedValueOnce(new Error('SecureStore write failed'));
+      jest.mocked(fetch).mockResolvedValueOnce(
+        jsonResponse({
+          ...AUTH_SESSION,
+          accessToken: 'rotated-access',
+          refreshToken: rotated,
+        }),
+      );
+      await session.refresh();
+
+      jest.mocked(fetch).mockResolvedValueOnce(jsonResponse({ message: 'Sesión cerrada' }));
+      await session.logout();
+
+      expect(session.getSnapshot().status).toBe('guest');
+      expect(session.getAccessToken()).toBeNull();
+      expect(saved()).toBeNull();
+
+      // Verificar que se revocó el token vigente en el backend
+      const logoutCall = jest
+        .mocked(fetch)
+        .mock.calls.find(([url]) => String(url).endsWith('/auth/mobile/logout'));
+      expect(logoutCall).toBeDefined();
+      expect(JSON.parse(String(logoutCall![1]?.body))).toEqual({ refreshToken: rotated });
+
+      // Verificar que restaurar no reactiva la sesión
+      const restored = createAuthSession(storage);
+      await restored.restore();
+      expect(restored.getSnapshot().status).toBe('guest');
+    });
+
+    it('TEST-06. Renovaciones simultáneas: coordina múltiples 401 en una única llamada de refresh', async () => {
+      const { session } = setup();
+      await login(session);
+      const rotation = deferred<Response>();
+      jest.mocked(fetch).mockImplementation(async (url, options) => {
+        if (String(url).endsWith('/auth/mobile/refresh')) return rotation.promise;
+        return new Headers(options?.headers).get('Authorization') === 'Bearer concurrent-rotated'
+          ? jsonResponse({ user: AUTH_USER })
+          : jsonResponse({}, 401);
+      });
+
+      const first = httpClient.request('/users/me', { authenticated: true });
+      const second = httpClient.request('/users/me', { authenticated: true });
+      const third = httpClient.request('/users/me', { authenticated: true });
+
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      rotation.resolve(
+        jsonResponse({
+          ...AUTH_SESSION,
+          accessToken: 'concurrent-rotated',
+          refreshToken: 'b'.repeat(64),
+        }),
+      );
+
+      const results = await Promise.all([first, second, third]);
+      expect(results).toEqual([{ user: AUTH_USER }, { user: AUTH_USER }, { user: AUTH_USER }]);
+
+      const refreshCalls = jest
+        .mocked(fetch)
+        .mock.calls.filter(([url]) => String(url).endsWith('/auth/mobile/refresh'));
+      expect(refreshCalls).toHaveLength(1);
+    });
+
+    it('TEST-07. Cambio de cuenta: una renovación de cuenta A no sobrescribe las credenciales de cuenta B', async () => {
+      const { session } = setup();
+      await login(session);
+      const refreshA = deferred<Response>();
+      jest.mocked(fetch).mockReturnValueOnce(refreshA.promise);
+
+      // Iniciar refresh para cuenta A
+      const pendingRefreshA = session.refresh();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      // El usuario cierra sesión
+      await session.clear();
+
+      // El usuario inicia sesión como cuenta B mientras el refresh de A aún estaba en curso
+      const USER_B = { ...AUTH_USER, id: 99, correo: 'otro@cemydi.test' };
+      jest.mocked(fetch).mockResolvedValueOnce(
+        jsonResponse({
+          ...AUTH_SESSION,
+          accessToken: 'token-user-b',
+          user: USER_B,
+        }),
+      );
+      const pendingLoginB = session.login('otro@cemydi.test', 'Password123!', true);
+
+      // La respuesta tardía del refresh de cuenta A llega mientras se procesa el login de cuenta B
+      refreshA.resolve(
+        jsonResponse({
+          ...AUTH_SESSION,
+          accessToken: 'token-late-user-a',
+          refreshToken: 'a'.repeat(64),
+          user: AUTH_USER,
+        }),
+      );
+
+      await pendingRefreshA;
+      await pendingLoginB;
+
+      // La sesión actual debe pertenecer exclusivamente a la cuenta B
+      expect(session.getSnapshot().user?.id).toBe(USER_B.id);
+      expect(session.getSnapshot().user?.correo).toBe(USER_B.correo);
+      expect(session.getAccessToken()).toBe('token-user-b');
+      expect(session.getSnapshot().status).toBe('authenticated');
+    });
+
+    it('TEST-08. Error de conectividad: conserva la credencial segura ante fallo de red sin confundirlos con revocación', async () => {
+      const { session, storage, saved } = setup(AUTH_SESSION.refreshToken);
+      jest.mocked(fetch).mockRejectedValueOnce(new TypeError('Network request failed'));
+
+      await session.restore();
+
+      expect(session.getSnapshot().status).toBe('error');
+      expect(session.getAccessToken()).toBeNull();
+      // La credencial se conserva en almacenamiento seguro
+      expect(saved()).toBe(AUTH_SESSION.refreshToken);
+      expect(storage.remove).not.toHaveBeenCalled();
+
+      // Reintento tras restablecer la conectividad
+      jest.mocked(fetch).mockResolvedValueOnce(jsonResponse(AUTH_SESSION));
+      await session.restore();
+      expect(session.getSnapshot().status).toBe('authenticated');
+      expect(session.getAccessToken()).toBe(AUTH_SESSION.accessToken);
+    });
+
+    it('TEST-09. Token rechazado: si el servidor rechaza el refresh, la sesión expira y no se mantiene falsamente autenticada', async () => {
+      const { session, saved } = setup(AUTH_SESSION.refreshToken);
+      jest
+        .mocked(fetch)
+        .mockResolvedValueOnce(jsonResponse({ message: 'Refresh token revocado o expirado' }, 401));
+
+      await session.restore();
+
+      expect(session.getSnapshot().status).toBe('expired');
+      expect(session.getSnapshot().user).toBeNull();
+      expect(session.getAccessToken()).toBeNull();
+      expect(saved()).toBeNull();
+    });
+
+    it('TEST-10. Fallo al eliminar una credencial: informa error si SecureStore no elimina ni sobrescribe, sin ocultar la persistencia residual', async () => {
+      const { session, storage } = setup();
+      await login(session);
+      storage.remove.mockRejectedValueOnce(new Error('SecureStore remove failed'));
+      storage.set.mockRejectedValueOnce(new Error('SecureStore set failed'));
+
+      await expect(session.logout()).rejects.toThrow('Reintenta cerrar sesión');
+      expect(session.getSnapshot().status).toBe('error');
+      expect(session.getSnapshot().error).toBeInstanceOf(Error);
+
+      // Reintentar cuando SecureStore responde adecuadamente
+      jest.mocked(fetch).mockResolvedValueOnce(jsonResponse({ message: 'Sesión cerrada' }));
+      await expect(session.logout()).resolves.toEqual({ remoteStatus: 'revoked' });
+      expect(session.getSnapshot().status).toBe('guest');
+    });
+  });
 });

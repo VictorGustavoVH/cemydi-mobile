@@ -124,7 +124,15 @@ entre formularios y catálogo en el dispositivo objetivo. Jest y CNG no acredita
 esa aceptación. iOS sigue pendiente y no activa esta protección Android.
 Referencia: [ScreenCapture de Expo SDK 57](https://docs.expo.dev/versions/v57.0.0/sdk/screen-capture/).
 
-El perfil muestra nombre/correo reales y «Cerrar sesión». Logout bloquea de inmediato las operaciones de la sesión saliente, limpia memoria y caché privada, y elimina el refresh de SecureStore. Si la eliminación falla, intenta sustituirlo por un marcador que impide restaurar la sesión; si tampoco puede confirmar ese paso, muestra error y permite reintentar. La revocación remota se intenta sin bloquear el cierre local y se informa cuando falla o sigue pendiente. Una rotación tardía se revoca y no puede restaurar el estado. Si SecureStore rechaza guardar el refresh rotado, la sesión continúa en memoria con el token nuevo (el anterior ya fue invalidado en el servidor), pero al reiniciar se pierde; no se reintroduce el token anterior. La integración del carrito se describe en CART.md.
+El perfil muestra nombre/correo reales y «Cerrar sesión». Logout bloquea de inmediato las operaciones de la sesión saliente, limpia memoria y caché privada, y elimina el refresh de SecureStore. Si la eliminación falla, intenta sustituirlo por un marcador que impide restaurar la sesión; si tampoco puede confirmar ese paso, muestra error y permite reintentar. La revocación remota se intenta sin bloquear el cierre local y se informa cuando falla o sigue pendiente. Una rotación tardía se revoca y no puede restaurar el estado.
+
+En la renovación periódica de credenciales:
+
+- Cuando el servidor renueva exitosamente, devuelve un nuevo access token y refresh token rotado; las credenciales en memoria se actualizan y, si la sesión era persistente, se intenta guardar el refresh rotado en SecureStore.
+- Si SecureStore rechaza guardar el refresh rotado, el fallo de almacenamiento local no se confunde con un rechazo del servidor ni interrumpe la sesión activa: la sesión continúa activa de forma segura en memoria con el nuevo access token y el refresh token vigente.
+- La sesión deja de ser persistente (`persistent = false`) en ese instante para no prometer almacenamiento seguro que no se pudo garantizar. Renovaciones posteriores en la misma ejecución emplean exclusivamente el refresh token vigente en memoria y no intentan reescribir la persistencia degradada.
+- Dado que el servidor ya invalidó el refresh token anterior durante la rotación, tras el fallo de escritura se intenta limpiar la credencial obsoleta de SecureStore (`storage.remove`). El token anterior nunca se reintroduce ni se reutiliza en memoria.
+- Al reiniciar la aplicación tras un fallo de persistencia, si el almacenamiento quedó limpio la app inicia como invitado (`guest`) sin restaurar indebidamente credenciales no persistidas; si la eliminación de la credencial obsoleta también hubiese fallado en disco, la llamada de restauración con el token residual es rechazada por el servidor con 401/403, transicionando la sesión a `expired` y purgando el almacenamiento. La integración del carrito se describe en CART.md.
 
 ## Cambios de credenciales de perfil
 
