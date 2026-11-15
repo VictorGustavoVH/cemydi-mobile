@@ -22,3 +22,8 @@ name: Documentos - abrir selector desde receta sintetica
       text: 'Adjuntar receta de Equipo E2E 1'
     direction: DOWN
 - tapOn: 'Adjuntar receta de Equipo E2E 1'
+- scrollUntilVisible:
+    element:
+      text: Aceptar y elegir receta
+    direction: DOWN
+- tapOn: Aceptar y elegir receta

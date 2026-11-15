@@ -49,6 +49,11 @@ Las recetas se eligen con `expo-document-picker ~57.0.3`, instalado mediante
 `npx expo install`, porque el stack anterior no tenía selector nativo de archivos.
 Se contrastó la [documentación SDK 57](https://docs.expo.dev/versions/v57.0.0/sdk/document-picker/).
 Se aceptan PDF, JPG/JPEG, PNG y WebP de hasta 8 MB, según el backend actual.
+Al adjuntar o cambiar una receta, la hoja explica que el archivo se envía a
+CEMYDI y se almacena en Cloudinary para verificar el requisito de renta, incluso
+antes de enviar la solicitud. Solo «Aceptar y elegir receta» abre el selector
+para ese intento. Cancelar en el aviso o en el selector evita la carga y
+conserva la receta anterior si existía.
 FormData incluye nombre/MIME y un lector `bytes()` para el serializador de fetch
 de Expo 57, que no admite partes con solo URI. El lector no es enumerable para
 conservar también la compatibilidad con `getParts()` del transporte React Native,
