@@ -26,7 +26,9 @@ export function CartPrescription({ item, onBusyChange }: CartPrescriptionProps) 
     authVersion,
     isCurrent,
   } = useCart();
-  const [stage, setStage] = useState<'idle' | 'picking' | 'uploading' | 'removing'>('idle');
+  const [stage, setStage] = useState<'idle' | 'disclosure' | 'picking' | 'uploading' | 'removing'>(
+    'idle',
+  );
   const [local, setLocal] = useState<LocalPreview>();
   const [opening, setOpening] = useState(false);
   const localRef = useRef<LocalPreview | undefined>(undefined);
@@ -34,7 +36,8 @@ export function CartPrescription({ item, onBusyChange }: CartPrescriptionProps) 
   const lock = useRef(false);
   const openingLock = useRef(false);
   const toast = useToast();
-  const disabled = busy || stage !== 'idle' || opening || !online || uncertain;
+  const disabled = busy || opening || !online || uncertain;
+  const actionsDisabled = disabled || stage !== 'idle';
   const preview =
     local && (stage === 'uploading' || local.documentId === item.document?.id)
       ? local.preview
@@ -63,8 +66,14 @@ export function CartPrescription({ item, onBusyChange }: CartPrescriptionProps) 
     if (mounted.current) setLocal(undefined);
   }
 
-  async function update(remove = false) {
-    if (lock.current || openingLock.current || disabled) return;
+  async function update(remove: boolean) {
+    if (
+      lock.current ||
+      openingLock.current ||
+      disabled ||
+      stage !== (remove ? 'idle' : 'disclosure')
+    )
+      return;
     lock.current = true;
     onBusyChange?.(true);
     const version = authVersion();
@@ -117,7 +126,7 @@ export function CartPrescription({ item, onBusyChange }: CartPrescriptionProps) 
   }
 
   async function openPdf() {
-    if (!preview || openingLock.current || disabled) return;
+    if (!preview || openingLock.current || actionsDisabled) return;
     openingLock.current = true;
     setOpening(true);
     onBusyChange?.(true);
@@ -193,7 +202,7 @@ export function CartPrescription({ item, onBusyChange }: CartPrescriptionProps) 
                 accessibilityHint="La aplicación que elijas tendrá acceso a tu receta y podría guardar una copia."
                 variant="ghost"
                 loading={opening}
-                disabled={disabled}
+                disabled={actionsDisabled}
                 onPress={() => void openPdf()}
               />
               <Text className="font-sans text-xs leading-5 text-secondary">
@@ -223,21 +232,44 @@ export function CartPrescription({ item, onBusyChange }: CartPrescriptionProps) 
           Archivo adjunto. CEMYDI lo revisará al recibir tu solicitud.
         </Text>
       ) : null}
-      <AppButton
-        label={`${item.document ? 'Cambiar' : 'Adjuntar'} receta`}
-        accessibilityLabel={`${item.document ? 'Cambiar' : 'Adjuntar'} receta de ${item.product.nombre}`}
-        variant="outline"
-        disabled={disabled}
-        onPress={() => void update()}
-        leftIcon={<Upload aria-hidden size={18} color={colors.brandStrong} />}
-      />
+      {stage === 'disclosure' ? (
+        <View className="gap-2">
+          <Text
+            accessibilityLiveRegion="polite"
+            className="font-sans text-sm leading-6 text-secondary"
+          >
+            La receta puede contener datos de salud. Al elegir el archivo, se enviará a CEMYDI y se
+            guardará en Cloudinary para verificar el requisito de la renta, aunque todavía no hayas
+            enviado la solicitud.
+          </Text>
+          <AppButton
+            label="Aceptar y elegir receta"
+            disabled={disabled}
+            onPress={() => void update(false)}
+          />
+          <AppButton
+            label="Cancelar selección de receta"
+            variant="ghost"
+            onPress={() => setStage('idle')}
+          />
+        </View>
+      ) : (
+        <AppButton
+          label={`${item.document ? 'Cambiar' : 'Adjuntar'} receta`}
+          accessibilityLabel={`${item.document ? 'Cambiar' : 'Adjuntar'} receta de ${item.product.nombre}`}
+          variant="outline"
+          disabled={actionsDisabled}
+          onPress={() => setStage('disclosure')}
+          leftIcon={<Upload aria-hidden size={18} color={colors.brandStrong} />}
+        />
+      )}
       {item.document ? (
         <AppButton
           label={stage === 'removing' ? 'Quitando receta…' : 'Quitar receta'}
           accessibilityLabel={`Quitar receta de ${item.product.nombre}`}
           variant="ghost"
           loading={stage === 'removing'}
-          disabled={disabled}
+          disabled={actionsDisabled}
           onPress={() => void update(true)}
         />
       ) : null}

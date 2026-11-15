@@ -121,6 +121,10 @@ async function accept() {
   await fireEvent.press(screen.getByLabelText('Acepto las condiciones de renta'));
   await fireEvent.press(screen.getByLabelText('Acepto el tratamiento de datos y documentos'));
 }
+async function attachPrescription() {
+  await fireEvent.press(screen.getByLabelText('Adjuntar receta de Silla de ruedas'));
+  await fireEvent.press(screen.getByRole('button', { name: 'Aceptar y elegir receta' }));
+}
 describe('Flujo de solicitud de renta', () => {
   beforeEach(() => {
     onlineManager.setOnline(true);
@@ -154,6 +158,27 @@ describe('Flujo de solicitud de renta', () => {
       screen.getByLabelText('Horario de recogida (opcional)').props.accessibilityValue.text,
     ).toMatch(/1:05/);
     expect(screen.getByDisplayValue('789 123 4567')).toBeTruthy();
+  });
+
+  it('informa antes de elegir y conserva la receta existente si se cancela', async () => {
+    const api = await show(true);
+    await review();
+    await fireEvent.press(screen.getByLabelText('Configurar renta de Silla de ruedas'));
+    const upload = jest.spyOn(rentalRequestService, 'upload');
+    await fireEvent.press(screen.getByLabelText('Cambiar receta de Silla de ruedas'));
+    expect(screen.getByText(/se guardará en Cloudinary/)).toBeTruthy();
+    expect(getDocumentAsync).not.toHaveBeenCalled();
+    await fireEvent.press(screen.getByRole('button', { name: 'Cancelar selección de receta' }));
+    expect(getDocumentAsync).not.toHaveBeenCalled();
+    expect(upload).not.toHaveBeenCalled();
+
+    jest.mocked(getDocumentAsync).mockResolvedValueOnce({ canceled: true, assets: null });
+    await fireEvent.press(screen.getByLabelText('Cambiar receta de Silla de ruedas'));
+    await fireEvent.press(screen.getByRole('button', { name: 'Aceptar y elegir receta' }));
+    expect(getDocumentAsync).toHaveBeenCalledTimes(1);
+    expect(upload).not.toHaveBeenCalled();
+    expect(api.read().items[1].document).toEqual(document);
+    expect(screen.getByLabelText('Cambiar receta de Silla de ruedas')).toBeEnabled();
   });
 
   it('muestra la imagen mientras sube, bloquea cierre y guardado, y limpia la copia al cerrar', async () => {
@@ -193,7 +218,7 @@ describe('Flujo de solicitud de renta', () => {
           finish = resolve;
         }),
     );
-    await fireEvent.press(screen.getByLabelText('Adjuntar receta de Silla de ruedas'));
+    await attachPrescription();
     expect(await screen.findByLabelText('Vista previa de receta.png')).toHaveProp(
       'cachePolicy',
       'none',
@@ -236,7 +261,7 @@ describe('Flujo de solicitud de renta', () => {
           finish = resolve;
         }),
     );
-    await fireEvent.press(screen.getByLabelText('Adjuntar receta de Silla de ruedas'));
+    await attachPrescription();
     await screen.findByRole('progressbar', { name: 'Subiendo receta' });
     await act(async () => {
       await auth.logout();
@@ -395,7 +420,7 @@ describe('Flujo de solicitud de renta', () => {
     jest
       .spyOn(rentalRequestService, 'upload')
       .mockRejectedValueOnce(new ApiError('offline', { kind: 'network' }));
-    await fireEvent.press(screen.getByLabelText('Adjuntar receta de Silla de ruedas'));
+    await attachPrescription();
     await waitFor(() =>
       expect(
         within(screen.getByTestId('toast-viewport')).getByText(/No fue posible conectar/),
@@ -424,7 +449,7 @@ describe('Flujo de solicitud de renta', () => {
         },
       ],
     });
-    await fireEvent.press(screen.getByLabelText('Adjuntar receta de Silla de ruedas'));
+    await attachPrescription();
     await screen.findByText('receta.pdf');
     await fireEvent.press(screen.getByLabelText('Quitar receta de Silla de ruedas'));
     await screen.findByLabelText('Adjuntar receta de Silla de ruedas');
@@ -441,7 +466,7 @@ describe('Flujo de solicitud de renta', () => {
         },
       ],
     });
-    await fireEvent.press(screen.getByLabelText('Adjuntar receta de Silla de ruedas'));
+    await attachPrescription();
     await screen.findByLabelText('Abrir PDF con otra aplicación');
     expect(screen.getByText(/la aplicación que elijas tendrá acceso a tu receta/)).toBeTruthy();
     expect(shareAsync).not.toHaveBeenCalled();

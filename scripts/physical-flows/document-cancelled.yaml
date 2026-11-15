@@ -7,3 +7,8 @@ name: Documentos - cancelacion sin subida
 - assertNotVisible: Quitar receta de Equipo E2E 1
 - assertVisible: PDF, JPG, PNG o WebP · Hasta 8 MB
 - tapOn: Adjuntar receta de Equipo E2E 1
+- scrollUntilVisible:
+    element:
+      text: Aceptar y elegir receta
+    direction: DOWN
+- tapOn: Aceptar y elegir receta
