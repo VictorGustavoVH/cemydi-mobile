@@ -1,0 +1,83 @@
+name: Android Preview
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-preview-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  reject_non_develop:
+    if: github.ref != 'refs/heads/develop'
+    runs-on: ubuntu-24.04
+    steps:
+      - run: |
+          echo '::error::Select the develop branch to build a release candidate.'
+          exit 1
+
+  quality:
+    if: github.ref == 'refs/heads/develop'
+    uses: ./.github/workflows/quality.yml
+
+  tests:
+    if: github.ref == 'refs/heads/develop'
+    uses: ./.github/workflows/tests.yml
+    with:
+      skip_debug_build: true
+
+  build:
+    needs: [quality, tests]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    environment: android-preview
+    env:
+      EXPO_NO_DOTENV: '1'
+      EXPO_NO_TELEMETRY: '1'
+    steps:
+      - name: Checkout candidate revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24.11.0'
+          package-manager-cache: false
+
+      - name: Install dependencies and EAS CLI
+        run: |
+          npm ci
+          npm install --global "eas-cli@$(node -p "require('./eas.json').cli.version")"
+
+      - name: Build signed Android APK with EAS
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [[ -z "$EXPO_TOKEN" ]]; then
+            echo '::error::Configure EXPO_TOKEN in the android-preview GitHub environment.'
+            exit 1
+          fi
+
+          result="$RUNNER_TEMP/eas-android-preview.json"
+          eas build --platform android --profile preview --non-interactive --freeze-credentials --wait --json > "$result"
+
+          node - "$result" <<'NODE'
+          const fs = require('node:fs');
+          const [build] = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          const artifact = build?.artifacts?.applicationArchiveUrl ?? build?.artifacts?.buildUrl;
+          if (build?.status !== 'FINISHED' || build.platform !== 'ANDROID' ||
+              build.buildProfile !== 'preview' || build.distribution !== 'INTERNAL' ||
+              build.gitCommitHash !== process.env.GITHUB_SHA || !artifact ||
+              !new URL(artifact).pathname.endsWith('.apk')) {
+            throw new Error('EAS did not return a finished internal APK for this revision.');
+          }
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,
+            `### Android preview\n\nCommit: \`${process.env.GITHUB_SHA}\`\n\n` +
+            `EAS build: \`${build.id}\` (FINISHED, APK)\n\n` +
+            'Download the APK from the project in Expo using the build ID.\n');
+          NODE

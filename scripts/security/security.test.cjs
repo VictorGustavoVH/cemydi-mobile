@@ -191,7 +191,8 @@ test('SAST incluye código, scripts y configuración; el workflow no usa pull_re
   assert.ok(!workflow.includes('pull_request_target'));
   assert.ok(!workflow.includes('secrets.'));
   assert.ok(workflow.includes('contents: read'));
-  assert.ok(workflow.includes('backend pendiente'));
+  assert.ok(workflow.includes('name: DAST smoke — fixture local'));
+  assert.ok(workflow.includes('Ejecutar ZAP solo sobre fixture local'));
   assert.ok(workflow.includes("github.event_name == 'workflow_dispatch' && inputs.dast_smoke"));
   assert.ok(workflow.includes("github.event.label.name == 'seguridad:dast-fixture'"));
   assert.ok(workflow.includes('github.actor == github.repository_owner'));
