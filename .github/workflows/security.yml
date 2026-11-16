@@ -1,4 +1,4 @@
-name: Security — SCA, SAST y DAST smoke (backend pendiente)
+name: Security — SCA, SAST y DAST smoke
 
 on:
   schedule:
@@ -103,7 +103,7 @@ jobs:
           retention-days: 14
 
   dast:
-    name: DAST smoke — fixture, backend SIN validar
+    name: DAST smoke — fixture local
     # Alternativa manual pre-merge: solo el propietario puede activar el fixture
     # en un PR del mismo repositorio, sin eventos privilegiados ni secretos.
     if: >-

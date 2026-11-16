@@ -21,9 +21,6 @@ de dependencias y sus límites se documentan en
   `dast_smoke=true`. ZAP Baseline **2.17.0**, imagen fijada por digest. No evalúa
   NestJS ni la seguridad del backend CEMYDI. En PR queda omitido salvo activación
   manual por etiqueta conforme a las restricciones siguientes.
-- **DAST del backend pendiente**: el repositorio móvil no contiene un despliegue
-  aislado de NestJS y PostgreSQL. Los e2e del backend requieren configuración y DB;
-  no acreditan un servicio reproducible disponible para este workflow.
 - Una ejecución verde de este workflow NO acredita un análisis SAST/DAST completo.
   El nombre del workflow, del job DAST y sus resultados conservan esta distinción.
 
