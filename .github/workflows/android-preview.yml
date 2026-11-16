@@ -1,0 +1,16 @@
+name: Android Preview
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  block-main:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Use develop branch
+        run: |
+          echo "::error::Ejecuta Android Preview desde develop."
+          exit 1
