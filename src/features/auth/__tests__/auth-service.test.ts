@@ -16,6 +16,31 @@ function setup() {
 }
 describe('Contratos públicos de autenticación', () => {
   beforeEach(() => installAuthApiMock());
+  it('no vuelve a solicitar un código para un correo cuya verificación ya se confirmó', async () => {
+    const service = setup();
+    await service.requestVerification(AUTH_ACCOUNT.correo);
+    await service.verify('00000000');
+    const requests = jest.mocked(fetch).mock.calls.length;
+    await expect(
+      service.requestVerification(` ${AUTH_ACCOUNT.correo.toUpperCase()} `),
+    ).rejects.toThrow('No se pudo continuar con esta solicitud');
+    expect(fetch).toHaveBeenCalledTimes(requests);
+    await expect(service.verify('00000000')).rejects.toThrow('Primero solicita');
+  });
+  it('rechaza la verificación del correo ya verificado de la sesión actual', async () => {
+    const session = createAuthSession({
+      get: async () => null,
+      set: async () => undefined,
+      remove: async () => undefined,
+    });
+    const service = createAuthService(session);
+    await session.login(AUTH_ACCOUNT.correo, AUTH_ACCOUNT.password, false);
+    const requests = jest.mocked(fetch).mock.calls.length;
+    await expect(service.requestVerification(AUTH_ACCOUNT.correo)).rejects.toThrow(
+      'No se pudo continuar con esta solicitud',
+    );
+    expect(fetch).toHaveBeenCalledTimes(requests);
+  });
   it('una respuesta tardía no reactiva una recuperación cancelada', async () => {
     const service = setup();
     let finish!: (response: Response) => void;
