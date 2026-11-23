@@ -1,19 +1,18 @@
-import { useCallback, useContext, useEffect, useRef } from 'react';
-import { usePathname, useRouter } from 'expo-router';
+import { useSafeNavigation } from '@/hooks/useSafeNavigation';
+import { useCallback, useContext, useEffect } from 'react';
+import { usePathname } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppBottomBar } from '@/components/ui/AppBottomBar';
 import { useCartCount } from '@/providers/cart-provider';
 import { useAccountAccess } from '@/hooks/useAccountAccess';
 import { ToastContext } from '@/hooks/useToast';
 
-const NAV_LOCK_MS = 600;
 const MAIN_TABS = ['/inicio', '/catalogo', '/carrito', '/perfil'] as const;
 
 /**
  * Barra de pestañas única para toda la app. Se monta una sola vez en el
- * layout raíz, visible solo en las pantallas principales. Bloquea toques
- * repetidos durante NAV_LOCK_MS para que un doble tap no dispare dos
- * navegaciones y apile pantallas.
+ * layout de pestañas, visible solo en las pantallas principales. Comparte
+ * el bloqueo de navegación con el resto de accesos de la aplicación.
  */
 export function GlobalBottomBar() {
   const pathname = usePathname();
@@ -23,37 +22,26 @@ export function GlobalBottomBar() {
     if (!visible) toastStore?.setBottomBarHeight(0);
     return () => toastStore?.setBottomBarHeight(0);
   }, [toastStore, visible]);
-  const router = useRouter();
+  const router = useSafeNavigation();
   const cartCount = useCartCount();
   const { requestAccess } = useAccountAccess();
-  const lastNavAt = useRef(0);
-
-  const locked = useCallback(() => {
-    const now = Date.now();
-    if (now - lastNavAt.current < NAV_LOCK_MS) return true;
-    lastNavAt.current = now;
-    return false;
-  }, []);
-
   const onHome = useCallback(() => {
-    if (locked()) return;
     router.navigate({ pathname: '/inicio', params: { action: 'top', t: String(Date.now()) } });
-  }, [locked, router]);
+  }, [router]);
 
   const onExplore = useCallback(() => {
-    if (locked()) return;
     if (pathname !== '/catalogo') router.navigate('/catalogo');
-  }, [locked, pathname, router]);
+  }, [pathname, router]);
 
   const onCart = useCallback(() => {
-    if (locked() || pathname === '/carrito') return;
+    if (pathname === '/carrito') return;
     router.navigate('/carrito');
-  }, [locked, pathname, router]);
+  }, [pathname, router]);
 
   const onProfile = useCallback(() => {
-    if (locked() || !requestAccess('/perfil')) return;
+    if (!requestAccess('/perfil')) return;
     router.navigate('/perfil');
-  }, [locked, requestAccess, router]);
+  }, [requestAccess, router]);
 
   if (!visible) {
     return null;

@@ -14,6 +14,7 @@ import ShoppingCart from 'lucide-react-native/icons/shopping-cart';
 import UserRound from 'lucide-react-native/icons/user-round';
 import { AppButton } from '@/components/ui/AppButton';
 import { colors } from '@/theme';
+import { CartIcon } from './CartIcon';
 
 export type TabKey = 'home' | 'explore' | 'cart' | 'profile';
 const tabs: { key: TabKey; label: string; icon: typeof House }[] = [
@@ -106,29 +107,22 @@ const TabItem = memo(function TabItem({
       <View className="w-full items-center gap-1">
         <Animated.View style={pressStyle} className="w-full items-center gap-1">
           <View className="items-center">
-            <View className="relative">
-              <Animated.View style={iconStyle} className="p-1">
-                <Icon
-                  aria-hidden
+            <Animated.View style={iconStyle}>
+              {tabKey === 'cart' ? (
+                <CartIcon
+                  count={badgeCount}
                   color={selected ? colors.brandStrong : colors.textSecondary}
-                  size={22}
                 />
-              </Animated.View>
-              {badgeCount > 0 ? (
-                <View
-                  pointerEvents="none"
-                  accessible={false}
-                  className="absolute -right-2 -top-1 min-h-[18px] min-w-[18px] items-center justify-center rounded-full border-[1.5px] border-background bg-brand-strong px-1"
-                >
-                  <Text
-                    style={{ includeFontPadding: false }}
-                    className="font-sans-bold text-[10px] leading-tight text-on-brand"
-                  >
-                    {badgeCount > 99 ? '99+' : badgeCount}
-                  </Text>
+              ) : (
+                <View className="p-1">
+                  <Icon
+                    aria-hidden
+                    color={selected ? colors.brandStrong : colors.textSecondary}
+                    size={22}
+                  />
                 </View>
-              ) : null}
-            </View>
+              )}
+            </Animated.View>
           </View>
           <Text
             className={`max-w-full shrink text-center text-sm ${selected ? 'font-sans-semibold text-brand-strong' : 'font-sans text-secondary'}`}

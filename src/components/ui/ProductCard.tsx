@@ -4,7 +4,6 @@ import Star from 'lucide-react-native/icons/star';
 
 import { AppButton } from '@/components/ui/AppButton';
 import type { HomeProduct } from '@/data/catalog-preview';
-import { useThrottledCallback } from '@/hooks/useThrottledCallback';
 import type { ProductRatingState } from '@/hooks/useProductRatings';
 import { colors } from '@/theme';
 import { SkeletonBlock } from './Skeleton';
@@ -25,14 +24,12 @@ export const ProductCard = memo(function ProductCard({
   product,
   ratingState,
   onPress,
-  throttleMs = 750,
+  throttleMs = 800,
   imageWidth,
 }: ProductCardProps) {
   const { fontScale } = useWindowDimensions();
   const [cardWidth, setCardWidth] = useState<number>();
   const imageHeight = Math.min(160, Math.max(0, ((imageWidth ?? cardWidth ?? 240) * 2) / 3));
-
-  const handlePress = useThrottledCallback(onPress, throttleMs);
 
   const unavailable = product.unavailable === true;
   const hasPurchase = product.modes.includes('purchase');
@@ -87,7 +84,8 @@ export const ProductCard = memo(function ProductCard({
     <AppButton
       className={`w-full grow flex-col items-stretch justify-start overflow-hidden rounded-xl border border-border-subtle px-0 py-0 ${unavailable ? 'bg-surface-muted' : 'bg-surface'} ${className} `}
       label={accessibilityLabel}
-      onPress={handlePress}
+      onPress={onPress}
+      pressIntervalMs={throttleMs}
       onLayout={(event) => {
         const nextWidth = event.nativeEvent.layout.width;
         if (imageWidth === undefined && nextWidth > 0)

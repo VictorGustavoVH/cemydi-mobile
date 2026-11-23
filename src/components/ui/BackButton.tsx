@@ -60,6 +60,7 @@ export function BackButton({
       label={label}
       leftIcon={<ArrowLeft aria-hidden color={iconColor} size={iconSize} />}
       onPress={handlePress}
+      pressIntervalMs={800}
       testID={testID}
       variant="ghost"
     />
