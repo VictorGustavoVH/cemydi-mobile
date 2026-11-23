@@ -1,19 +1,16 @@
 import { useRef, useState } from 'react';
-import { Text, View } from 'react-native';
+import { Text, useWindowDimensions, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
-import CalendarDays from 'lucide-react-native/icons/calendar-days';
-import ReceiptText from 'lucide-react-native/icons/receipt-text';
-import MapPin from 'lucide-react-native/icons/map-pin';
 import FileText from 'lucide-react-native/icons/file-text';
 import Wallet from 'lucide-react-native/icons/wallet';
 import RotateCcwClock from 'lucide-react-native/icons/rotate-ccw-clock';
-import { colors } from '@/theme';
 import { ProfileProductRow } from './components/ProfileProductRow';
 import { AccountStatusBadge } from '@/components/account/AccountStatusBadge';
 import { AppButton } from '@/components/ui/AppButton';
 import { AppSheet } from '@/components/ui/AppSheet';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { Skeleton, SkeletonBlock } from '@/components/ui/Skeleton';
 import { useAuth } from '@/providers/auth-provider';
 import { useToast } from '@/hooks/useToast';
 import { getFriendlyErrorMessage, UserFacingError } from '@/services/http/api-error';
@@ -37,6 +34,91 @@ const depositLabels = {
   RETAINED: 'Retenido',
   PARTIALLY_RETAINED: 'Parcialmente retenido',
 };
+
+function RentalDetailSkeleton() {
+  const { fontScale } = useWindowDimensions();
+  const line = (size: number) => ({ height: size * fontScale });
+  return (
+    <Skeleton label="Cargando detalle de renta">
+      <View className="gap-8 px-5 pb-10 pt-6">
+        <View className="gap-4">
+          <View className="flex-row flex-wrap items-center justify-between gap-3">
+            <SkeletonBlock className="w-3/5 rounded" style={line(24)} />
+            <SkeletonBlock className="w-24 rounded-full" style={line(32)} />
+          </View>
+          <SkeletonBlock className="w-40 rounded" style={line(14)} />
+        </View>
+
+        <View className="border-t border-border-subtle pt-6">
+          <View className="gap-3">
+            <SkeletonBlock className="w-2/5 rounded" style={line(18)} />
+            <View className="gap-3">
+              {[0, 1].map((item) => (
+                <View
+                  key={item}
+                  className={`gap-4 py-3 ${item === 0 ? 'border-b border-border-subtle pb-6' : ''}`}
+                >
+                  <View className="flex-row items-start gap-3">
+                    <SkeletonBlock className="h-14 w-14 rounded-xl" />
+                    <View className="flex-1 gap-1">
+                      <SkeletonBlock className="w-3/4 rounded" style={line(16)} />
+                      <SkeletonBlock className="w-1/2 rounded" style={line(14)} />
+                    </View>
+                  </View>
+                  <View className="flex-row flex-wrap gap-x-6 gap-y-3">
+                    {[0, 1].map((column) => (
+                      <View key={column} className="min-w-[120px] flex-1 gap-1">
+                        <SkeletonBlock className="w-12 rounded" style={line(14)} />
+                        <SkeletonBlock className="w-24 rounded" style={line(16)} />
+                      </View>
+                    ))}
+                  </View>
+                  <View className="flex-row flex-wrap items-center justify-between gap-2">
+                    <SkeletonBlock className="w-32 rounded" style={line(14)} />
+                    <SkeletonBlock className="w-20 rounded" style={line(16)} />
+                  </View>
+                </View>
+              ))}
+            </View>
+          </View>
+        </View>
+
+        <View className="border-t border-border-subtle pt-6">
+          <View className="gap-3">
+            <SkeletonBlock className="w-1/2 rounded" style={line(18)} />
+            <View className="gap-3">
+              {[0, 1].map((row) => (
+                <View key={row} className="flex-row flex-wrap justify-between gap-2">
+                  <SkeletonBlock className="w-2/5 rounded" style={line(16)} />
+                  <SkeletonBlock className="w-24 rounded" style={line(16)} />
+                </View>
+              ))}
+              <View className="mt-2 flex-row flex-wrap items-center justify-between gap-3 border-t border-border-subtle pt-4">
+                <SkeletonBlock className="w-1/2 rounded" style={line(16)} />
+                <SkeletonBlock className="w-28 rounded" style={line(24)} />
+              </View>
+              <View className="border-t border-border-subtle pt-2">
+                <View className="min-h-11 flex-row items-center justify-between gap-3 py-2">
+                  <SkeletonBlock className="w-40 rounded" style={line(16)} />
+                  <SkeletonBlock className="h-5 w-5 rounded" />
+                </View>
+              </View>
+            </View>
+          </View>
+        </View>
+
+        <View className="border-t border-border-subtle pt-6">
+          <View className="gap-3">
+            <SkeletonBlock className="w-1/4 rounded" style={line(18)} />
+            <SkeletonBlock className="w-1/2 rounded" style={line(16)} />
+            <SkeletonBlock className="w-full rounded" style={line(16)} />
+          </View>
+        </View>
+      </View>
+    </Skeleton>
+  );
+}
+
 export function RentalDetailScreen() {
   const params = useLocalSearchParams<{ id?: string | string[] }>();
   const id = typeof params.id === 'string' ? params.id : '';
@@ -92,107 +174,131 @@ export function RentalDetailScreen() {
           {...query}
           isOnline={isOnline}
           allowed={allowed}
+          loadingFallback={<RentalDetailSkeleton />}
           retry={() => void query.refetch()}
         >
           {rental ? (
-            <View className="gap-6 px-5 pb-8 pt-5">
-              <View className="gap-2">
-                <Text className="font-sans-semibold text-lg text-primary">
-                  {rental.folio ?? 'Solicitud de renta'}
-                </Text>
-                <AccountStatusBadge kind="rental" status={rental.status} appearance="inline" />
-                <Text className="font-sans text-sm text-secondary">
+            <View className="gap-8 px-5 pb-10 pt-6">
+              <View className="gap-4">
+                <View className="flex-row flex-wrap items-center justify-between gap-3">
+                  <Text
+                    accessibilityRole="header"
+                    className="min-w-0 shrink font-sans-bold text-2xl text-primary"
+                  >
+                    {rental.folio ?? 'Solicitud de renta'}
+                  </Text>
+                  <AccountStatusBadge kind="rental" status={rental.status} />
+                </View>
+                <Text className="font-sans text-sm leading-5 text-secondary">
                   Solicitada el {accountDate(rental.createdAt)}
                 </Text>
+                {rental.rejectedReason ? (
+                  <View className="gap-1 border-l-2 border-danger pl-3">
+                    <Text className="font-sans-semibold text-sm text-danger">
+                      Motivo del rechazo
+                    </Text>
+                    <Text
+                      accessibilityLiveRegion="polite"
+                      className="font-sans text-sm leading-6 text-secondary"
+                    >
+                      {rental.rejectedReason}
+                    </Text>
+                  </View>
+                ) : null}
               </View>
-              {rental.rejectedReason ? (
-                <Text
-                  accessibilityLiveRegion="polite"
-                  className="font-sans text-sm leading-6 text-danger"
-                >
-                  {rental.rejectedReason}
-                </Text>
-              ) : null}
-              {rental.items.map((item) => (
-                <View key={item.id} className="gap-3 border-t border-border pt-4">
-                  <ProfileProductRow
-                    name={item.product.nombre}
-                    imageUrl={item.product.imageUrl}
-                    description={`Cantidad: ${item.quantity} · ${item.days} días`}
-                  >
-                    <View className="flex-row items-start gap-1.5">
-                      <CalendarDays aria-hidden size={16} color={colors.info} />
-                      <Text className="min-w-0 flex-1 font-sans text-xs leading-5 text-secondary">
-                        Del {day(item.startDate)} al {day(item.endDate)}
-                      </Text>
-                    </View>
-                    <Text className="font-sans text-xs leading-5 text-secondary">
-                      Importe del equipo
-                    </Text>
-                    <Text className="font-sans-semibold text-base text-primary">
-                      {formatPreviewMoney(item.lineTotal)}
-                    </Text>
-                  </ProfileProductRow>
-                  {item.prescription ? (
-                    <>
-                      <AccountSection
-                        title={`Receta: ${prescriptionLabels[item.prescription.status]}`}
-                        icon={FileText}
-                        iconTone="textSecondary"
-                        collapsible
-                      >
-                        <Text selectable className="font-sans text-sm leading-6 text-secondary">
-                          {item.prescription.fileName}
+
+              <View className="border-t border-border-subtle pt-6">
+                <AccountSection title="Equipos rentados" titleClassName="text-lg">
+                  {rental.items.map((item, index) => (
+                    <View
+                      key={item.id}
+                      className={`gap-4 py-3 ${index < rental.items.length - 1 ? 'border-b border-border-subtle pb-6' : ''}`}
+                    >
+                      <ProfileProductRow
+                        name={item.product.nombre}
+                        imageUrl={item.product.imageUrl}
+                        description={`Cantidad: ${item.quantity} · ${item.days} días`}
+                      />
+                      <View className="flex-row flex-wrap gap-x-6 gap-y-3">
+                        <View className="min-w-[120px] flex-1 gap-1">
+                          <Text className="font-sans text-sm text-secondary">Inicio</Text>
+                          <Text className="font-sans-medium text-base text-primary">
+                            {day(item.startDate)}
+                          </Text>
+                        </View>
+                        <View className="min-w-[120px] flex-1 gap-1">
+                          <Text className="font-sans text-sm text-secondary">Devolución</Text>
+                          <Text className="font-sans-medium text-base text-primary">
+                            {day(item.endDate)}
+                          </Text>
+                        </View>
+                      </View>
+                      <View className="flex-row flex-wrap items-center justify-between gap-2">
+                        <Text className="font-sans text-sm text-secondary">Importe del equipo</Text>
+                        <Text className="font-sans-semibold text-base text-primary">
+                          {formatPreviewMoney(item.lineTotal)}
                         </Text>
-                      </AccountSection>
-                      {item.prescription.rejectionReason ? (
-                        <Text className="font-sans text-sm leading-5 text-danger">
-                          {item.prescription.rejectionReason}
-                        </Text>
+                      </View>
+                      {item.prescription ? (
+                        <View className="gap-2 border-t border-border-subtle pt-2">
+                          <AccountSection
+                            title={`Receta: ${prescriptionLabels[item.prescription.status]}`}
+                            icon={FileText}
+                            collapsible
+                          >
+                            <Text selectable className="font-sans text-sm leading-6 text-secondary">
+                              {item.prescription.fileName}
+                            </Text>
+                          </AccountSection>
+                          {item.prescription.rejectionReason ? (
+                            <Text className="font-sans text-sm leading-5 text-danger">
+                              {item.prescription.rejectionReason}
+                            </Text>
+                          ) : null}
+                        </View>
                       ) : null}
-                    </>
-                  ) : null}
-                </View>
-              ))}
-              <View className="border-t border-border pt-4">
-                <AccountSection title="Resumen de importes" icon={ReceiptText} iconTone="info">
+                    </View>
+                  ))}
+                </AccountSection>
+              </View>
+
+              <View className="border-t border-border-subtle pt-6">
+                <AccountSection title="Resumen de importes" titleClassName="text-lg">
                   <View className="flex-row flex-wrap justify-between gap-2">
-                    <Text className="font-sans text-sm text-secondary">Renta</Text>
-                    <Text className="font-sans-medium text-sm text-primary">
+                    <Text className="font-sans text-base text-secondary">Renta</Text>
+                    <Text className="font-sans-medium text-base text-primary">
                       {formatPreviewMoney(rental.subtotal)}
                     </Text>
                   </View>
                   <View className="flex-row flex-wrap justify-between gap-2">
-                    <Text className="font-sans text-sm text-secondary">Depósito</Text>
-                    <Text className="font-sans-medium text-sm text-primary">
+                    <Text className="font-sans text-base text-secondary">Depósito</Text>
+                    <Text className="font-sans-medium text-base text-primary">
                       {formatPreviewMoney(rental.depositTotal)}
                     </Text>
                   </View>
-                  <View className="flex-row flex-wrap items-center justify-between gap-2 pt-1">
+                  <View className="mt-2 flex-row flex-wrap items-center justify-between gap-3 border-t border-border-subtle pt-4">
                     <Text className="font-sans-semibold text-base text-primary">
                       Total de la solicitud
                     </Text>
-                    <Text className="font-sans-semibold text-lg text-primary">
+                    <Text className="font-sans-bold text-2xl text-brand-strong">
                       {formatPreviewMoney(rental.total)}
                     </Text>
                   </View>
-                  <AccountSection
-                    title="Detalle del depósito"
-                    icon={Wallet}
-                    iconTone="warning"
-                    collapsible
-                  >
-                    <Text className="font-sans text-sm leading-6 text-secondary">
-                      Estado: {depositLabels[rental.depositStatus]}
-                      {'\n'}Devuelto: {formatPreviewMoney(rental.depositReturnedAmount)}
-                      {'\n'}Retenido: {formatPreviewMoney(rental.depositRetainedAmount)}
-                    </Text>
-                  </AccountSection>
+                  <View className="border-t border-border-subtle pt-2">
+                    <AccountSection title="Detalle del depósito" icon={Wallet} collapsible>
+                      <Text className="font-sans text-sm leading-6 text-secondary">
+                        Estado: {depositLabels[rental.depositStatus]}
+                        {'\n'}Devuelto: {formatPreviewMoney(rental.depositReturnedAmount)}
+                        {'\n'}Retenido: {formatPreviewMoney(rental.depositRetainedAmount)}
+                      </Text>
+                    </AccountSection>
+                  </View>
                 </AccountSection>
               </View>
-              <View className="border-t border-border pt-5">
-                <AccountSection title="Entrega" icon={MapPin} iconTone="warning">
-                  <Text className="font-sans-medium text-sm leading-6 text-primary">
+
+              <View className="border-t border-border-subtle pt-6">
+                <AccountSection title="Entrega" titleClassName="text-lg">
+                  <Text className="font-sans-medium text-base leading-6 text-primary">
                     {rental.deliveryMethod === 'HOME_DELIVERY'
                       ? 'Entrega a domicilio'
                       : rental.deliveryMethod === 'PICKUP'
@@ -200,51 +306,56 @@ export function RentalDetailScreen() {
                         : 'Por confirmar'}
                   </Text>
                   {rental.deliveryMethod === 'HOME_DELIVERY' && rental.deliveryAddress ? (
-                    <Text selectable className="font-sans text-sm leading-6 text-secondary">
+                    <Text selectable className="font-sans text-base leading-6 text-secondary">
                       {rental.deliveryAddress}
                     </Text>
                   ) : null}
                   {rental.notes ? (
-                    <Text className="font-sans text-sm leading-6 text-secondary">
-                      Notas: {rental.notes}
-                    </Text>
+                    <View className="gap-1">
+                      <Text className="font-sans-medium text-sm text-primary">Notas</Text>
+                      <Text className="font-sans text-sm leading-6 text-secondary">
+                        {rental.notes}
+                      </Text>
+                    </View>
                   ) : null}
                 </AccountSection>
               </View>
+
               {rental.statusHistory.length ? (
-                <View className="border-t border-border pt-4">
-                  <AccountSection
-                    title="Seguimiento"
-                    icon={RotateCcwClock}
-                    iconTone="info"
-                    collapsible
-                  >
-                    {rental.statusHistory.map((entry) => (
-                      <View key={entry.id} className="gap-1">
-                        <AccountStatusBadge
-                          kind="rental"
-                          status={entry.toStatus}
-                          appearance="inline"
-                        />
-                        <Text className="font-sans text-xs text-secondary">
-                          {accountDate(entry.createdAt)}
-                        </Text>
-                        {entry.note ? (
-                          <Text className="font-sans text-sm text-secondary">{entry.note}</Text>
-                        ) : null}
-                      </View>
-                    ))}
+                <View className="border-t border-border-subtle pt-4">
+                  <AccountSection title="Seguimiento" icon={RotateCcwClock} collapsible>
+                    <View className="gap-5 border-l border-border pl-4">
+                      {rental.statusHistory.map((entry) => (
+                        <View key={entry.id} className="gap-2">
+                          <AccountStatusBadge
+                            kind="rental"
+                            status={entry.toStatus}
+                            appearance="inline"
+                          />
+                          <Text className="font-sans text-sm text-secondary">
+                            {accountDate(entry.createdAt)}
+                          </Text>
+                          {entry.note ? (
+                            <Text className="font-sans text-sm leading-6 text-secondary">
+                              {entry.note}
+                            </Text>
+                          ) : null}
+                        </View>
+                      ))}
+                    </View>
                   </AccountSection>
                 </View>
               ) : null}
               {rental.status === 'PENDING' ? (
-                <AppButton
-                  label="Cancelar solicitud"
-                  variant="ghost"
-                  labelClassName="text-danger"
-                  disabled={pending || isOnline === false}
-                  onPress={() => setConfirm(true)}
-                />
+                <View className="border-t border-border-subtle pt-5">
+                  <AppButton
+                    label="Cancelar solicitud"
+                    variant="ghost"
+                    labelClassName="text-danger"
+                    disabled={pending || isOnline === false}
+                    onPress={() => setConfirm(true)}
+                  />
+                </View>
               ) : null}
             </View>
           ) : null}

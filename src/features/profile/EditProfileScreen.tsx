@@ -1,6 +1,6 @@
+import { useSafeNavigation } from '@/hooks/useSafeNavigation';
 import { useState } from 'react';
 import { Keyboard, Text, View } from 'react-native';
-import { useRouter } from 'expo-router';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import Mail from 'lucide-react-native/icons/mail';
@@ -24,7 +24,7 @@ import {
 
 type ProfileFormProps = { user: ProfileUser; profile: ReturnType<typeof useProfile> };
 function ProfileForm({ user, profile }: ProfileFormProps) {
-  const router = useRouter();
+  const router = useSafeNavigation();
   const [baseline, setBaseline] = useState(user);
   const [editing, setEditing] = useState(false);
   const toast = useToast();
@@ -115,8 +115,6 @@ function ProfileForm({ user, profile }: ProfileFormProps) {
             />
           )}
         />
-      </AccountSection>
-      <View className="pt-1">
         <Controller
           control={control}
           name="direccion"
@@ -145,26 +143,25 @@ function ProfileForm({ user, profile }: ProfileFormProps) {
             />
           )}
         />
-      </View>
-      <View className="gap-2 border-t border-border/50 pt-6">
-        <Text accessibilityRole="header" className="font-sans-semibold text-base text-primary">
-          Correo y acceso
-        </Text>
-        <AccountMenuItem
-          title="Cambiar correo con código"
-          description={user.correo}
-          iconTone="info"
-          icon={Mail}
-          disabled={disabled}
-          onPress={() => router.push('/perfil/cambiar-correo')}
-        />
+      </AccountSection>
+      <View className="border-t border-border-subtle pt-5">
+        <AccountSection title="Correo y acceso">
+          <AccountMenuItem
+            title="Cambiar correo con código"
+            description={user.correo}
+            iconTone="info"
+            icon={Mail}
+            disabled={disabled}
+            onPress={() => router.navigate('/perfil/cambiar-correo')}
+          />
+        </AccountSection>
       </View>
       {errors.root?.server?.message ? (
         <Text accessibilityLiveRegion="polite" className="font-sans text-sm leading-5 text-danger">
           {errors.root.server.message}
         </Text>
       ) : null}
-      <View className="gap-3 border-t border-border/50 pt-5">
+      <View className="gap-3">
         {!editing ? (
           <AppButton
             label="Modificar datos"

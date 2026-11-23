@@ -79,13 +79,16 @@ describe('Perfil conectado', () => {
     installProfileApiMock();
   });
   it('abre privacidad y términos en el visor interno sin usar el navegador del sistema', async () => {
+    const clock = jest.spyOn(Date, 'now');
     const open = jest.spyOn(Linking, 'openURL');
     await show(ProfileScreen);
     await screen.findByText(PROFILE_USER.nombre);
     await fireEvent.press(screen.getByRole('button', { name: 'Política de privacidad' }));
-    expect(mockRouter.push).toHaveBeenCalledWith('/perfil/legal/politicas-de-privacidad');
+    expect(mockRouter.navigate).toHaveBeenCalledWith('/perfil/legal/politicas-de-privacidad');
+    // Simulate returning after the first navigation's transition window.
+    clock.mockReturnValue(Date.now() + 800);
     await fireEvent.press(screen.getByRole('button', { name: 'Términos y condiciones' }));
-    expect(mockRouter.push).toHaveBeenCalledWith('/perfil/legal/terminos-y-condiciones');
+    expect(mockRouter.navigate).toHaveBeenCalledWith('/perfil/legal/terminos-y-condiciones');
     expect(open).not.toHaveBeenCalled();
   });
   it('espera protección Android antes de mostrar datos personales y la libera al salir', async () => {
@@ -98,22 +101,35 @@ describe('Perfil conectado', () => {
     );
     const view = await show(EditProfileScreen, true, false);
     await waitFor(() => expect(controls.status).toBe('authenticated'));
+    const header = screen.getByRole('header', { name: 'Datos personales' });
     expect(preventScreenCaptureAsync).toHaveBeenCalledTimes(1);
     const key = jest.mocked(preventScreenCaptureAsync).mock.calls[0]![0];
     expect(screen.queryByLabelText('Teléfono (opcional)')).toBeNull();
     expect(screen.queryByLabelText('Dirección (opcional)')).toBeNull();
     await act(async () => protect());
     await screen.findByLabelText('Teléfono (opcional)');
+    expect(screen.getByRole('header', { name: 'Datos personales' })).toBe(header);
+    expect(screen.getAllByRole('button', { name: 'Volver' })).toHaveLength(1);
     expect(screen.getByLabelText('Dirección (opcional)')).toBeTruthy();
     expect(allowScreenCaptureAsync).not.toHaveBeenCalled();
     await view.unmount();
     await waitFor(() => expect(allowScreenCaptureAsync).toHaveBeenCalledWith(key));
   });
-  it('el encabezado permite volver a Inicio y abre los ajustes de notificaciones desde el engrane', async () => {
+  it('descarta toques rápidos sobre opciones distintas del perfil', async () => {
+    jest.spyOn(Date, 'now').mockReturnValue(1000);
     await show(ProfileScreen);
     await screen.findByText(PROFILE_USER.nombre);
-    await fireEvent.press(screen.getByRole('button', { name: 'Abrir ajustes de notificaciones' }));
-    expect(mockRouter.push).toHaveBeenCalledWith('/perfil/notificaciones/preferencias');
+    mockRouter.navigate.mockClear();
+    await fireEvent.press(screen.getByRole('button', { name: 'Datos personales' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Datos personales' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Seguridad de la cuenta' }));
+    expect(mockRouter.navigate.mock.calls).toEqual([['/perfil/editar']]);
+  });
+  it('el encabezado permite volver a Inicio y abre la configuración general desde el engrane', async () => {
+    await show(ProfileScreen);
+    await screen.findByText(PROFILE_USER.nombre);
+    await fireEvent.press(screen.getByRole('button', { name: 'Abrir configuración' }));
+    expect(mockRouter.navigate).toHaveBeenCalledWith('/perfil/configuracion');
     await fireEvent.press(screen.getByRole('button', { name: 'Volver' }));
     expect(mockRouter.navigate).toHaveBeenCalledWith('/inicio');
     expect(mockRouter.back).not.toHaveBeenCalled();
@@ -137,7 +153,7 @@ describe('Perfil conectado', () => {
     );
     expect(screen.queryByText('Calle privada 123')).toBeNull();
     await fireEvent.press(screen.getByLabelText('Datos personales'));
-    expect(mockRouter.push).toHaveBeenCalledWith('/perfil/editar');
+    expect(mockRouter.navigate).toHaveBeenCalledWith('/perfil/editar');
   });
   it('mantiene las opciones del menú mientras se consulta el perfil', async () => {
     jest.spyOn(profileService, 'get').mockReturnValueOnce(new Promise<never>(() => undefined));
@@ -201,7 +217,7 @@ describe('Perfil conectado', () => {
     await show(EditProfileScreen);
     await screen.findByDisplayValue(PROFILE_USER.nombre);
     await fireEvent.press(screen.getByLabelText('Cambiar correo con código'));
-    expect(mockRouter.push).toHaveBeenCalledWith('/perfil/cambiar-correo');
+    expect(mockRouter.navigate).toHaveBeenCalledWith('/perfil/cambiar-correo');
     await fireEvent.changeText(screen.getByLabelText('Teléfono (opcional)'), 'abc');
     await fireEvent.press(screen.getByLabelText('Guardar cambios'));
     expect(screen.getByText('Escribe un teléfono válido de 7 a 15 dígitos')).toBeTruthy();
@@ -214,14 +230,16 @@ describe('Perfil conectado', () => {
     expect(controls.user?.correo).toBe(PROFILE_USER.correo);
   });
   it('Seguridad muestra dos accesos independientes sin mezclar los formularios', async () => {
+    const clock = jest.spyOn(Date, 'now');
     await show(ProfileSecurityScreen);
     await waitFor(() => expect(controls.status).toBe('authenticated'));
     expect(screen.queryByLabelText('Contraseña actual')).toBeNull();
     expect(screen.queryByLabelText('Código de verificación de 8 dígitos')).toBeNull();
     await fireEvent.press(screen.getByRole('button', { name: 'Cambiar contraseña' }));
-    expect(mockRouter.push).toHaveBeenCalledWith('/perfil/cambiar-contrasena');
+    expect(mockRouter.navigate).toHaveBeenCalledWith('/perfil/cambiar-contrasena');
+    clock.mockReturnValue(Date.now() + 800);
     await fireEvent.press(screen.getByRole('button', { name: 'Eliminar mi cuenta' }));
-    expect(mockRouter.push).toHaveBeenCalledWith('/perfil/eliminar-cuenta');
+    expect(mockRouter.navigate).toHaveBeenCalledWith('/perfil/eliminar-cuenta');
   });
   it('no sustituye el borrador cuando llega una actualización del servidor', async () => {
     const server = installProfileApiMock();

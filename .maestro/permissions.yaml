@@ -38,17 +38,23 @@ name: NOV-06 - Validación integral de permisos Runtime
 
 # E2E-PERM-03: Preferencias de notificaciones y explicación previa
 - extendedWaitUntil:
-    visible: Abrir ajustes de notificaciones
+    visible: Abrir configuración
     timeout: 15000
-- tapOn: Abrir ajustes de notificaciones
+- tapOn: Abrir configuración
+- extendedWaitUntil:
+    visible: Configuración
+    timeout: 15000
+- assertVisible: Micrófono
+- tapOn: Notificaciones
 - extendedWaitUntil:
     visible: Ajustes de notificaciones
     timeout: 15000
-- assertVisible: Recibir notificaciones push
+- assertVisible: Recibir notificaciones
 - assertVisible: Sistema y seguridad
 - assertVisible: Ofertas
 - assertVisible: Rentas
 - takeScreenshot: E2E-PERM-03-explicacion-notificaciones
+- back
 - back
 
 # E2E-PERM-04: Bandeja interna de notificaciones accesible sin push

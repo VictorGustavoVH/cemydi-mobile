@@ -1,5 +1,5 @@
 import type { ComponentType, ComponentProps } from 'react';
-import { Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import ChevronRight from 'lucide-react-native/icons/chevron-right';
 import { AppButton } from '@/components/ui/AppButton';
 import { colors } from '@/theme';
@@ -12,7 +12,7 @@ type AccountMenuItemProps = {
   last?: boolean;
   disabled?: boolean;
   selectableDescription?: boolean;
-  appearance?: 'plain' | 'divided';
+  appearance?: 'plain' | 'divided' | 'inset';
   iconTone?:
     | 'brandStrong'
     | 'info'
@@ -32,6 +32,7 @@ export function AccountMenuItem({
   description,
   icon: Icon,
   onPress,
+  last = false,
   disabled = false,
   selectableDescription = false,
   appearance = 'plain',
@@ -64,6 +65,14 @@ export function AccountMenuItem({
         color={disabled ? colors.disabled : colors.textSecondary}
         size={18}
       />
+      {appearance === 'inset' && !last ? (
+        <View
+          aria-hidden
+          pointerEvents="none"
+          className="absolute bottom-0 end-0 start-11 bg-border"
+          style={{ height: StyleSheet.hairlineWidth }}
+        />
+      ) : null}
     </AppButton>
   );
 }

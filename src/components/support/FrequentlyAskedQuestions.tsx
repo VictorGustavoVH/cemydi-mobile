@@ -22,19 +22,37 @@ const questions = [
   },
 ] as const;
 
-export function FrequentlyAskedQuestions() {
+export function FrequentlyAskedQuestions({ grouped = false }: { grouped?: boolean }) {
   return (
     <View className="gap-3">
-      <Text accessibilityRole="header" className="font-sans-semibold text-lg text-primary">
+      <Text
+        accessibilityRole="header"
+        className={
+          grouped
+            ? 'px-3 font-sans-bold text-xs uppercase tracking-widest text-secondary'
+            : 'font-sans-semibold text-lg text-primary'
+        }
+      >
         Preguntas frecuentes
       </Text>
-      {questions.map(({ title, answer }) => (
-        <View key={title} className="border-b border-border/50 pb-3">
-          <AccountSection title={title} collapsible>
-            <Text className="font-sans text-sm leading-6 text-secondary">{answer}</Text>
-          </AccountSection>
-        </View>
-      ))}
+      <View
+        className={grouped ? 'rounded-2xl border border-border-subtle bg-surface px-4' : 'gap-3'}
+      >
+        {questions.map(({ title, answer }, index) => (
+          <View
+            key={title}
+            className={
+              grouped
+                ? `py-2 ${index < questions.length - 1 ? 'border-b border-border-subtle' : ''}`
+                : 'border-b border-border/50 pb-3'
+            }
+          >
+            <AccountSection title={title} collapsible>
+              <Text className="font-sans text-sm leading-6 text-secondary">{answer}</Text>
+            </AccountSection>
+          </View>
+        ))}
+      </View>
     </View>
   );
 }

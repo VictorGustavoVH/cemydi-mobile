@@ -19,7 +19,7 @@ export async function loadNativeNotifications() {
     Constants.executionEnvironment === ExecutionEnvironment.StoreClient
   ) {
     throw new UserFacingError(
-      'Las notificaciones push necesitan la app instalada en un dispositivo físico.',
+      'Los avisos no están disponibles en este dispositivo. Puedes consultar tus notificaciones dentro de CEMYDI.',
     );
   }
   if (notificationsModule) return notificationsModule;
@@ -102,7 +102,7 @@ export async function registerNativePush(
   if (typeof projectId !== 'string' || !/^[a-f0-9-]{36}$/i.test(projectId)) {
     if (!requestPermission) return;
     throw new UserFacingError(
-      'Las notificaciones push todavía no están disponibles. Puedes consultar tu bandeja.',
+      'Aún no podemos activar los avisos en este dispositivo. Puedes consultar tus notificaciones dentro de CEMYDI.',
     );
   }
   let timer: ReturnType<typeof setTimeout> | undefined;
