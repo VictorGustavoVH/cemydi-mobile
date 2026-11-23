@@ -1,5 +1,90 @@
 # Procedencia de contadores duplicados de gfxinfo
 
+## Investigación de cobertura PERF-06 del 21 de noviembre de 2026
+
+Se inspeccionó la captura existente
+`test-results/performance/2026-11-21T22-28-02-923Z-capture-edf52215/`,
+sin comandos Android. Se conservaron los resultados originales.
+
+| Repetición | Delta HWUI | Delta janky | Frames únicos nuevos | Muestras periódicas | Intervalo real medio ms | Mínimo / máximo ms |
+| ---------- | ---------- | ----------- | -------------------- | ------------------- | ----------------------- | ------------------ |
+| 1          | 890        | 135         | 100                  | 18                  | 1692.39                 | 1089.96 / 1873.36  |
+| 2          | 1414       | 73          | 170                  | 18                  | 1678.68                 | 1582.91 / 1858.55  |
+| 3          | 1544       | 33          | 190                  | 19                  | 1611.90                 | 1352.57 / 1711.32  |
+
+Los intervalos son diferencias entre `graphicsSamples.elapsedMs` consecutivos.
+Cada muestra periódica conserva 10 frames Flags=0. Incluyendo la inicial,
+se mantiene PID 28531, una misma fuente de ventana y época en las tres
+repeticiones. Las filas inválidas periódicas son cero. Hubo 80, 10 y 0 pares
+de timestamps repetidos, respectivamente, contando también coincidencias con
+la muestra inicial. Los frames iniciales se excluyen del intervalo.
+
+En `timings.json`, duración media y rango mínimo–máximo por comando en ms:
+
+| Consulta                       | Media  | Rango         |
+| ------------------------------ | ------ | ------------- |
+| gfxinfo, 58 consultas          | 85.42  | 69.32–113.58  |
+| meminfo, 61 consultas          | 311.09 | 254.53–454.03 |
+| connectivity, 61 consultas     | 86.78  | 70.09–108.72  |
+| wifi_on, 61 consultas          | 97.81  | 76.33–128.92  |
+| airplane_mode_on, 61 consultas | 101.11 | 82.00–133.52  |
+
+El bucle espera 1 s y después realiza las tres consultas de aislamiento,
+PSS y gfxinfo secuencialmente. Sus promedios suman unos 682 ms adicionales.
+El intervalo real depende de cada ciclo y del recorte de espera al final.
+La duración incluye el transporte ADB y el trabajo remoto.
+
+### Historial circular y límites del diagnóstico
+
+Android 10 AOSP almacena 120 entradas en un buffer circular por JankTracker.
+Al llenarse se sobrescriben entradas antiguas. `dumpFrames` imprime el historial
+disponible y omite frames con SyncStart=0. Esto establece un límite de historial,
+sin demostrar que el firmware Huawei use exactamente esa capacidad. Véanse
+[JankTracker.h](https://android.googlesource.com/platform/frameworks/base/+/refs/heads/android10-release/libs/hwui/JankTracker.h)
+y [dumpFrames y reset](https://android.googlesource.com/platform/frameworks/base/+/refs/heads/android10-release/libs/hwui/JankTracker.cpp).
+
+El parser recorre todas las filas del único bloque seleccionado, sin límite de
+10 ni 120. Solo conserva Flags=0 y timestamps enteros válidos, con fin posterior
+al inicio. Las estructuras de estas muestras fueron aceptadas, con cero filas
+inválidas. Los JSON no conservan dumps originales ni cantidad de filas con
+Flags distintos de cero. Por ello queda pendiente explicar las 10 filas por
+muestra y distinguir limitación OEM de exclusiones válidas en origen/parser.
+No hay evidencia para eliminar filtros ni inventar filas.
+
+La pérdida comprobada ocurre en la cobertura del intervalo observado. Unir
+snapshots recupera solo frames que aparecen en alguno de ellos. Sobrescritura
+entre consultas, historial reducido y exclusiones impiden reconstrucción completa.
+La duplicación de la última muestra era redundante, pero el Map ya deduplicaba
+timestamps, por lo que corregirla no aumenta la cobertura histórica.
+
+### Comparación de estrategias
+
+| Alternativa            | Evaluación y decisión                                                                                                                                                                                                                                                                                                                                                   |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A. Mayor frecuencia    | Solicitar 500 ms seguiría sumando aproximadamente 682 ms de consultas en estas condiciones, sin garantizar el ritmo ni cobertura. Aumenta sondeos y puede perturbar el recorrido. Se conserva 1 s y su medición de intervalos reales.                                                                                                                                   |
+| B. Reset por segmentos | AOSP borra frames y reinicia datos. Cambian contadores y época. La lectura y el reset separados pueden perder actividad entre ambos. Cada segmento necesitaría baseline propio, PID/ventana/época verificados, deduplicación y prueba de cobertura de límites. No se demostró agregación íntegra y no se implementa.                                                    |
+| C. Traza nativa        | Perfetto/System Tracing está disponible desde Android 10, pero requiere seleccionar fuentes y comprobar buffers, pérdida de eventos y atribución al proceso. FrameTimeline exige Android 12. Una traza Android 10 puede ayudar a diagnosticar hilos y planificación, sin garantizar las duraciones equivalentes a estas fórmulas. Se deja como investigación posterior. |
+
+Referencias de la alternativa C en
+[System Tracing](https://developer.android.com/topic/performance/tracing)
+y [FrameTimeline](https://perfetto.dev/docs/data-sources/frametimeline).
+
+Se conserva la captura periódica actual y `No medible` cuando falte cobertura.
+La corrección local evita procesar dos veces el mismo objeto final y devuelve
+motivo explícito ante lista vacía, muestra ausente o extremos ausentes.
+Una captura final independiente sigue incorporándose.
+
+Jank = 100 × delta janky / delta total, con continuidad de PID, ventana, época,
+bloque y contadores. Slow Frames = 100 × frames con durationMs >16.667 / total.
+Frozen Frames = cantidad con durationMs >700. Las dos últimas métricas exigen
+tantos pares únicos nuevos como delta total y cero filas inválidas, incluida
+la muestra inicial. Las fórmulas y umbrales se conservan.
+
+Las mediciones anteriores de PSS y jank mantienen sus fuentes válidas.
+Su cobertura de tiempos parcial deja Slow Frames y Frozen Frames pendientes.
+La agregación del jank entre repeticiones debe identificar si usa media simple
+de porcentajes o cociente de las sumas de deltas. El criterio global sigue pendiente.
+
 ## Diagnóstico inicial del 26 de octubre de 2026
 
 Se revisaron parser, pruebas y JSON locales sin ejecutar comandos Android ni

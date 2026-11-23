@@ -1,11 +1,551 @@
 const { test } = require('node:test');
+const { Buffer } = require('node:buffer');
 const assert = require('node:assert/strict');
 const { readFileSync, mkdtempSync, writeFileSync, unlinkSync, rmdirSync } = require('node:fs');
 const { tmpdir } = require('node:os');
 const path = require('node:path');
 const m = require('./metrics.cjs');
-const { options, bounded, conditions, offline, capture, main } = require('./cli.cjs');
+const {
+  options,
+  bounded,
+  conditions,
+  offline,
+  captureConfig,
+  capture,
+  main,
+} = require('./cli.cjs');
 const { inspect } = require('./inspect-gfxinfo.cjs');
+const { analyzeCpu } = require('./trace-cpu.cjs');
+const { selectLayer, latency, presentationSummary } = require('./presentation.cjs');
+const {
+  graphicsScript,
+  parseGraphicsStream,
+  startGraphicsStream,
+  afterBaseline,
+} = require('./graphics-stream.cjs');
+
+test('flujo gráfico acota muestras al recorrido, ignora salida parcial y no conserva texto crudo', () => {
+  const sample = (start, end, value) =>
+    `CEMYDI_GFX_BEGIN ${start}\n${value}\nCEMYDI_GFX_END ${end}\n`;
+  const text =
+    sample('1.00', '1.10', 'before') +
+    sample('2.00', '2.10', 'valid') +
+    sample('3.90', '4.10', 'after') +
+    'CEMYDI_GFX_BEGIN 3.00\npartial';
+  assert.deepEqual(
+    parseGraphicsStream(text, '2', '4', () => ({ redacted: true })),
+    [{ redacted: true, deviceStartSeconds: 2, deviceEndSeconds: 2.1 }],
+  );
+  assert.throws(() => graphicsScript(0));
+  assert.match(graphicsScript(35), /sleep 0\.01/);
+  assert.match(graphicsScript(35), /dumpsys gfxinfo com\.cemydi\.app framestats/);
+  assert.doesNotMatch(graphicsScript(35), /reset|am start|input |rm /);
+});
+
+test('flujo gráfico usa proceso independiente y timeout con entrada fija, sin Android', async () => {
+  let options;
+  const result = await startGraphicsStream(
+    'synthetic',
+    35,
+    new AbortController().signal,
+    (file, args, config, callback) => {
+      options = config;
+      assert.deepEqual(args, ['-s', 'synthetic', 'shell', '-T', 'sh']);
+      return {
+        stdin: {
+          on() {},
+          end(text) {
+            assert.equal(text, graphicsScript(35) + '\n');
+            callback(null, 'synthetic');
+          },
+        },
+      };
+    },
+  );
+  assert.equal(result.status, 'captured');
+  assert.equal(options.timeout, 50000);
+  assert.equal(options.windowsHide, true);
+});
+
+const presented = (...times) =>
+  latency(`16666667\n${times.map((time) => `${time} ${time} ${time}`).join('\n')}`);
+
+test('presentación selecciona únicamente una capa exacta y rechaza entradas de shell', () => {
+  const layer = 'com.cemydi.app/com.cemydi.app.MainActivity#0';
+  assert.equal(selectLayer(`other\n${layer}`), layer);
+  assert.equal(selectLayer(`${layer}\n${layer.replace('#0', '#1')}`), null);
+  assert.equal(selectLayer(`${layer};id`), null);
+  assert.equal(selectLayer(`SurfaceView - ${layer}`), null);
+  assert.equal(selectLayer('other'), null);
+});
+
+test('FPS usa presentaciones únicas nuevas y su ventana real, excluyendo baseline y reposo final', () => {
+  const result = presentationSummary(
+    [
+      presented(1000000000),
+      presented(1000000000, 2000000000, 2500000000),
+      presented(2000000000, 2500000000, 3000000000),
+      presented(2000000000, 2500000000, 3000000000),
+    ],
+    true,
+  );
+  assert.equal(result.status, 'measured');
+  assert.equal(result.value.frames, 3);
+  assert.equal(result.value.windowSeconds, 1);
+  assert.equal(result.value.averageFps, 2);
+});
+
+test('FPS no se inventa con pérdida de buffer, capa cambiada, reposo o fences pendientes', () => {
+  assert.equal(presentationSummary([presented(1), presented(2, 3)], true).status, 'No medible');
+  assert.equal(presentationSummary([presented(1), presented(1, 2, 3)], false).status, 'No medible');
+  assert.equal(presentationSummary([presented(1), presented(1)], true).status, 'No medible');
+  assert.equal(presentationSummary([presented(1), presented(1, 2)], true).status, 'No medible');
+  const pending = latency('16666667\n1 1 1\n2 2 2\n3 3 3\n4 9223372036854775807 4');
+  assert.equal(presentationSummary([presented(1), pending], true).status, 'No medible');
+  assert.equal(presentationSummary([presented(1, 2), presented(1)], true).status, 'No medible');
+});
+
+test('latencia rechaza formatos, timestamps y órdenes inválidos', () => {
+  for (const text of [
+    'denied',
+    '0\n',
+    '16666667\ninvalid',
+    '16666667\n1 0 1',
+    '16666667\n1 2 1\n2 1 2',
+  ])
+    assert.equal(latency(text).status, 'No medible');
+  assert.deepEqual(latency('16666667\n0 0 0').value.frames, []);
+});
+
+test('FPS distingue el fence real de los campos desired y ready pendientes', () => {
+  const snapshot = latency('16666667\n1 1 9223372036854775807\n9223372036854775807 2 2');
+  assert.equal(snapshot.status, 'measured');
+  assert.equal(snapshot.value.pending, false);
+  assert.deepEqual(snapshot.value.frames, [1, 2]);
+  const pending = latency('16666667\n3 9223372036854775807 3');
+  assert.equal(pending.value.records[0].key, 'desired:3');
+  assert.equal(pending.value.records[0].actualPresentNs, null);
+});
+
+test('FPS resuelve solo identidades del recorrido sin incorporar frames de estabilización', () => {
+  const pending = latency(
+    '16666667\n1 1 1\n2000000000 2000000000 2000000000\n3000000000 9223372036854775807 3000000000',
+  );
+  const samples = [presented(1), pending];
+  assert.equal(presentationSummary(samples, true).status, 'No medible');
+  const result = presentationSummary(samples, true, [
+    presented(1, 2000000000, 3000000000, 9000000000),
+  ]);
+  assert.equal(result.status, 'measured');
+  assert.equal(result.value.frames, 2);
+  assert.equal(result.value.windowSeconds, 1);
+  assert.equal(result.value.averageFps, 1);
+  const lost = presentationSummary(samples, true, [presented(9000000000)]);
+  assert.equal(lost.status, 'No medible');
+});
+
+test('FPS excluye un fence del baseline aunque se resuelva durante el recorrido', () => {
+  const baseline = latency('16666667\n1 1 1\n2 9223372036854775807 2');
+  const result = presentationSummary([baseline, presented(1, 2, 1000000000, 2000000000)], true);
+  assert.equal(result.status, 'measured');
+  assert.equal(result.value.frames, 2);
+  assert.equal(result.value.averageFps, 1);
+});
+
+test('FPS rechaza cambios de identidad, pérdida intermedia y pendientes históricos sin identidad', () => {
+  const pending = latency('16666667\n1 1 1\n2 9223372036854775807 2');
+  assert.equal(
+    presentationSummary([presented(1), pending, presented(1, 3, 4)], true).status,
+    'No medible',
+  );
+  const changed = latency('16666667\n1 1 1\n2 5 2\n3 6 3');
+  assert.equal(
+    presentationSummary([presented(1), presented(1, 2, 3)], true, [changed]).status,
+    'No medible',
+  );
+  const legacy = { status: 'measured', value: { refreshNs: 16666667, frames: [1], pending: true } };
+  assert.equal(presentationSummary([legacy, presented(1, 2, 3)], true).status, 'No medible');
+});
+
+function protoField(id, value) {
+  const varint = (number) => {
+    let remaining = BigInt(number);
+    const bytes = [];
+    while (remaining >= 128n) {
+      bytes.push(Number(remaining & 127n) | 128);
+      remaining >>= 7n;
+    }
+    return Buffer.from([...bytes, Number(remaining)]);
+  };
+  if (Buffer.isBuffer(value))
+    return Buffer.concat([varint(id * 8 + 2), varint(value.length), value]);
+  return Buffer.concat([varint(id * 8), varint(value)]);
+}
+
+function cpuTraceFixture({
+  unknownThread = false,
+  gap = false,
+  overwritten = 0,
+  newThread = false,
+  forkChild = false,
+  exitEarly = false,
+  resumeAfterExit = false,
+  kernelLoss = false,
+  missingKernel = false,
+} = {}) {
+  const message = (...fields) => Buffer.concat(fields);
+  const packet = (value) => protoField(1, value);
+  const process = (pid, name) =>
+    protoField(1, message(protoField(1, pid), protoField(3, Buffer.from(name))));
+  const tree = packet(
+    protoField(
+      2,
+      message(
+        process(10, 'com.cemydi.app'),
+        process(20, 'other'),
+        protoField(2, message(protoField(1, 11), protoField(3, 10))),
+      ),
+    ),
+  );
+  const event = (seconds, previous, next) =>
+    protoField(
+      2,
+      message(
+        protoField(1, BigInt(Math.round(seconds * 1e9))),
+        protoField(4, message(protoField(2, previous), protoField(6, next))),
+      ),
+    );
+  const cpu0 = packet(
+    protoField(
+      1,
+      message(protoField(1, 0), event(1, 0, 10), event(3, gap ? 99 : 10, 20), event(5, 20, 0)),
+    ),
+  );
+  const thread = unknownThread || newThread || forkChild ? 99 : 11;
+  const lifecycle = [];
+  if (newThread || forkChild)
+    lifecycle.push(
+      protoField(
+        2,
+        message(
+          protoField(1, 500000000n),
+          protoField(2, 10),
+          protoField(235, message(protoField(1, thread), protoField(3, newThread ? 65536 : 0))),
+        ),
+      ),
+    );
+  if (exitEarly)
+    lifecycle.push(
+      protoField(
+        2,
+        message(
+          protoField(1, 3500000000n),
+          protoField(2, thread),
+          protoField(238, protoField(2, thread)),
+        ),
+      ),
+    );
+  const cpu1 = packet(
+    protoField(
+      1,
+      message(
+        protoField(1, 1),
+        ...lifecycle,
+        event(1, 0, thread),
+        ...(resumeAfterExit ? [event(3.6, thread, 20), event(3.8, 20, thread)] : []),
+        event(5, thread, 0),
+      ),
+    ),
+  );
+  const statsStart = packet(protoField(35, protoField(1, protoField(13, 0))));
+  const statsEnd = packet(protoField(35, protoField(1, protoField(13, overwritten))));
+  const kernelStats = (phase) =>
+    packet(
+      protoField(
+        34,
+        message(
+          protoField(1, phase),
+          ...[0, 1].map((cpu) =>
+            protoField(
+              2,
+              message(protoField(1, cpu), protoField(3, kernelLoss && phase === 2 ? 1 : 0)),
+            ),
+          ),
+        ),
+      ),
+    );
+  return message(
+    tree,
+    cpu0,
+    cpu1,
+    statsStart,
+    statsEnd,
+    ...(missingKernel ? [] : [kernelStats(1), kernelStats(2)]),
+  );
+}
+
+test('CPU sched recorta límites, suma hilos y CPUs, y declara escala de un núcleo', () => {
+  const result = analyzeCpu(cpuTraceFixture(), 10, '2', '4');
+  assert.equal(result.process.status, 'measured');
+  assert.equal(result.process.value.cpuMilliseconds, 3000);
+  assert.equal(result.process.value.mainThreadCpuMilliseconds, 1000);
+  assert.equal(result.process.value.percentOfOneCpu, 150);
+  assert.equal(result.diagnostics.attributedThreads, 2);
+});
+test('CPU sched no aprueba pérdida, TID desconocidos, PID incorrecto ni huecos', () => {
+  for (const options of [
+    { unknownThread: true },
+    { gap: true },
+    { overwritten: 1 },
+    { kernelLoss: true },
+    { missingKernel: true },
+  ])
+    assert.equal(analyzeCpu(cpuTraceFixture(options), 10, '2', '4').process.status, 'No medible');
+  assert.equal(analyzeCpu(cpuTraceFixture(), 99, '2', '4').process.status, 'No medible');
+  assert.equal(analyzeCpu(cpuTraceFixture(), 10, '0', '4').process.status, 'No medible');
+  assert.equal(analyzeCpu(Buffer.from('invalid'), 10, '2', '4').process.status, 'No medible');
+});
+test('CPU distingue hilos CLONE_THREAD de procesos hijo mediante ciclo de vida', () => {
+  const exiting = analyzeCpu(cpuTraceFixture({ exitEarly: true }), 10, '2', '4');
+  assert.equal(exiting.process.status, 'measured');
+  assert.equal(exiting.process.value.percentOfOneCpu, 150);
+  assert.equal(exiting.diagnostics.lifecycleExits, 1);
+  const thread = analyzeCpu(cpuTraceFixture({ newThread: true }), 10, '2', '4');
+  assert.equal(thread.process.status, 'measured');
+  assert.equal(thread.process.value.percentOfOneCpu, 150);
+  assert.equal(thread.diagnostics.lifecycleBirths, 1);
+  const child = analyzeCpu(cpuTraceFixture({ forkChild: true }), 10, '2', '4');
+  assert.equal(child.process.status, 'measured');
+  assert.equal(child.process.value.percentOfOneCpu, 50);
+});
+test('CPU incluye ejecución y reanudaciones después de sched_process_exit', () => {
+  const result = analyzeCpu(
+    cpuTraceFixture({ exitEarly: true, resumeAfterExit: true }),
+    10,
+    '2',
+    '4',
+  );
+  assert.equal(result.process.status, 'measured');
+  assert.ok(Math.abs(result.process.value.cpuMilliseconds - 2800) < 1e-6);
+  assert.ok(Math.abs(result.process.value.percentOfOneCpu - 140) < 1e-6);
+});
+
+test('pérdida distingue baseline antiguo, incremento nuevo, reset y ausencia de estadísticas', () => {
+  const { checkLoss } = require('./trace-loss.cjs');
+  const kernel = { start: new Map([[0, [7, 0, 0]]]), end: new Map([[0, [7, 0, 0]]]) };
+  const zero = [0, 0, 0, 0, 0, 0, 0, 0];
+  assert.equal(checkLoss([zero, zero], kernel, [0]).verified, true);
+  const initial = [...zero];
+  initial[0] = 4;
+  const unchanged = checkLoss([initial, initial], kernel, [0]);
+  assert.equal(unchanged.serviceIncreased, false);
+  assert.equal(unchanged.serviceInitialNonzero, true);
+  assert.equal(unchanged.verified, true);
+  const sessionLoss = [...zero];
+  sessionLoss[3] = 1;
+  assert.equal(checkLoss([sessionLoss, sessionLoss], kernel, [0]).verified, false);
+  assert.equal(checkLoss([zero, initial], kernel, [0]).serviceIncreased, true);
+  assert.equal(checkLoss([initial, zero], kernel, [0]).verified, false);
+  assert.equal(checkLoss([zero], kernel, [0]).verified, false);
+  assert.equal(checkLoss([zero, zero], kernel, [0, 1]).verified, false);
+});
+const {
+  cpuWindow,
+  traceArgs,
+  traceConfig,
+  inspectTrace,
+  routeCoverage,
+  validTrace,
+  startTrace,
+} = require('./native-trace.cjs');
+
+test('diagnóstico de validación conserva etapa y contadores sin texto del dispositivo', async () => {
+  assert.equal(inspectTrace(Buffer.from([10, 1, 7])).stage, 'packet');
+  assert.equal(inspectTrace(Buffer.alloc(0)).valid, false);
+  assert.equal(inspectTrace(traceFixture).events, 1);
+  assert.equal(inspectTrace(traceFixture).valid, true);
+  assert.deepEqual(options(['trace-check', '--device', 'synthetic', '--authorize', 'synthetic']), {
+    command: 'trace-check',
+    device: 'synthetic',
+    authorize: 'synthetic',
+  });
+  await assert.rejects(main(['trace-check', '--device', 'synthetic']), /authorize/);
+});
+
+test('CPU rechaza ventanas antiguas, cruzadas y sin límites verificables', () => {
+  const text =
+    'CPU usage from 5000ms to 1000ms ago (private):\n  12.5% 123/com.cemydi.app: 10% user + 2.5% kernel';
+  assert.equal(cpuWindow(text, 123, 6000).value.percent, 12.5);
+  assert.equal(cpuWindow(text, 123, 5000).status, 'measured');
+  for (const elapsed of [undefined, NaN, -1, 500, 4999])
+    assert.equal(cpuWindow(text, 123, elapsed).status, 'No medible');
+  for (const value of ['', text.replace('5000ms', '500ms'), text + '\n  1% 124/com.cemydi.app: x'])
+    assert.equal(cpuWindow(value, 123, 6000).status, 'No medible');
+  assert.equal(cpuWindow(text, 124, 6000).status, 'No medible');
+  assert.equal(cpuWindow(text, null, 6000).status, 'No medible');
+  assert.equal(cpuWindow(text.replace('12.5%', '0%'), 123, 6000).value.percent, 0);
+  assert.doesNotMatch(JSON.stringify(cpuWindow(text, 123, 6000)), /private/);
+});
+const remoteFixture = '/data/misc/perfetto-traces/cemydi-abcd.perfetto-trace';
+const traceFixture = Buffer.from([10, 8, 10, 6, 18, 4, 8, 1, 26, 0]);
+test('Perfetto rechaza ayuda, texto, protobuf truncado y ausencia de eventos', () => {
+  assert.equal(validTrace(traceFixture), true);
+  const crlfAltered = Buffer.from(
+    [...traceFixture].flatMap((byte) => (byte === 10 ? [13, 10] : [byte])),
+  );
+  assert.equal(validTrace(crlfAltered), false);
+  for (const data of [
+    Buffer.alloc(0),
+    Buffer.from('perfetto: invalid option -- a\nUsage: perfetto'),
+    Buffer.from('{}'),
+    traceFixture.subarray(0, 8),
+    Buffer.from([10, 2, 8, 1]),
+    Buffer.from([10, 1, 7]),
+  ])
+    assert.equal(validTrace(data), false);
+  assert.doesNotMatch(traceArgs('synthetic', 40, remoteFixture).join(' '), / -a /);
+  assert.match(traceArgs('synthetic', 40, remoteFixture).join(' '), /--txt -c -/);
+  assert.deepEqual(traceArgs('synthetic', 40, remoteFixture).slice(0, 5), [
+    '-s',
+    'synthetic',
+    'shell',
+    '-T',
+    'perfetto',
+  ]);
+  assert.match(traceConfig(40), /duration_ms: 40000/);
+  assert.match(traceConfig(40), /write_into_file: true/);
+  assert.match(traceConfig(40), /file_write_period_ms: 1000/);
+  assert.match(traceConfig(40), /max_file_size_bytes: 134217728/);
+  assert.match(traceConfig(40), /atrace_apps: "com.cemydi.app"/);
+  assert.match(traceConfig(40), /task\/task_newtask/);
+  assert.match(traceConfig(40), /sched\/sched_process_exit/);
+  assert.match(traceConfig(40), /record_thread_names: true/);
+  assert.match(traceConfig(40), /target_buffer: 1/);
+  assert.match(traceConfig(40), /buffers \{ size_kb: 4096/);
+  assert.match(traceConfig(40), /clear_period_ms: 5000/);
+  assert.match(traceConfig(40), /proc_stats_poll_ms: 1000/);
+  assert.match(traceConfig(40), /proc_stats_cache_ttl_ms: 1000/);
+  assert.throws(() => traceArgs('bad serial', 40, remoteFixture));
+  assert.throws(() => traceArgs('synthetic', 0, remoteFixture));
+  assert.throws(() => traceArgs('synthetic', 40, '/arbitrary/path'));
+});
+function fakeTraceProcess(data, error = null, elapsedMs = 40000) {
+  let clock = 0;
+  let remoteFile;
+  return {
+    now: () => clock,
+    run(executable, args, config, callback) {
+      assert.equal(config.encoding, 'buffer');
+      assert.equal(config.windowsHide, true);
+      if (args[2] === 'exec-out') {
+        assert.deepEqual(args, ['-s', 'synthetic', 'exec-out', 'cat', remoteFile]);
+        assert.equal(config.timeout, 60000);
+        assert.equal(config.maxBuffer, 160 * 1024 * 1024);
+        queueMicrotask(() => callback(null, data));
+        return {};
+      }
+      remoteFile = args[6];
+      assert.deepEqual(args, traceArgs('synthetic', 40, remoteFile));
+      assert.equal(config.timeout, 65000);
+      return {
+        stdin: {
+          on() {},
+          end(input) {
+            assert.equal(input, traceConfig(40));
+            clock = elapsedMs;
+            queueMicrotask(() => callback(error, Buffer.from('recording log\r\n')));
+          },
+        },
+      };
+    },
+  };
+}
+
+test('traza guarda solo binario válido, rechaza salida inmediata y conserva evidencia exclusiva', async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'cemydi-native-test-'));
+  const signal = new AbortController().signal;
+  const captureFake = (rep, data, error, elapsedMs) => {
+    const fake = fakeTraceProcess(data, error, elapsedMs);
+    return startTrace('synthetic', 40, dir, rep, signal, fake.run, fake.now);
+  };
+  try {
+    const result = await captureFake(1, traceFixture);
+    assert.equal(result.status, 'captured');
+    assert.equal(result.analysis.startsWith('pending'), true);
+    assert.equal(result.sha256.length, 64);
+    const processFailure = await captureFake(2, traceFixture, new Error('private error'));
+    assert.equal(processFailure.status, 'failed');
+    assert.equal(processFailure.diagnostics.processError, true);
+    assert.equal(processFailure.diagnostics.transferAttempted, false);
+    assert.doesNotMatch(JSON.stringify(processFailure), /private error/);
+    assert.equal(
+      (await captureFake(3, Buffer.from('perfetto: invalid option -- a'))).status,
+      'failed',
+    );
+    assert.equal((await captureFake(4, traceFixture, null, 500)).status, 'failed');
+    const timeout = await captureFake(
+      5,
+      Buffer.alloc(0),
+      Object.assign(new Error('private timeout'), { killed: true }),
+      65000,
+    );
+    assert.equal(timeout.diagnostics.timedOut, true);
+    assert.match(timeout.reason, /Timeout/);
+    assert.equal((await captureFake(1, traceFixture)).status, 'failed');
+    assert.deepEqual(readFileSync(path.join(dir, result.file)), traceFixture);
+    assert.equal(
+      require('node:fs').existsSync(path.join(dir, 'repetition-3.perfetto-trace')),
+      false,
+    );
+  } finally {
+    for (const name of [
+      'repetition-1.perfetto-trace',
+      'repetition-3.unvalidated.bin',
+      ...[1, 2, 3, 4, 5].map((i) => `repetition-${i}-trace.json`),
+    ])
+      unlinkSync(path.join(dir, name));
+    rmdirSync(dir);
+  }
+});
+
+test('cobertura exige inicio y final en cada CPU observada sin relajar pérdida o reloj', () => {
+  const report = {
+    valid: true,
+    lostBundles: 0,
+    nonBootClockBundles: 0,
+    compactBundles: 0,
+    cpuRanges: [
+      { cpu: 0, firstSeconds: 1, lastSeconds: 6 },
+      { cpu: 1, firstSeconds: 1.5, lastSeconds: 5 },
+    ],
+  };
+  assert.equal(routeCoverage(report, '2', '4').boundsCovered, true);
+  assert.equal(routeCoverage(report, '1', '4').status, 'No medible');
+  assert.equal(routeCoverage(report, '2', '6').status, 'No medible');
+  for (const extra of [
+    { lostBundles: 1 },
+    { nonBootClockBundles: 1 },
+    { compactBundles: 1 },
+    { cpuRanges: [] },
+    { valid: false },
+  ])
+    assert.equal(routeCoverage({ ...report, ...extra }, '2', '4').status, 'No medible');
+  for (const bounds of [
+    [undefined, '4'],
+    ['NaN', '4'],
+    ['4', '2'],
+  ])
+    assert.equal(routeCoverage(report, ...bounds).status, 'No medible');
+});
+
+test('inspección conserva rangos reales y señal de pérdida ftrace', () => {
+  // Trace > packet > bundle(cpu=0, lost_events=1) > event(timestamp=1ns, print).
+  const trace = Buffer.from([10, 12, 10, 10, 8, 0, 24, 1, 18, 4, 8, 1, 26, 0]);
+  const report = inspectTrace(trace);
+  assert.equal(report.valid, true);
+  assert.equal(report.lostBundles, 1);
+  assert.deepEqual(report.cpuRanges, [{ cpu: 0, firstSeconds: 1e-9, lastSeconds: 1e-9 }]);
+});
 
 const gfx = (
   total,
@@ -51,6 +591,73 @@ test('frames anteriores no contaminan el intervalo', () => {
   const after = m.graphics(gfx(2, 0, '0,1000000,2000000,\n0,3000000,4000000,'));
   assert.equal(m.frameSummary(before, after, [after]).value.capturedFrames, 1);
 });
+test('resumen procesa una sola vez el objeto final compartido e incorpora uno independiente', () => {
+  const before = m.graphics(gfx(0, 0));
+  const after = m.graphics(gfx(1, 0, '0,1000000,2000000,'));
+  const frames = after.frames;
+  let reads = 0;
+  Object.defineProperty(after, 'frames', {
+    get() {
+      reads++;
+      return frames;
+    },
+  });
+  assert.equal(m.frameSummary(before, after, [after]).value.capturedFrames, 1);
+  assert.equal(reads, 1);
+  const final = m.graphics(gfx(2, 1, '0,3000000,4000000,'));
+  const result = m.frameSummary(before, final, [after]).value;
+  assert.equal(result.total, 2);
+  assert.equal(result.jankPercent, 50);
+  assert.equal(result.capturedFrames, 2);
+  assert.equal(result.slowPercent.status, 'measured');
+});
+test('muestras vacías o ausentes producen No medible con motivo', () => {
+  const sample = m.graphics(gfx(1, 0));
+  for (const args of [
+    [sample, sample, []],
+    [sample, undefined, [sample]],
+    [sample, null, [sample]],
+    [undefined, sample, [sample]],
+    [sample, sample, undefined],
+    [sample, sample, [undefined]],
+  ]) {
+    const result = m.frameSummary(...args);
+    assert.equal(result.status, 'No medible');
+    assert.match(result.reason, /Falta|Sin muestras|ausente/);
+  }
+});
+test('buffers circulares y muestras solapadas conservan cobertura estricta', () => {
+  const before = m.graphics(gfx(0, 0));
+  const row = (index) => `0,${index * 1000000},${index * 1000000 + 500000},`;
+  const first = m.graphics(gfx(3, 1, [1, 2, 3].map(row).join('\n')));
+  const overlap = m.graphics(gfx(5, 2, [3, 4, 5].map(row).join('\n')));
+  const complete = m.frameSummary(before, overlap, [first, overlap]).value;
+  assert.equal(complete.capturedFrames, 5);
+  assert.equal(complete.slowPercent.status, 'measured');
+  const lost = m.graphics(gfx(9, 3, [7, 8, 9].map(row).join('\n')));
+  const partial = m.frameSummary(before, lost, [first, overlap, overlap, lost]).value;
+  assert.equal(partial.total, 9);
+  assert.equal(partial.capturedFrames, 8);
+  assert.equal(partial.slowPercent.status, 'No medible');
+  assert.equal(partial.frozenFrames.status, 'No medible');
+  const empty = m.graphics(gfx(10, 3));
+  const noFrames = m.frameSummary(before, empty, [empty]).value;
+  assert.equal(noFrames.capturedFrames, 0);
+  assert.equal(noFrames.slowPercent.status, 'No medible');
+});
+test('flujo continuo recupera cobertura HWUI sin sustituir fórmulas ni umbrales', () => {
+  const before = m.graphics(gfx(10, 0));
+  const after = m.graphics(gfx(12, 1, '0,30000000,800000000,'));
+  assert.equal(m.frameSummary(before, after, [after]).value.slowPercent.status, 'No medible');
+  const text = `CEMYDI_GFX_BEGIN 2.00\n${gfx(11, 0, '0,1000000,2000000,')}\nCEMYDI_GFX_END 2.10\n`;
+  const samples = parseGraphicsStream(text, '2', '4', m.graphics);
+  const result = m.frameSummary(before, after, [...samples, after]);
+  assert.equal(result.value.capturedFrames, 2);
+  assert.equal(result.value.slowPercent.value, 50);
+  assert.equal(result.value.frozenFrames.value, 1);
+  assert.equal(result.value.jankPercent, 50);
+});
+
 test('buffers parciales, proceso nuevo y contadores inválidos nunca aprueban', () => {
   const before = m.graphics(gfx(10, 0));
   const after = m.graphics(gfx(12, 1, '0,1000000,2000000,'));
@@ -73,6 +680,37 @@ test('cabeceras cambiadas, flags y timestamps inválidos', () => {
   assert.equal(report.frames.length, 0);
   assert.equal(report.invalidRows, 3);
   assert.equal(m.graphics(gfx(1, 0).replace('FrameCompleted', 'Unknown')).timings, 'No medible');
+});
+
+test('HWUI conserva Flags excluidos y distingue faltantes sin aprobar cobertura parcial', () => {
+  const before = m.graphics(gfx(10, 0));
+  const after = m.graphics(gfx(13, 1, '0,100,200,\n1,300,400,'));
+  const result = m.frameSummary(before, after, [after]).value;
+  assert.deepEqual(after.excludedFrames, [{ flags: 1, start: 300, end: 400 }]);
+  assert.equal(result.coverage.eligibleFrames, 1);
+  assert.equal(result.coverage.excludedFrames, 1);
+  assert.equal(result.coverage.unaccountedFrames, 1);
+  assert.equal(result.slowPercent.status, 'No medible');
+  assert.equal(result.frozenFrames.status, 'No medible');
+  const repeated = m.frameSummary(before, after, [after, after]).value;
+  assert.equal(repeated.coverage.excludedFrames, 1);
+  const excludedOnly = m.graphics(gfx(11, 0, '1,300,400,'));
+  const covered = m.frameSummary(before, excludedOnly, [excludedOnly]).value;
+  assert.equal(covered.coverage.unaccountedFrames, 0);
+  assert.equal(covered.slowPercent.status, 'No medible');
+});
+
+test('baseline del colector descarta solo el prefijo anterior y conserva resets posteriores', () => {
+  const before = m.graphics(gfx(10, 0));
+  const earlier = m.graphics(gfx(9, 0));
+  const current = m.graphics(gfx(11, 0));
+  const laterReset = m.graphics(gfx(2, 0));
+  const selected = afterBaseline([earlier, current, laterReset], before);
+  assert.deepEqual(selected, [current, laterReset]);
+  assert.equal(m.frameSummary(before, laterReset, selected).status, 'No medible');
+  const invalid = m.graphics('');
+  assert.deepEqual(afterBaseline([invalid, current], before), [invalid, current]);
+  assert.deepEqual(afterBaseline([current], invalid), [current]);
 });
 test('am start solo acepta tiempo válido sin warnings', () => {
   assert.equal(m.launch('Status: ok\nTotalTime: 123\nWaitTime: 140').value, 123);
@@ -523,6 +1161,73 @@ test('build development bloquea captura antes de cualquier comando de medición'
   );
   assert.equal(calls, 0);
 });
+test('PERF-01 a PERF-05 conservan configuración y restricciones de lanzamiento', () => {
+  const file = require.resolve('./conditions.example.json');
+  for (let index = 1; index <= 5; index++) {
+    const args = { scenario: `PERF-0${index}`, conditions: file };
+    const config = captureConfig(args);
+    assert.equal(config.repeat, 3);
+    assert.equal(config.duration, 60);
+    assert.equal(config.interval, 5);
+    assert.equal(config.settle, 15);
+    assert.equal(config.config.initialState, 'background');
+    if (index === 1) assert.doesNotThrow(() => captureConfig({ ...args, launch: 'yes' }));
+    else assert.throws(() => captureConfig({ ...args, launch: 'yes' }), /solo para PERF-01/);
+  }
+  const repeated = captureConfig({
+    scenario: 'PERF-05',
+    conditions: file,
+    duration: '120',
+    settle: '30',
+  });
+  assert.equal(repeated.duration, 120);
+  assert.equal(repeated.settle, 30);
+});
+test('PERF-06 valida configuración local sin ADB ni respuestas a prompts', () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'cemydi-perf06-'));
+  const file = path.join(dir, 'conditions.json');
+  const base = {
+    ...conditions(require.resolve('./conditions.example.json')),
+    initialState: 'foreground',
+  };
+  const args = { scenario: 'PERF-06', conditions: file };
+  try {
+    writeFileSync(file, JSON.stringify(base));
+    assert.doesNotThrow(() => captureConfig({ ...args, 'native-trace': 'yes' }));
+    assert.throws(() => captureConfig({ ...args, 'native-trace': 'no' }));
+    assert.throws(() => captureConfig({ ...args, scenario: 'PERF-02', 'native-trace': 'yes' }));
+    const expected = { config: base, repeat: 3, duration: 30, interval: 1, settle: 15 };
+    assert.deepEqual(captureConfig(args), expected);
+    assert.deepEqual(
+      captureConfig({ ...args, repeat: '3', duration: '30', interval: '1', settle: '15' }),
+      expected,
+    );
+    for (const invalid of [
+      { launch: 'yes' },
+      { launch: 'no' },
+      { scenario: 'PERF-07' },
+      { scenario: 'toString' },
+      { repeat: '2' },
+      { duration: 'NaN' },
+      { interval: '30', duration: '30' },
+      { settle: '0' },
+    ])
+      assert.throws(() => captureConfig({ ...args, ...invalid }));
+    for (const invalid of [
+      { initialState: 'background' },
+      { initialState: 'not-running' },
+      { data: 'synthetic-local' },
+      { network: 'online' },
+      { session: 'authenticated' },
+    ]) {
+      writeFileSync(file, JSON.stringify({ ...base, ...invalid }));
+      assert.throws(() => captureConfig(args));
+    }
+  } finally {
+    unlinkSync(file);
+    rmdirSync(dir);
+  }
+});
 test('comparación exige metadatos completos y punto final estabilizado', () => {
   const data = run();
   delete data.metadata.protocolVersion;
@@ -541,6 +1246,42 @@ test('diagnóstico nuevo usa protocolo separado sin reinterpretar capturas hist�
   candidate.metadata.protocolVersion = 3;
   assert.equal(m.compare(baseline, candidate).status, 'not-comparable');
   baseline.metadata.protocolVersion = 3;
+  assert.equal(m.compare(baseline, candidate).status, 'compared');
+  candidate.metadata.protocolVersion = 4;
+  assert.equal(m.compare(baseline, candidate).status, 'not-comparable');
+  baseline.metadata.protocolVersion = 4;
+  assert.equal(m.compare(baseline, candidate).status, 'compared');
+  candidate.metadata.protocolVersion = 5;
+  assert.equal(m.compare(baseline, candidate).status, 'not-comparable');
+  baseline.metadata.protocolVersion = 5;
+  assert.equal(m.compare(baseline, candidate).status, 'compared');
+  candidate.metadata.protocolVersion = 6;
+  assert.equal(m.compare(baseline, candidate).status, 'not-comparable');
+  baseline.metadata.protocolVersion = 6;
+  assert.equal(m.compare(baseline, candidate).status, 'compared');
+  candidate.metadata.protocolVersion = 7;
+  assert.equal(m.compare(baseline, candidate).status, 'not-comparable');
+  baseline.metadata.protocolVersion = 7;
+  assert.equal(m.compare(baseline, candidate).status, 'compared');
+  candidate.metadata.protocolVersion = 8;
+  assert.equal(m.compare(baseline, candidate).status, 'not-comparable');
+  baseline.metadata.protocolVersion = 8;
+  assert.equal(m.compare(baseline, candidate).status, 'compared');
+  candidate.metadata.protocolVersion = 9;
+  assert.equal(m.compare(baseline, candidate).status, 'not-comparable');
+  baseline.metadata.protocolVersion = 9;
+  assert.equal(m.compare(baseline, candidate).status, 'compared');
+  candidate.metadata.protocolVersion = 10;
+  assert.equal(m.compare(baseline, candidate).status, 'not-comparable');
+  baseline.metadata.protocolVersion = 10;
+  assert.equal(m.compare(baseline, candidate).status, 'compared');
+  candidate.metadata.protocolVersion = 11;
+  assert.equal(m.compare(baseline, candidate).status, 'not-comparable');
+  baseline.metadata.protocolVersion = 11;
+  assert.equal(m.compare(baseline, candidate).status, 'compared');
+  candidate.metadata.protocolVersion = 12;
+  assert.equal(m.compare(baseline, candidate).status, 'not-comparable');
+  baseline.metadata.protocolVersion = 12;
   assert.equal(m.compare(baseline, candidate).status, 'compared');
 });
 test('resúmenes y tendencias no afirman fugas ni inventan inicio', () => {

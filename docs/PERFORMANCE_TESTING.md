@@ -102,6 +102,7 @@ monotónicos reales, no se supone periodicidad exacta. Los dumps tienen sobrecos
 | PERF-03 Detalle  | Catálogo; mismo producto, descripción, 3 desplazamientos, características, volver                                                        | Catálogo             |
 | PERF-04 Carrito  | Invitado; mismo producto sintético, añadir, aumentar/reducir cantidad, volver                                                            | Inicio               |
 | PERF-05 Repetida | Inicio; 5 ciclos Inicio, Explorar, Detalle, Carrito, Inicio                                                                              | Inicio estable       |
+| PERF-06 Local    | Invitado, foreground, Ayuda y contacto desde Inicio; 3 desplazamientos verticales y regresar arriba                                      | Ayuda al inicio      |
 
 Preparar manualmente el mismo punto inicial antes de cada `ready`; conservar igual
 cantidad de productos en carrito. Si no puede reproducirse sin borrar datos, detener
@@ -424,3 +425,437 @@ aprobadas, con avisos `act` en suites existentes. Hash agregado del árbol hist�
 `test-results/performance` idéntico antes/después:
 `0a608eaffdd9aab61156419e44e075ac457517545fc0f702a6998ff65e114086`.
 No se ejecutaron capturas ni comandos Android en esta revisión.
+
+## Actividad 6
+
+La referencia del 16 de noviembre de 2026 es
+`test-results/performance/2026-11-16T06-56-24-936Z-capture-285a5099/`. Las tres
+repeticiones registraron entrega del intent a una actividad existente. Hubo PSS y
+jank de ventana medibles. Las 100 filas nuevas de framestats por repetición fueron
+insuficientes frente a 342, 339 y 370 frames según HWUI. El objetivo quedó
+`pending`. Conservar la carpeta completa como evidencia de retorno caliente.
+
+### PERF-01 con inicio frío controlado
+
+Usar el APK instalado, en modo avión, con Wi-Fi y las demás conexiones de red
+desactivadas y sesión invitada. Preparar un JSON independiente, como
+`test-results/performance/conditions-perf01-cold.json`, con
+`initialState: "not-running"`. Ajustar a las condiciones observadas. Un proceso
+nuevo puede reutilizar datos y cachés de disco.
+
+```powershell
+adb devices -l
+$perfDevice = Read-Host 'Serial ADB por USB (estado device)'
+adb -s $perfDevice get-state
+$perfCold = '.\test-results\performance\conditions-perf01-cold.json'
+npm run performance -- capture --device $perfDevice --authorize $perfDevice --scenario PERF-01 --conditions $perfCold --repeat 3 --duration 60 --interval 5 --settle 15 --launch yes
+```
+
+En una segunda consola PowerShell, declarar el mismo `$perfDevice`. Antes de
+**cada** `ready`, detener manualmente la app y verificar que la lista de
+procesos es válida y carece del paquete y de sus procesos con sufijo.
+
+```powershell
+adb -s $perfDevice shell am force-stop com.cemydi.app
+if ($LASTEXITCODE -ne 0) { throw 'Falló force-stop.' }
+$perfProcesses = @(adb -s $perfDevice shell ps -A -o PID,NAME)
+if ($LASTEXITCODE -ne 0 -or $perfProcesses[0] -notmatch '^\s*PID\s+NAME\s*$') {
+  throw 'No se pudo verificar la lista de procesos.'
+}
+if ($perfProcesses -match '\scom\.cemydi\.app(:\S+)?\s*$') {
+  throw 'La app todavía tiene un proceso activo.'
+}
+```
+
+Tras verificar la ausencia, escribir `ready` sin abrir la app. Dejarla estable
+hasta el registro de la observación. Si falla la preparación o el aislamiento,
+corregir la condición antes de reintentar. La ruta impresa en `Evidencias:`
+identifica la ejecución, incluso si termina con `error.json`.
+
+Esperar PSS inicial y delta como `No medible` por ausencia de proceso inicial,
+con PSS posterior y final estabilizado si la captura se completa. Revisar
+`launchDiagnostics` de cada repetición. Reportar como inicio frío un
+`TotalTime` positivo aceptado por el parser con ausencia de proceso verificada,
+sin reutilización ni estado `WARM` o `HOT` informado por Android. Si Android
+omite `LaunchState`, consignar esa ausencia y la verificación manual previa.
+`WaitTime` queda como diagnóstico. Sin un baseline válido de la misma ventana y
+proceso, las métricas gráficas del intervalo quedan `No medible`.
+
+### PERF-06 — Renderizado de pantalla local
+
+#### Modo opcional de CPU y traza nativa
+
+El protocolo vigente es **12** al usar `--native-trace yes` en PERF-06.
+Las descripciones de protocolos anteriores que siguen son históricas.
+No comparar directamente capturas de protocolos distintos.
+
+Corrección del protocolo 12:
+
+- La segunda columna de SurfaceFlinger (`actualPresentTime`) determina si
+  la presentación está pendiente. Un `frameReadyTime` pendiente no invalida
+  una presentación real ya conocida. Cada fila conserva identidad, tiempos
+  numéricos y campos pendientes explícitos; `INT64_MAX` nunca se trata como tiempo.
+- Después de la estabilización se conserva `presentationResolutionSamples`.
+  Esta consulta solo resuelve identidades que ya estaban en las muestras del
+  recorrido. No incorpora frames nuevos de los 15 s finales. Los frames del
+  baseline permanecen excluidos aunque su fence se resuelva después. Un fence
+  del recorrido sin resolver, sobrescrito o con identidad contradictoria sigue
+  bloqueando FPS. Las muestras antiguas con solo un booleano `pending` no permiten
+  reconstruir estas identidades y no se reinterpretan como mediciones completas.
+- El recolector HWUI arranca antes del baseline, con pausa solicitada de 10 ms.
+  Se excluye únicamente su prefijo anterior al baseline; se conservan reinicios
+  e inconsistencias posteriores. Se registran límites propios del muestreo HWUI,
+  distintos de los límites CPU. La frecuencia real depende de `dumpsys` y del
+  dispositivo; reducir la pausa aumenta el coste de observación.
+- `excludedFrames` conserva Flags, IntendedVsync y FrameCompleted de las filas
+  válidas con Flags no cero, sin nombres ni texto privado. `graphics.value.coverage`
+  distingue filas elegibles, excluidas, inválidas y frames no contabilizados.
+  Un faltante no demuestra por sí solo sobrescritura del buffer. No se altera el
+  denominador ni los umbrales de jank, frames lentos/congelados o memoria. Las filas
+  excluidas no habilitan cobertura completa ni se cuentan como rápidas.
+
+La captura histórica de protocolo 11
+`2026-11-22T19-29-25-914Z-capture-9889b47c` conserva CPU medible en tres
+repeticiones, pero faltan 6/4/6 frames elegibles y dos resultados FPS están
+bloqueados por el diagnóstico anterior de fences. No contiene las identidades
+pendientes ni las filas Flags excluidas necesarias para corregir esos resultados
+retrospectivamente. Sus archivos se conservan sin modificaciones.
+
+- CPU: ProcessTree usa un buffer independiente de 4 MiB, sondeo de procesos
+  cada segundo y renovación del estado incremental cada 5 segundos. Evita
+  depender de un único inventario inicial mezclado con eventos sched. Se mantiene
+  el buffer sched de 32 MiB, streaming a archivo y los controles de pérdida.
+- HWUI: un proceso ADB independiente consulta `framestats` en un bucle acotado
+  por `/proc/uptime`, con pausa solicitada de 10 ms. No se interrumpe durante
+  `meminfo`, conectividad o consultas de presentación del proceso principal.
+  La frecuencia real incluye el coste de `dumpsys` y no está garantizada.
+  Solo se guardan muestras parseadas y redactadas dentro de los límites del
+  recorrido en `continuousGraphicsSamples`; no se persiste la salida textual.
+  Un snapshot final síncrono cierra la ventana. Las fórmulas de jank, lentos,
+  congelados y memoria permanecen iguales; cobertura incompleta sigue siendo
+  `No medible`. PSS conserva su intervalo solicitado de 1 s y 15 s de estabilización.
+- FPS: se consulta `SurfaceFlinger --list` y `--latency` solo para una capa
+  exacta de MainActivity de CEMYDI. Sin capa única, permiso, solapamiento de
+  buffers o timestamps válidos, permanece `No medible`. No se habilitan ni
+  limpian estadísticas globales del compositor. Los fences pendientes finales
+  también bloquean el resultado. No se usan callbacks Choreographer como FPS.
+  `presentation.json` conserva el resultado individual. FPS = (N − 1) / tiempo
+  entre primera y última presentación nueva, excluyendo el baseline y deduplicando
+  solapamientos. Es el promedio de esa ventana observada, **no el promedio de los
+  30 s**; excluye reposo inicial/final e incluye pausas intermedias. No representa
+  por sí solo FPS exclusivo durante el gesto ni sirve para umbrales HWUI.
+- Se elimina el sondeo repetido de `dumpsys cpuinfo`, que entregaba ventanas
+  antiguas y añadía coste. CPU se calcula con los intervalos sched de la traza.
+
+Compatibilidad: [FrameTimeline requiere Android 12 o posterior](https://perfetto.dev/docs/data-sources/frametimeline).
+Android 10 imprime desiredPresentTime, actualPresentTime y frameReadyTime en
+[FrameTracker::dumpStats](https://android.googlesource.com/platform/frameworks/native/+/android10-release/services/surfaceflinger/FrameTracker.cpp).
+Los campos de sondeo y caché usados existen en
+[ProcessStatsConfig de Android 10](https://android.googlesource.com/platform/external/perfetto/+/android10-release/protos/perfetto/config/process_stats/process_stats_config.proto).
+
+La disponibilidad de la capa y la cobertura del buffer HWUI se deberán comprobar
+en la próxima captura manual. Los tests sintéticos no certifican el firmware.
+El sondeo adicional tiene coste y puede afectar el rendimiento observado.
+No se modifican la app ni las capturas históricas. Se conservan tres repeticiones,
+preparación manual, aislamiento offline y respuestas humanas `ready`/resultado.
+
+```powershell
+npm run performance -- capture --device $perfDevice --authorize $perfDevice --scenario PERF-06 --conditions $perfConditions --repeat 3 --duration 30 --interval 1 --settle 15 --native-trace yes
+```
+
+El protocolo 10 añade `task/task_newtask`, `sched/sched_process_exit`
+y nombres de hilos en ProcessTree. Usa CLONE_THREAD y el TID creador para
+distinguir nuevos hilos del proceso de procesos hijo independientes. Los
+intervalos anteriores al nacimiento conocido de un TID quedan sin atribuir.
+`sched_process_exit` inicia la salida: el hilo todavía puede bloquearse, reanudarse
+y consumir CPU durante la limpieza. No se usa como límite final de ejecución.
+Reutilización ambigua de TID o parentesco ausente mantiene CPU total `No medible`.
+Estos eventos están presentes en la captura del 22 de noviembre de protocolo 10.
+
+El analizador de pérdidas compara snapshots del servicio y pares START/END de
+FtraceStats por cada CPU observada, incluyendo overrun, commit_overrun y
+dropped_events. Los contadores globales de descarte del servicio acumulan su
+historial y un valor inicial estable se conserva como diagnóstico. Los contadores
+de buffer pertenecen a esta sesión: un valor inicial no nulo bloquea el cálculo.
+Aumentos de pérdida, reinicios o ausencia de estadísticas también lo bloquean.
+La distinción corresponde a EmitTraceStats en la
+[implementación de Perfetto para Android 10](https://android.googlesource.com/platform/external/perfetto/+/refs/heads/android10-dev/src/tracing/core/tracing_service_impl.cc).
+El informe expresa el estado real de CPU, en vez de afirmar que la atribución
+y pérdida ya fueron verificadas.
+
+Los archivos existentes pueden revisarse otra vez con `analyze-cpu`, que crea
+un informe nuevo. Las trazas antiguas no contienen los eventos de ciclo de vida
+recién configurados y no pueden recuperar información omitida retrospectivamente.
+Las nuevas capturas necesitan validación física de atribución y pérdida.
+
+El análisis corregido de `2026-11-22T19-08-21-417Z-capture-b79f2d05` obtiene
+CPU medible en las repeticiones 2 y 3: 50.721466% y 53.846774% de una CPU lógica,
+con ventanas de 30.79 y 30.76 segundos. Ambas tienen cero TID sin clasificar,
+cero discontinuidades y controles de pérdida aprobados. La repetición 1 carece
+de identidad del proceso en ProcessTree y permanece `No medible`; no se sustituye
+con metadatos de otras repeticiones. El nuevo informe se guarda en un directorio
+`cpu-analysis` separado y no cambia los resultados originales.
+
+FPS sigue necesitando eventos de presentación atribuibles a la superficie
+de CEMYDI. Los callbacks de Choreographer o el número de eventos ftrace no prueban
+ese número. Slow/Frozen Frames siguen exigiendo cobertura HWUI completa o
+equivalencia demostrada de otra fuente con IntendedVsync–FrameCompleted.
+Las trazas actuales no establecen esa equivalencia. Se conservan las métricas
+como No medible y las fórmulas estrictas. Una nueva captura tampoco garantiza
+que esas fuentes estén disponibles en Android 10.
+
+El protocolo 9 incorpora un análisis offline de CPU con `sched_switch`.
+En nuevas capturas, `cpu.json` usa `cpuFromTrace.process` como resultado
+principal y conserva las ventanas cpuinfo como diagnóstico.
+Para analizar una captura ya guardada sin ADB ni cambiar sus archivos:
+
+```powershell
+npm run performance -- analyze-cpu --capture '.\test-results\performance\2026-11-22T00-05-48-779Z-capture-9aca0e3b'
+```
+
+El comando crea otro directorio `cpu-analysis` con `cpu.json` y hashes de
+las trazas de entrada. Verifica el SHA-256, la identidad del proceso en ProcessTree,
+el mapa TID/TGID y los intervalos en que cada CPU ejecutaba un hilo.
+Recorta cada intervalo a los límites del recorrido y suma los tiempos de todos
+los hilos identificados del proceso. Porcentaje = 100 × segundos CPU / segundos
+del recorrido, con 100% equivalente a una CPU lógica. Puede superar 100%.
+Se comprueban extremos sched_switch por CPU, discontinuidades prev/next, pérdida
+del servicio y TID sin pertenencia. Datos incompletos dejan CPU total `No medible`.
+La reconstrucción de intervalos presentes se publica por separado como
+`observedIdentifiedThreads`, estado `review-required`, para revisión técnica.
+Su porcentaje parcial no debe presentarse como CPU total verificada.
+
+En la captura del protocolo 8, las tres trazas tienen TID programados sin
+pertenencia y contadores de descarte del servicio distintos de cero. La tercera
+también declara sobrescritura de buffer. Por ello, cubrir los extremos temporales
+no basta para aprobar CPU total. Este diagnóstico no requiere otra captura ni
+reescribe los resultados originales.
+Esquemas de referencia en [ProcessTree](https://raw.githubusercontent.com/google/perfetto/master/protos/perfetto/trace/ps/process_tree.proto),
+[sched_switch](https://raw.githubusercontent.com/google/perfetto/master/protos/perfetto/trace/ftrace/sched.proto)
+y [TraceStats](https://raw.githubusercontent.com/google/perfetto/master/protos/perfetto/common/trace_stats.proto).
+
+La captura `2026-11-21T23-58-11-344Z-capture-7dcf409d` completó las
+repeticiones con trazas válidas de unos 32 MiB, pero sus primeros eventos
+dejaban fuera el inicio del recorrido. El protocolo 8 activa
+`write_into_file: true` y `file_write_period_ms: 1000` para vaciar
+periódicamente el buffer de 32 MiB al archivo remoto y conservar los eventos
+iniciales. El tamaño máximo del archivo es 128 MiB. Alcanzar ese límite puede
+terminar la traza antes de tiempo y debe investigarse.
+La descarga binaria admite 160 MiB y un timeout de 60 s.
+Estos campos existen en la configuración de Android 10 y el comportamiento
+se describe en [Perfetto, escritura periódica](https://perfetto.dev/docs/concepts/config).
+
+Se esperan 2 s antes de registrar el inicio del recorrido, para dar margen de
+arranque a las fuentes. Ese margen no certifica disponibilidad. Al terminar,
+`traceCoverage` comprueba que todas las CPU observadas tengan eventos antes
+del inicio y después del final, comparando el reloj boot de ftrace con uptime.
+Si falta algún extremo, hay bundles con pérdida, reloj diferente o codificación
+compacta no soportada, devuelve `No medible`. Cubrir los extremos queda
+`review-required`, porque no demuestra ausencia de huecos internos o pérdidas
+del servicio. La revisión completa sigue exigiendo estadísticas, identidad y
+atribución de eventos. El diagnóstico también sirve para detectar nuevas pérdidas
+sin confundir un archivo binario válido con cobertura suficiente.
+
+La CPU global del recorrido continúa pendiente del análisis de eventos sched y
+del mapeo de hilos al proceso en la nueva traza completa. Las consultas cpuinfo
+siguen rechazando ventanas antiguas. No se sustituyen por porcentajes históricos.
+La escritura periódica incrementa el trabajo de almacenamiento y debe mantenerse
+igual entre ejecuciones comparadas. Se conserva el mismo comando de PERF-06.
+
+El diagnóstico `2026-11-21T23-54-28-208Z-trace-check-03c0ba77` permitió
+comprobar una alteración binaria CRLF en la salida del shell. Invirtiendo solo
+en memoria la inserción de CR antes de LF se recuperó un contenedor válido de
+5,345,663 bytes, 1,453 paquetes y 101,123 eventos ftrace. El original se conserva.
+No se aplica normalización a futuras capturas, porque podría alterar bytes legítimos.
+El protocolo 7 escribe la traza nativa a un nombre UUID exclusivo bajo
+`/data/misc/perfetto-traces/`, y la descarga después mediante `adb exec-out cat`.
+Así la configuración viaja por shell stdin y el binario por un canal independiente.
+Los mensajes del proceso de grabación no se mezclan con la traza.
+La ruta remota se registra en el JSON y el archivo queda en el teléfono.
+Cada repetición usa un nombre nuevo. No se sobrescriben ni eliminan trazas previas.
+La descarga tiene timeout propio de 15 s, límite de 64 MiB y validación protobuf.
+
+La captura `2026-11-21T23-51-14-716Z-capture-09b599b5` terminó el comando
+nativo en 41.88 s y recibió 34,088,440 bytes, sin error de proceso ni timeout.
+El validador los rechazó y la versión anterior descartó la salida. Su causa
+precisa permanece pendiente de inspección binaria. Se añadió conservación local
+exclusiva como `repetition-N.unvalidated.bin` con hash y estado `unvalidated`.
+La salida rechazada continúa siendo un fallo y nunca se usa para aprobar métricas.
+Los diagnósticos ahora identifican etapa, paquetes, bundles y eventos analizados,
+además de offsets numéricos del fallo de estructura.
+
+Antes de repetir las tres repeticiones, el operador puede comprobar solo la
+fuente nativa durante 10 s, sin desplazamientos ni respuestas automáticas:
+
+```powershell
+npm run performance -- trace-check --device $perfDevice --authorize $perfDevice
+```
+
+Mantener el dispositivo de pruebas offline. Se crea una carpeta `trace-check`
+independiente y se conservan resultado, diagnóstico y salida binaria disponible.
+Compartir esa carpeta completa para inspección local. Si termina en fallo,
+corregir la causa verificada antes de repetir el recorrido de rendimiento.
+
+Agregar `--native-trace yes` habilita el protocolo 10 únicamente en PERF-06.
+La captura `2026-11-21T23-48-05-106Z-capture-faa06c47` del protocolo 5
+alcanzó el timeout de 65 s, sin una traza conservada. El registro previo
+no permite atribuir inequívocamente el bloqueo a stdin o al servicio.
+Se cambia el transporte a `adb shell -T` para enviar configuración por stdin
+con cierre del canal y salida binaria sin pseudo-terminal.
+El procedimiento oficial de Perfetto para Android anterior a 12 utiliza
+[configuración por stdin con adb shell](https://github.com/google/perfetto/blob/main/docs/concepts/config.md).
+Se conservan duración, límites y validación binaria. Los fallos ahora distinguen
+timeout, cancelación, error de proceso, formato inválido y salida prematura.
+Se registran bytes recibidos y diagnóstico estructural sin copiar stderr.
+Un fallo temprano se detecta en el siguiente ciclo de muestreo y aborta el recorrido.
+La revisión anterior (protocolo 4) usaba una opción `-a` que el Perfetto del
+teléfono rechazó, devolviendo ayuda con código 0. Esos tres archivos históricos
+son texto de error y se conservan como evidencia del fallo.
+La versión corregida envía la configuración pbtxt por stdin con `--txt -c -`,
+opciones presentes en la ayuda del dispositivo. El paquete se selecciona mediante
+`atrace_apps` dentro de la configuración, junto con sched, gfx/view,
+ftrace/print y el inventario inicial de procesos.
+Ahora se comprueba estructura protobuf de Trace/TracePacket/FtraceEvent,
+al menos un evento con timestamp y payload, y duración del comando coherente
+con la configuración. Ayuda, salida vacía, binario truncado, ausencia de eventos
+o terminación inmediata quedan como fallo. La validación estructural sigue
+requiriendo análisis posterior de cobertura y atribución.
+Las respuestas a `ready` y al resultado siguen siendo manuales.
+La CLI inicia una sesión Perfetto nativa limitada a duración del recorrido +10 s
+antes de anunciar CAPTURANDO. Recoge sched/gfx/view y atrace de com.cemydi.app.
+Al finalizar espera el proceso y conserva un archivo binario por repetición,
+SHA-256, tamaño, horas y comando en `repetition-N-trace.json`. Una traza guardada
+queda `captured` con análisis `pending`. El código de salida del comando no
+demuestra que todas las fuentes estén disponibles ni que cubran el recorrido.
+Si Perfetto falla, el fallo queda explícito y se conserva la captura parcial.
+La sesión tiene timeout, buffer solicitado de 32 MiB con escritura periódica,
+límite de archivo de 128 MiB y máximo de descarga de 160 MiB.
+Una cancelación termina el cliente ADB; la sesión remota puede durar hasta su
+límite configurado. No se borran archivos ni se resetean estadísticas.
+
+La traza puede incluir nombres de procesos/hilos y metadatos del sistema.
+Usar exclusivamente el entorno dedicado sin cuentas ni datos personales y
+conservarla localmente. El modo requiere el binario Perfetto ya incluido en
+Android, compatibilidad de sus opciones y permisos de sus fuentes.
+La disponibilidad del dispositivo se verificará durante la ejecución manual.
+No se instalaron herramientas de análisis locales.
+
+Además se consulta `dumpsys cpuinfo` después de cada muestra gráfica. Solo se
+exporta el porcentaje de la fila exacta del proceso principal cuyo PID coincide
+con el observado en gfxinfo y su ventana temporal relativa. Se conserva en
+`cpuSamples` y `cpu.json`. Proceso ausente, duplicado, cambiado o formato
+desconocido producen `No medible`; un fallo de ADB interrumpe la captura.
+El porcentaje describe la ventana del muestreador Android. Solo se acepta si
+su inicio queda dentro del tiempo ya transcurrido desde el comienzo del recorrido,
+medido antes de invocar cpuinfo. Las ventanas anteriores o parcialmente anteriores
+quedan `No medible` con motivo explícito. La última captura del protocolo 4
+contenía ventanas antiguas en las 53 consultas. No representan CPU del recorrido.
+Incluso las ventanas válidas pueden solaparse entre muestras. No se promedian esas
+ventanas ni se interpretan filas ausentes como CPU cero. No incluye subprocesos.
+El trabajo adicional aumenta el intervalo real y el sobrecosto.
+
+Para repetir con las condiciones independientes revisadas y la pantalla preparada:
+
+```powershell
+$perfDevice = Read-Host 'Serial ADB por USB'
+$perfConditions = '.\test-results\performance\perf06-config-1a5d46a9e00843b7a59a4a0da6d2df67\conditions.json'
+Get-Content -Raw -LiteralPath $perfConditions
+npm run performance -- capture --device $perfDevice --authorize $perfDevice --scenario PERF-06 --conditions $perfConditions --repeat 3 --duration 30 --interval 1 --settle 15 --native-trace yes
+```
+
+Conservar toda la carpeta, especialmente los tres .perfetto-trace y sus JSON.
+Los límites del recorrido se registran con /proc/uptime antes del anuncio y
+después de la última muestra. Contrastarlos con el reloj de la traza.
+Comprobar en Perfetto la identidad del proceso, cobertura de esos límites,
+eventos sched y gráficos, pérdida de eventos, saturación y trazas truncadas.
+CPU media del recorrido puede obtenerse después sumando tiempo programado de
+todos sus hilos dentro de esos límites y dividiendo entre la duración.
+FPS requiere eventos de presentación atribuibles a la superficie de CEMYDI.
+Contar doFrame por segundo mide callbacks, cuya relación con frames presentados
+requiere validación independiente.
+
+En Android 10 hay trazas de UI/RenderThread y SurfaceFlinger. FrameTimeline
+requiere Android 12. La disponibilidad de una traza por sí sola no certifica
+las duraciones IntendedVsync–FrameCompleted. Slow/Frozen conservan su fuente
+HWUI, fórmulas y regla estricta. Su análisis mediante otra fuente requiere
+probar equivalencia y cobertura. FPS permanece No medible hasta esa revisión.
+El modo nuevo no garantiza resolver las métricas gráficas pendientes.
+Comparar exclusivamente ejecuciones del mismo protocolo e instrumentación.
+Referencias en [Perfetto CLI](https://perfetto.dev/docs/reference/perfetto-cli),
+[Android 10 y jank](https://developer.android.com/studio/profile/jank-detection)
+y [FrameTimeline](https://perfetto.dev/docs/data-sources/frametimeline).
+
+La investigación de cobertura de la captura del 21 de noviembre, costos ADB,
+historial circular y comparación de alternativas está en
+[GFXINFO_COUNTERS.md](./GFXINFO_COUNTERS.md#investigación-de-cobertura-perf-06-del-21-de-noviembre-de-2026).
+Se conserva el procedimiento periódico siguiente. La nueva corrección elimina
+la lectura redundante del objeto final y protege muestras ausentes, con cobertura
+estricta. Repetir el recorrido permite evaluar PSS, jank y cobertura efectivamente
+obtenida. Slow Frames y Frozen Frames siguen condicionados a cobertura completa.
+
+Abrir manualmente como invitado Inicio → Ayuda y contacto (`/perfil/ayuda`).
+La pantalla pública usa contenido local y un contenedor desplazable. Prepararla
+arriba del contenido antes de cada repetición, con las preguntas frecuentes en
+el mismo estado. Mantener modo avión, Wi-Fi apagado y toda red desconectada.
+La CLI exige `foreground`, `guest`, `offline` y `empty-offline`, proceso
+activo y build representativa. El operador verifica pantalla y sesión.
+
+Crear condiciones independientes desde la raíz del repositorio. El ejemplo debe
+ajustarse a batería, carga, temperatura, brillo y caché realmente observados.
+La copia se guarda en una carpeta nueva para conservar las condiciones anteriores.
+
+```powershell
+$perfDevice = Read-Host 'Serial ADB por USB'
+$perfConfigDir = Join-Path '.\test-results\performance' ('perf06-config-' + [guid]::NewGuid().ToString('N'))
+New-Item -ItemType Directory -Path $perfConfigDir | Out-Null
+$perfConditions = Join-Path $perfConfigDir 'conditions.json'
+$perfConfig = Get-Content -Raw '.\scripts\performance\conditions.example.json' | ConvertFrom-Json
+$perfConfig.initialState = 'foreground'
+[IO.File]::WriteAllText((Join-Path (Get-Location).Path $perfConditions), ($perfConfig | ConvertTo-Json), [Text.UTF8Encoding]::new($false))
+notepad $perfConditions
+npm run performance -- capture --device $perfDevice --authorize $perfDevice --scenario PERF-06 --conditions $perfConditions --repeat 3 --duration 30 --interval 1 --settle 15
+```
+
+Los valores por defecto de PERF-06 son 3 repeticiones, 30 s, intervalo solicitado
+de 1 s y estabilización de 15 s. Omitir `--launch`, que se rechaza para este escenario.
+En cada repetición el operador confirma personalmente `ready`. Al aparecer
+`CAPTURANDO`, hacer tres desplazamientos verticales controlados con el mismo
+sentido, distancia y ritmo entre repeticiones, regresar arriba dentro de los
+30 s y esperar estable los 15 s finales. Evitar pulsar contactos, mapas,
+enlaces externos o desplegables durante el recorrido.
+
+Registrar personalmente `completed` si se cubrió todo el recorrido y se observó
+la interfaz, `skipped` si falta contenido desplazable o no se pudo preparar,
+`crash` ante cierre inesperado y `error` ante otro fallo. Si la preparación
+es imposible antes de `ready`, cancelar. Un fallo técnico puede interrumpir
+la captura antes de la pregunta final y debe conservarse en las evidencias.
+
+La ruta impresa en `Evidencias:` contiene metadata, `repetition-1.json` a
+`repetition-3.json`, `scenarios.json`, CSV, resumen y tiempos técnicos.
+Se mantiene escritura exclusiva en carpetas UTC con sufijo único.
+PSS inicial/final, delta y estadísticas HWUI usan las fórmulas existentes.
+Jank exige continuidad verificable de PID, ventana y época. Frames lentos y
+congelados exigen además cobertura completa. Las métricas insuficientes quedan
+`No medible`, con motivo. El intervalo de 1 s tiene sobrecosto ADB y no garantiza
+cobertura. CPU y FPS siguen sin fuente suficiente. El objetivo global permanece
+`pending` hasta completar la revisión requerida, o `failed` si corresponde.
+
+PERF-06 complementa las pruebas de catálogo, detalle, carrito y API. Su captura
+caracteriza desplazamientos en una pantalla ya abierta. La ejecución física queda
+a cargo del operador, con respuestas manuales a ambos prompts.
+
+### Procedencia del APK
+
+La referencia registró `develop` en `5399ec6944bffb4e14023f9d229d8d520de2e4e2`,
+con cambios locales. El diagnóstico identificó `com.cemydi.app` 1.0.0,
+versionCode 1, como release-compatible en un HUAWEI STK-LX3 con Android 10/API 29.
+El commit de diagnóstico describe el checkout. La asociación con el APK sigue
+pendiente.
+
+Si se usó el workflow Android Preview, localizar la ejecución histórica en
+GitHub Actions. Su resumen registra el commit y el ID de EAS para el APK terminado.
+Descargar ese artefacto, calcular su SHA-256 con `Get-FileHash` y cotejarlo con el
+SHA-256 del APK instalado obtenido mediante la ruta de `adb shell pm path`.
+Si hay splits, falta el artefacto o no se puede leer el APK instalado, conservar
+el estado pendiente. La coincidencia de versionCode y versionName por sí sola
+deja la procedencia pendiente.
