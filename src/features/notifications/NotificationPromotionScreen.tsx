@@ -1,17 +1,51 @@
-import { Text, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useSafeNavigation } from '@/hooks/useSafeNavigation';
+import { Text, useWindowDimensions, View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import Package from 'lucide-react-native/icons/package';
 import { AccountMenuItem } from '@/components/account/AccountMenuItem';
 import { AccountSection } from '@/components/account/AccountSection';
 import { AccountLayout } from '@/components/account/AccountLayout';
 import { AccountResourceState } from '@/components/account/AccountResourceState';
+import { Skeleton, SkeletonBlock } from '@/components/ui/Skeleton';
 import { useAuth } from '@/providers/auth-provider';
 import { notificationService } from './notification-service';
 import { useNotificationActions } from './useNotifications';
 
+function NotificationPromotionSkeleton() {
+  const { fontScale } = useWindowDimensions();
+  return (
+    <Skeleton label="Cargando oferta">
+      <View className="gap-5 px-5 py-6">
+        <SkeletonBlock className="w-3/4 rounded" style={{ height: 20 * fontScale }} />
+        <SkeletonBlock className="w-1/3 rounded" style={{ height: 18 * fontScale }} />
+        <SkeletonBlock className="w-2/5 rounded" style={{ height: 14 * fontScale }} />
+        <View className="gap-3">
+          <SkeletonBlock className="w-1/2 rounded" style={{ height: 16 * fontScale }} />
+          <View>
+            {[0, 1, 2].map((row) => (
+              <View
+                key={row}
+                className="min-h-20 flex-row items-center gap-3 border-b border-border py-4"
+              >
+                <View className="w-8 items-center justify-center">
+                  <SkeletonBlock className="h-6 w-6 rounded" />
+                </View>
+                <View className="flex-1 gap-1">
+                  <SkeletonBlock className="w-2/3 rounded" style={{ height: 16 * fontScale }} />
+                  <SkeletonBlock className="w-24 rounded" style={{ height: 14 * fontScale }} />
+                </View>
+                <SkeletonBlock className="h-[18px] w-[18px] rounded" />
+              </View>
+            ))}
+          </View>
+        </View>
+      </View>
+    </Skeleton>
+  );
+}
+
 export function NotificationPromotionScreen({ id }: { id: string }) {
-  const router = useRouter();
+  const router = useSafeNavigation();
   const { user, status } = useAuth();
   const actions = useNotificationActions();
   const allowed = status === 'authenticated' && user?.rol === 'CLIENT';
@@ -30,6 +64,7 @@ export function NotificationPromotionScreen({ id }: { id: string }) {
         isError={query.isError}
         isOnline={actions.isOnline}
         allowed={allowed}
+        loadingFallback={<NotificationPromotionSkeleton />}
         retry={() => void query.refetch()}
       >
         {promotion && (

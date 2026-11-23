@@ -6,16 +6,22 @@ name: NOV-05 - Preferencias de notificaciones y configuración
 
 # E2E-NOTIF-01: Ajustes de notificaciones
 - extendedWaitUntil:
-    visible: Abrir ajustes de notificaciones
+    visible: Abrir configuración
     timeout: 15000
-- tapOn: Abrir ajustes de notificaciones
+- tapOn: Abrir configuración
+- extendedWaitUntil:
+    visible: Configuración
+    timeout: 15000
+- assertVisible: Micrófono
+- tapOn: Notificaciones
 - extendedWaitUntil:
     visible: Ajustes de notificaciones
     timeout: 15000
-- assertVisible: Recibir notificaciones push
+- assertVisible: Recibir notificaciones
 - assertVisible: Sistema y seguridad
 - assertVisible: Ofertas
 - assertVisible: Rentas
 - takeScreenshot: E2E-NOTIF-01-preferencias-notificaciones
+- back
 - back
 - runFlow: support/logout.yaml

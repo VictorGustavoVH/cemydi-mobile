@@ -1,17 +1,18 @@
+import { useSafeNavigation } from '@/hooks/useSafeNavigation';
 import { RatingStars } from '@/components/ui/RatingStars';
 import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Modal, ScrollView, Text, View, useWindowDimensions } from 'react-native';
-import { useRouter } from 'expo-router';
 import { useContainerWidth } from '@/hooks/useContainerWidth';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
 import ShoppingBag from 'lucide-react-native/icons/shopping-bag';
-import ShoppingCart from 'lucide-react-native/icons/shopping-cart';
+import { QuantityStepper } from '@/components/ui/QuantityStepper';
 import Star from 'lucide-react-native/icons/star';
 import { ReviewEntryButton } from '@/features/reviews';
 import X from 'lucide-react-native/icons/x';
 import FileText from 'lucide-react-native/icons/file-text';
 import { AppButton } from '@/components/ui/AppButton';
+import { AppRefreshControl } from '@/components/ui/AppRefreshControl';
 import { AppScreen } from '@/components/ui/AppScreen';
 import { CatalogImage } from '@/components/ui/CatalogImage';
 import { ProductCard } from '@/components/ui/ProductCard';
@@ -40,6 +41,9 @@ import { useToast, useToastScroll } from '@/hooks/useToast';
 const EMPTY_RECOMMENDATIONS: HomeProduct[] = [];
 
 type ProductDetailScreenProps = {
+  refreshing?: boolean;
+  onRefresh?: () => void;
+  refreshEnabled?: boolean;
   productId: string;
   initialMode?: PreviewCartItem['mode'];
   suppliedProduct?: ProductDetailPreview;
@@ -61,6 +65,9 @@ export function ProductDetailScreen(props: ProductDetailScreenProps) {
 }
 
 function ProductDetailContent({
+  refreshing = false,
+  onRefresh,
+  refreshEnabled = true,
   productId,
   initialMode,
   suppliedProduct,
@@ -75,7 +82,7 @@ function ProductDetailContent({
   onLoadMoreReviews,
   recommendationsStatus,
 }: ProductDetailScreenProps) {
-  const router = useRouter();
+  const router = useSafeNavigation();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const toast = useToast();
@@ -121,6 +128,8 @@ function ProductDetailContent({
       ? initialMode
       : (product?.modes[0] ?? 'purchase'),
   );
+  const addingLock = useRef(false);
+  const [quantities, setQuantities] = useState({ purchase: 1, rental: 1 });
   const [section, setSection] = useState<'description' | 'characteristics'>('description');
   const [photoIndex, setPhotoIndex] = useState(0);
   const [zoomed, setZoomed] = useState(false);
@@ -192,17 +201,37 @@ function ProductDetailContent({
   const visibleReviews = showAllReviews ? reviews : reviews.slice(0, 2);
   const compact = width < 350 || fontScale > 1.3;
   const recommendationWidth = Math.min(recommendationCardWidth(compact), Math.max(0, width - 40));
-  const cartCount = items.reduce((count, item) => count + item.quantity, 0);
-  const atQuantityLimit = items.some(
-    (item) =>
-      item.productId === product.id &&
-      item.mode === mode &&
-      item.quantity >= PREVIEW_CART_QUANTITY_LIMIT,
-  );
+  const existingQuantity =
+    items.find(
+      (item) =>
+        item.productId === product.id &&
+        item.mode === mode &&
+        (!cartConnected || mode !== 'rental' || !item.rentalDraft),
+    )?.quantity ?? 0;
+  const remainingQuantity = Math.max(0, PREVIEW_CART_QUANTITY_LIMIT - existingQuantity);
+  const quantity = Math.min(quantities[mode], Math.max(1, remainingQuantity));
+  const atQuantityLimit = remainingQuantity === 0;
+  const addingDisabled =
+    !price ||
+    product.unavailable ||
+    (rental && !product.rental) ||
+    sessionStatus === 'loading' ||
+    sessionStatus === 'error' ||
+    (cartConnected && (busy || !online || uncertain));
+
   return (
     <AppScreen edges={['top', 'bottom', 'left', 'right']}>
       <ScrollView
         ref={scrollRef}
+        refreshControl={
+          onRefresh ? (
+            <AppRefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              enabled={refreshEnabled}
+            />
+          ) : undefined
+        }
         onScroll={onToastScroll}
         scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
@@ -356,8 +385,9 @@ function ProductDetailContent({
           </View>
           {product.modes.length > 1 ? (
             <View
-              className="flex-row gap-2 rounded-2xl bg-surface-muted p-1"
+              className="flex-row gap-2"
               accessibilityLabel="Modalidad de adquisición"
+              accessibilityRole="tablist"
             >
               {product.modes.map((value) => (
                 <AppButton
@@ -365,7 +395,8 @@ function ProductDetailContent({
                   label={value === 'purchase' ? 'Compra' : 'Renta'}
                   variant={mode === value ? 'primary' : 'ghost'}
                   accessibilityState={{ selected: mode === value }}
-                  className="flex-1 rounded-xl"
+                  className="min-h-12 flex-1 rounded-lg"
+                  accessibilityRole="tab"
                   onPress={() => {
                     setMode(value);
                   }}
@@ -406,7 +437,7 @@ function ProductDetailContent({
               </Text>
               {price ? (
                 <Text className="font-sans text-sm text-secondary">
-                  {rental ? 'MXN / día' : 'MXN'}
+                  {rental ? 'MXN / día por unidad' : 'MXN por unidad'}
                 </Text>
               ) : null}
             </View>
@@ -418,19 +449,44 @@ function ProductDetailContent({
               </Text>
             ) : null}
           </View>
+          <View className="gap-2">
+            <View className="flex-row flex-wrap items-center justify-between gap-2">
+              <Text className="font-sans-semibold text-base text-primary">Cantidad</Text>
+              <QuantityStepper
+                value={quantity}
+                max={remainingQuantity}
+                disabled={Boolean(addingDisabled) || atQuantityLimit}
+                subject="para agregar"
+                onChange={(value) => setQuantities((current) => ({ ...current, [mode]: value }))}
+              />
+            </View>
+            {rental ? (
+              <Text className="font-sans text-sm leading-5 text-secondary">
+                Unidades para el mismo periodo. Configura las fechas en el carrito.
+              </Text>
+            ) : null}
+          </View>
           <View className="gap-4">
-            <View className="flex-row gap-2 border-b border-border/50 pb-3">
+            <View
+              className="flex-row gap-2"
+              accessibilityRole="tablist"
+              accessibilityLabel="Información del producto"
+            >
               <AppButton
-                className="flex-1 rounded-full px-2"
+                className="min-h-12 flex-1 rounded-full px-2"
+                accessibilityRole="tab"
                 label="Descripción"
                 variant={section === 'description' ? 'primary' : 'secondary'}
+                labelClassName="flex-1 text-center"
                 accessibilityState={{ selected: section === 'description' }}
                 onPress={() => setSection('description')}
               />
               <AppButton
-                className="flex-1 rounded-full px-2"
+                className="min-h-12 flex-1 rounded-full px-2"
+                accessibilityRole="tab"
                 label="Características"
                 variant={section === 'characteristics' ? 'primary' : 'secondary'}
+                labelClassName="flex-1 text-center"
                 accessibilityState={{ selected: section === 'characteristics' }}
                 onPress={() => setSection('characteristics')}
               />
@@ -597,6 +653,8 @@ function ProductDetailContent({
         accessibilityViewIsModal
         visible={zoomed}
         transparent
+        statusBarTranslucent
+        navigationBarTranslucent
         animationType="fade"
         onRequestClose={() => setZoomed(false)}
       >
@@ -669,25 +727,20 @@ function ProductDetailContent({
           <View style={{ height: insets.bottom + 8 }} />
         </View>
       </Modal>
-      <View className="gap-2 border-t border-border/40 bg-background px-5 pb-2 pt-3">
-        <View className={compact ? 'gap-2' : 'flex-row items-center gap-3'}>
-          <AppButton
-            label={`Ver carrito${cartCount ? ` (${cartCount})` : ''}`}
-            variant="outline"
-            className="rounded-full"
-            hideLabel={!compact}
-            onPress={() => router.push('/carrito')}
-            leftIcon={<ShoppingCart aria-hidden color={colors.brandStrong} size={22} />}
-          />
+      <View className="gap-3 border-t border-border/40 bg-background px-5 pb-2 pt-3">
+        <View className="w-full">
           <AppButton
             label={
               atQuantityLimit
                 ? 'Máximo 25 unidades en carrito'
-                : rental
-                  ? 'Añadir renta al carrito'
-                  : 'Añadir al carrito'
+                : quantity > 1
+                  ? `Añadir ${quantity} al carrito`
+                  : rental
+                    ? 'Añadir renta al carrito'
+                    : 'Añadir al carrito'
             }
-            className={`${compact ? '' : 'flex-1'} rounded-full`}
+            className="w-full rounded-full"
+            labelClassName="shrink text-center"
             disabled={
               !price ||
               atQuantityLimit ||
@@ -700,12 +753,31 @@ function ProductDetailContent({
             leftIcon={<ShoppingBag aria-hidden color={colors.onBrand} size={20} />}
             loading={busy}
             onPress={() => {
+              if (addingLock.current) return;
+              addingLock.current = true;
+              const operation = toast.loading(
+                `Añadiendo ${quantity} ${quantity === 1 ? 'unidad' : 'unidades'} de ${product.name}…`,
+              );
               void (async () => {
                 try {
-                  await addItem(product.id, mode, product);
-                  toast.success('Producto agregado');
+                  await addItem(product.id, mode, product, quantity);
+                  setQuantities((current) => ({ ...current, [mode]: 1 }));
+                  const multipleRentalUnits = rental && quantity > 1;
+                  toast.update(operation, {
+                    type: 'success',
+                    message: multipleRentalUnits
+                      ? `Añadiste ${quantity} unidades. Todas se rentan para el mismo periodo. Configura las fechas en el carrito.`
+                      : 'Producto agregado',
+                    duration: multipleRentalUnits ? 6000 : 4500,
+                  });
                 } catch (error) {
-                  toast.error(getFriendlyErrorMessage(error));
+                  toast.update(operation, {
+                    type: 'error',
+                    message: `No pudimos confirmar si se agregó ${product.name} al carrito. ${getFriendlyErrorMessage(error)}`,
+                    duration: 6000,
+                  });
+                } finally {
+                  addingLock.current = false;
                 }
               })();
             }}

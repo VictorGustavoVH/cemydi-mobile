@@ -2,6 +2,7 @@ import { Text, View } from 'react-native';
 import { CartCouponButton } from './CartCouponButton';
 import type { ServerCart } from '../services/cart-service';
 import { formatPreviewMoney } from '../cart-preview';
+import { RentalDatesNotice } from './RentalDatesNotice';
 
 export function ServerCartSummary({
   cart,
@@ -36,14 +37,15 @@ export function ServerCartSummary({
       : []),
   ];
   return (
-    <View className="mx-5 mt-auto gap-4 border-t border-border/50 pb-6 pt-5">
+    <View className="mx-5 mt-auto gap-3 border-t border-border/50 pb-2 pt-4">
       <CartCouponButton
         label={cart.appliedCoupon ? `Cupón: ${cart.appliedCoupon.code}` : 'Aplicar cupón'}
         disabled={disabled}
         code={cart.appliedCoupon?.code}
         onPress={onCoupon}
       />
-      <View className="gap-2.5 border-t border-border/40 pt-4">
+      {hasRentalItems && summary.hasUnconfiguredRentalItems ? <RentalDatesNotice /> : null}
+      <View className="gap-2.5">
         <Text accessibilityRole="header" className="font-sans-semibold text-base text-primary">
           Resumen del carrito completo
         </Text>
@@ -70,11 +72,6 @@ export function ServerCartSummary({
           <Text className="font-sans text-sm text-secondary">
             Este total incluye todo el carrito. Al solicitar la renta se incluirán todos los equipos
             para rentar, aunque selecciones solo algunos.
-          </Text>
-        ) : null}
-        {hasRentalItems && summary.hasUnconfiguredRentalItems ? (
-          <Text className="font-sans text-sm text-secondary">
-            El total está incompleto: configura las fechas de las rentas pendientes.
           </Text>
         ) : null}
         {summary.hasUnavailableItems ? (

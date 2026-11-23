@@ -10,13 +10,13 @@ describe('AppTimeInput', () => {
     await fireEvent.press(screen.getByLabelText('Recogida'));
     expect(screen.getByTestId('Horario Recogida')).toHaveProp('mode', 'time');
     expect(screen.getByTestId('Horario Recogida')).toHaveProp('display', 'clock');
-    await fireEvent(screen.getByTestId('Horario Recogida'), 'onChange', { type: 'dismissed' });
+    await fireEvent(screen.getByTestId('Horario Recogida'), 'dismiss');
     expect(change).not.toHaveBeenCalled();
     await fireEvent.press(screen.getByLabelText('Recogida'));
     await fireEvent(
       screen.getByTestId('Horario Recogida'),
-      'onChange',
-      { type: 'set' },
+      'valueChange',
+      { nativeEvent: { timestamp: 0, utcOffset: 0 } },
       new Date(2027, 0, 1, 13, 5),
     );
     expect(change).toHaveBeenCalledWith('13:05');

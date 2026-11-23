@@ -1,8 +1,15 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { hasCompletedOnboarding } from '../onboarding-progress';
 import { OnboardingGate } from '../OnboardingGate';
+let mockFocused = true;
 
 jest.mock('expo-router', () => ({
+  useFocusEffect: (callback: () => void | (() => void)) => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { useEffect } = require('react') as typeof import('react');
+    const focused = mockFocused;
+    useEffect(() => (focused ? callback() : undefined), [callback, focused]);
+  },
   Redirect: ({ href }: { href: string }) => {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { Text } = require('react-native') as typeof import('react-native');
@@ -18,7 +25,23 @@ jest.mock('../OnboardingScreen', () => ({
 }));
 jest.mock('../onboarding-progress', () => ({ hasCompletedOnboarding: jest.fn() }));
 
-beforeEach(() => jest.mocked(hasCompletedOnboarding).mockReset());
+beforeEach(() => {
+  mockFocused = true;
+  jest.mocked(hasCompletedOnboarding).mockReset();
+});
+
+it('comprueba la marca al volver a una ruta que permaneció montada', async () => {
+  jest.mocked(hasCompletedOnboarding).mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+  const view = await render(<OnboardingGate />);
+  await screen.findByText('Introducción');
+  mockFocused = false;
+  await view.rerender(<OnboardingGate />);
+  mockFocused = true;
+  await view.rerender(<OnboardingGate />);
+  await screen.findByText('Destino: /inicio');
+  expect(screen.queryByText('Introducción')).toBeNull();
+  expect(hasCompletedOnboarding).toHaveBeenCalledTimes(2);
+});
 
 it('muestra onboarding en el primer arranque, sin parpadear Inicio durante la lectura', async () => {
   let resolveRead: (value: boolean) => void = () => undefined;

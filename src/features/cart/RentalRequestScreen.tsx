@@ -1,6 +1,6 @@
+import { useSafeNavigation } from '@/hooks/useSafeNavigation';
 import { useRef, useState } from 'react';
 import { Keyboard, Text, View, type TextInputProps } from 'react-native';
-import { useRouter } from 'expo-router';
 import { Controller, useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { AuthCheckbox } from '@/features/auth';
@@ -36,6 +36,7 @@ import type { Rental } from '@/services/rentals/rental-schemas';
 import { colors } from '@/theme';
 import { RentalPendingDot } from './components/RentalPendingDot';
 import { RentalConfigurationSheet } from './components/RentalConfigurationSheet';
+import { RentalDatesNotice } from './components/RentalDatesNotice';
 import { RentalSuccessCheckmark } from './components/RentalSuccessCheckmark';
 import { rentalDateErrors } from './rental-dates';
 import { useRentalToday } from './useRentalToday';
@@ -46,7 +47,7 @@ type TextField = {
 }[keyof RentalRequestInput];
 
 function RentalRequestForm() {
-  const router = useRouter();
+  const router = useSafeNavigation();
   const reducedMotion = useReducedMotion();
   const { user } = useAuth();
   const {
@@ -96,6 +97,20 @@ function RentalRequestForm() {
   });
   const today = useRentalToday();
   const rentalItems = cart?.items.filter((item) => item.mode === 'RENTA') ?? [];
+  // The cart-wide rentalSubtotal is BEFORE promotions. Aggregate only the
+  // authoritative net amounts already quoted by the server for rental lines;
+  // sale coupons and sale promotions never enter this rental-only summary.
+  const quotedRentals =
+    rentalItems.length > 0 &&
+    rentalItems.every(
+      (item) => item.rentalSummary?.subtotal != null && item.rentalSummary.total != null,
+    );
+  const rentalNetSubtotal = quotedRentals
+    ? Number(rentalItems.reduce((sum, item) => sum + item.rentalSummary!.subtotal!, 0).toFixed(2))
+    : null;
+  const rentalQuotedTotal = quotedRentals
+    ? Number(rentalItems.reduce((sum, item) => sum + item.rentalSummary!.total!, 0).toFixed(2))
+    : null;
   const rentalChecks = rentalItems.map((item) => ({
     item,
     needsPrescription: item.product.requiereReceta && !item.document,
@@ -112,6 +127,10 @@ function RentalRequestForm() {
         : []),
       ...(item.configurationStatus === 'PENDING'
         ? [`${item.product.nombre}: elige fechas válidas.`]
+        : []),
+      ...(item.configurationStatus === 'COMPLETE' &&
+      (item.rentalSummary?.subtotal == null || item.rentalSummary.total == null)
+        ? [`${item.product.nombre}: actualiza el carrito para confirmar el importe de renta.`]
         : []),
       ...(!item.availability.isAvailable
         ? [`${item.product.nombre}: ${item.availability.reason ?? 'sin disponibilidad'}.`]
@@ -695,47 +714,51 @@ function RentalRequestForm() {
                   </View>
                 ))}
               </View>
-              <View className="gap-4 rounded-xl bg-surface-muted p-5">
-                <View className="flex-row items-center gap-2">
-                  <ReceiptText aria-hidden size={20} color={colors.brandStrong} />
-                  <Text
-                    accessibilityRole="header"
-                    className="font-sans-semibold text-lg text-primary"
-                  >
-                    Resumen de renta
-                  </Text>
-                </View>
-                <View className="flex-row flex-wrap justify-between gap-2">
-                  <Text className="font-sans text-base text-secondary">Renta</Text>
-                  <Text className="font-sans-medium text-base text-primary">
-                    {formatPreviewMoney(cart.summary.rentalSubtotal)}
-                  </Text>
-                </View>
-                <View className="flex-row flex-wrap justify-between gap-2">
-                  <Text className="font-sans text-base text-secondary">Depósito</Text>
-                  <Text className="font-sans-medium text-base text-primary">
-                    {formatPreviewMoney(cart.summary.rentalDepositTotal)}
-                  </Text>
-                </View>
-                <Text className="font-sans text-sm leading-6 text-secondary">
-                  El depósito es una garantía. Su devolución se registra al finalizar la renta.
-                </Text>
-                {cart.summary.hasUnconfiguredRentalItems ? (
-                  <Text className="font-sans-medium text-base text-danger">
-                    Configura las fechas para conocer el total.
-                  </Text>
-                ) : (
-                  <View className="flex-row flex-wrap items-center justify-between gap-2 border-t border-border pt-4">
-                    <Text className="font-sans-semibold text-base text-primary">
-                      Total solicitado
-                    </Text>
-                    <Text className="font-sans-bold text-xl text-brand-strong">
-                      {formatPreviewMoney(
-                        cart.summary.rentalSubtotal + cart.summary.rentalDepositTotal,
-                      )}
+              <View className="gap-2">
+                {cart.summary.hasUnconfiguredRentalItems || rentalQuotedTotal === null ? (
+                  <RentalDatesNotice />
+                ) : null}
+                <View className="gap-4 rounded-xl bg-surface-muted p-5">
+                  <View className="flex-row items-center gap-2">
+                    <ReceiptText aria-hidden size={20} color={colors.brandStrong} />
+                    <Text
+                      accessibilityRole="header"
+                      className="font-sans-semibold text-lg text-primary"
+                    >
+                      Resumen de renta
                     </Text>
                   </View>
-                )}
+                  <View className="flex-row flex-wrap justify-between gap-2">
+                    <Text className="font-sans text-base text-secondary">Renta</Text>
+                    <Text className="font-sans-medium text-base text-primary">
+                      {rentalNetSubtotal === null
+                        ? 'Pendiente de confirmar'
+                        : formatPreviewMoney(rentalNetSubtotal)}
+                    </Text>
+                  </View>
+                  <View className="flex-row flex-wrap justify-between gap-2">
+                    <Text className="font-sans text-base text-secondary">Depósito</Text>
+                    <Text className="font-sans-medium text-base text-primary">
+                      {formatPreviewMoney(cart.summary.rentalDepositTotal)}
+                    </Text>
+                  </View>
+                  <Text className="font-sans text-sm leading-6 text-secondary">
+                    El depósito es una garantía. Su devolución se registra al finalizar la renta.
+                  </Text>
+                  {!cart.summary.hasUnconfiguredRentalItems && rentalQuotedTotal !== null ? (
+                    <View className="flex-row flex-wrap items-center justify-between gap-2 border-t border-border pt-4">
+                      <Text className="font-sans-semibold text-base text-primary">
+                        Total solicitado
+                      </Text>
+                      <Text
+                        accessibilityLabel={`Total de renta a solicitar: ${formatPreviewMoney(rentalQuotedTotal)}`}
+                        className="font-sans-bold text-xl text-brand-strong"
+                      >
+                        {formatPreviewMoney(rentalQuotedTotal)}
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
               </View>
               {blockers.length ? (
                 <View accessibilityLiveRegion="polite" className="gap-2">

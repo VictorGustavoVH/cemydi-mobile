@@ -175,3 +175,26 @@ El desplegable «Opciones de acceso» del encabezado de login y registro agrupa 
 si no es válido, el menú cierra y se muestra/enfoca el error de correo. Ayuda abre
 `/perfil/ayuda`, que es pública. El correo y el borrador del formulario se conservan al
 volver desde Ayuda. El menú no altera la regla Perfil/Inicio posterior al acceso.
+
+La app bloquea nuevas solicitudes de verificación para el correo verificado de
+la sesión actual o para un correo que acaba de confirmar correctamente en el
+mismo servicio. No envía otro código ni conserva un desafío anterior al iniciar
+una nueva solicitud fallida. Este conocimiento local no se usa como autorización
+ni se persiste como directorio de cuentas. El rechazo local utiliza un mensaje
+genérico que propone iniciar sesión o recuperar el acceso, sin anunciar el estado
+de verificación de esa cuenta.
+
+El contrato público vigente de `/auth/email-verification/send` devuelve el mismo
+mensaje para cuentas inexistentes, verificadas o pendientes. El backend no envía
+códigos a las ya verificadas, pero la app no puede determinar el estado de un
+correo arbitrario a partir de esa respuesta. Se conserva deliberadamente ese
+contrato: no se añade un campo/status que permita consultar el estado de cuentas
+ajenas. Por ello la pantalla OTP sigue siendo genérica para correos desconocidos.
+
+El backend comprueba cuenta activa, correo vigente y ausencia de verificación
+previa bajo un bloqueo de fila al emitir y al confirmar un código. Revalida también
+el cooldown dentro de la transacción de emisión para impedir envíos concurrentes
+duplicados. Una confirmación obsoleta devuelve el mismo error de enlace inválido
+o expirado, sin identificar el motivo de inelegibilidad. No cambia el esquema de
+sesión ni requiere migración. Estos controles necesitan desplegar el backend
+actualizado; las pruebas usan Prisma y correo simulados, no cuentas reales.

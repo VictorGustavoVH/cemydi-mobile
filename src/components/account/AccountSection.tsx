@@ -7,24 +7,29 @@ import { colors } from '@/theme';
 
 type AccountSectionProps = {
   title: string;
+  titleClassName?: string;
   description?: string;
   children: ReactNode;
   collapsible?: boolean;
+  appearance?: 'plain' | 'grouped' | 'grouped-menu';
   icon?: ComponentType<ComponentProps<typeof ChevronDown>>;
   iconTone?: 'info' | 'warning' | 'success' | 'textSecondary';
 };
 
 export function AccountSection({
   title,
+  titleClassName = '',
   description,
   children,
   collapsible = false,
+  appearance = 'plain',
   icon: Icon,
   iconTone = 'textSecondary',
 }: AccountSectionProps) {
   const [expanded, setExpanded] = useState(false);
   const visible = !collapsible || expanded;
   const Chevron = expanded ? ChevronUp : ChevronDown;
+  const grouped = appearance !== 'plain';
   return (
     <View className="gap-3">
       {collapsible ? (
@@ -43,19 +48,34 @@ export function AccountSection({
           <Chevron aria-hidden size={20} color={colors.textSecondary} />
         </AppButton>
       ) : (
-        <View className="flex-row items-center gap-2">
+        <View className={`flex-row items-center gap-2 ${grouped ? 'px-3' : ''}`}>
           {Icon ? <Icon aria-hidden size={20} color={colors[iconTone]} /> : null}
           <Text
             accessibilityRole="header"
-            className="min-w-0 flex-1 font-sans-semibold text-base text-primary"
+            className={
+              grouped
+                ? 'min-w-0 flex-1 font-sans-bold text-xs uppercase tracking-widest text-secondary'
+                : `min-w-0 flex-1 font-sans-semibold text-base text-primary ${titleClassName}`
+            }
           >
             {title}
           </Text>
         </View>
       )}
+      {grouped && description ? (
+        <Text className="px-3 font-sans text-sm leading-6 text-secondary">{description}</Text>
+      ) : null}
       {visible ? (
-        <View className="gap-3">
-          {description ? (
+        <View
+          className={
+            appearance === 'grouped-menu'
+              ? 'overflow-hidden rounded-2xl border border-border-subtle bg-surface px-3'
+              : grouped
+                ? 'gap-3 rounded-2xl border border-border-subtle bg-surface p-4'
+                : 'gap-3'
+          }
+        >
+          {!grouped && description ? (
             <Text className="font-sans text-sm leading-6 text-secondary">{description}</Text>
           ) : null}
           {children}

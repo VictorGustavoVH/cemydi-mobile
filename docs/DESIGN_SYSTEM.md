@@ -131,6 +131,29 @@ La iconografía del cliente móvil se basa de manera exclusiva en **`lucide-reac
 
 ## Componentes base objetivo
 
+### Secciones agrupadas de cuenta
+
+Las subsecciones de Perfil reutilizan el fondo `surface-muted` bajo una cabecera
+blanca mediante `AccountLayout appearance="grouped"`. Los títulos permanecen fuera
+de las superficies blancas, con radio de 16 puntos y borde `border-subtle`.
+`AccountSection appearance="grouped"` agrupa formularios o información con padding;
+`grouped-menu` agrupa opciones contiguas sin separación vertical adicional.
+Los menús usan separadores `inset` y omiten el último. No añadir cards interiores:
+los equipos, importes, acordeones y acciones conservan su estructura plana.
+
+Se aplica a Ayuda y contacto (incluidas sus preguntas frecuentes), Seguridad,
+Mis rentas, Mis reseñas y Ajustes de notificaciones. Cada solicitud o reseña tiene
+una superficie propia. Datos personales usa un formulario continuo sobre blanco,
+con el acceso al correo separado por una línea. Las preguntas frecuentes de Inicio
+conservan su presentación habitual; la variante agrupada es explícita.
+
+El detalle de renta usa una lectura continua sobre blanco: folio y estado primero,
+equipos con sus fechas e importes después, resumen económico con total destacado,
+entrega y seguimiento. Los títulos de sección son de 18 puntos y el folio y total
+de 24. Las fechas e importes ocupan el ancho disponible bajo la fila de producto;
+no se comprimen dentro de la columna del nombre. Separa bloques con espacio y
+líneas sutiles. Receta, depósito y seguimiento usan acordeones sin cards interiores.
+
 ### Button
 
 Variantes mínimas: primary, secondary, outline, ghost y destructive cuando exista una acción destructiva real.
@@ -173,11 +196,31 @@ Eye/EyeOff. El medidor de creación combina nivel escrito y segmentos semántico
 
 ### Card
 
+El detalle de producto distingue modalidad e información mediante pestañas sin
+card envolvente, con estado seleccionado y roles tablist/tab. El selector
+QuantityStepper se comparte con las líneas del carrito, responde a cada pulsación
+y conserva targets de 44 puntos. La cantidad aparece debajo del precio; el botón
+inferior ocupa todo el ancho e indica las unidades elegidas. Las pestañas conservan
+marca en la seleccionada y gris en las restantes. Precio por unidad, cantidad de
+equipos y días de renta son conceptos separados; las fechas se configuran en el
+carrito. CartIcon comparte el símbolo y contador entre navegación y detalle. En la
+cabecera usa icono de 24 puntos, color textPrimary y botón ghost circular de 44,
+igual que favoritos/compartir, con badge compacto de 16 puntos y contador 99+.
+
 Una card agrupa contenido relacionado y no debe contener capas redundantes. Si es interactiva, toda el área debe tener semántica y estado pressed.
 
 ProductCard comparte el diseño compacto entre Inicio y Catálogo: foto con proporción 3:2 y altura máxima de 160, sin altura mínima del bloque de contenido ni huecos reservados para descuentos ausentes. La etiqueta «Venta», «Renta» o «Venta y renta» deriva de `modes` y también forma parte del nombre accesible, incluso sin stock. Para productos mixtos se indica si el precio visible corresponde a venta o renta. ProductGridSkeleton refleja esta estructura; el contenido conserva escalado de fuente y el nombre ocupa hasta dos líneas.
 
 ### Feedback
+
+Los toasts conservan su presentación compacta con icono y mensaje, sin etiquetas
+adicionales ni bordes de color. Los errores se anuncian de forma assertive y los
+otros mensajes con polite. Deshacer conserva su contador y presentación. Añadir
+al carrito actualiza el toast de carga cuando termina la operación. Solo al añadir
+más de una unidad de un producto de renta, la confirmación indica la cantidad y
+aclara que todas se rentan para el mismo periodo, con fechas configurables en el
+carrito. Los demás casos muestran «Producto agregado». No abre un modal ni muestra
+éxito antes de completar la operación.
 
 - Solo el toast con contador de eliminación del carrito usa posición inferior, con 12 puntos de separación sobre la altura medida de GlobalBottomBar (incluye safe area). Sin menú visible respeta el inset inferior. No se desplaza con el scroll; entra desde abajo. Los demás avisos, incluyendo restauración, conservan la posición superior.
 - loading: skeleton o indicador proporcional al tiempo esperado;
@@ -255,6 +298,14 @@ APIs contrastadas con [expo-image SDK 57](https://docs.expo.dev/versions/v57.0.0
 
 ## Teclado y nuevas pantallas
 
+`AppSheet` extiende la ventana modal bajo ambas barras del sistema mediante
+`statusBarTranslucent` y `navigationBarTranslucent`. El fondo sombreado cubre todo
+el viewport, mientras los controles mantienen los insets de SafeAreaView. Aplica
+a configurar renta, cupones, filtros, reseñas, paginación y confirmaciones; no
+compensar el sombreado con offsets manuales por formulario. El zoom de producto
+usa la misma cobertura. La ayuda de contraseña ya extiende su ventana bajo la
+barra de estado. La cobertura y el teclado necesitan revisión nativa.
+
 Catálogo usa una fila de filtros debajo del input: botón «Filtros» a la izquierda y accesos rápidos desplazables horizontalmente en la misma línea, con AppButton y estado seleccionado. Su panel aplica los cambios al elegirlos. AppSheet admite headerContent para alojar «Aplicar filtros» debajo del título, fuera del scroll de opciones; las otras pantallas conservan su contenido habitual. No fijar la cabecera de Home/catálogo como solución al scroll: el desplegable del buscador usa la capa anclada de AppScreen.
 
 AppScreen scroll es el único responsable del ajuste y del desplazamiento al campo enfocado en AuthLayout. Mide la intersección de su viewport con el teclado y añade solo el espacio restante, incluyendo cuando Android ya redimensionó la ventana. No anidar KeyboardAvoidingView u otro ajuste automático de insets sobre este mecanismo sin evidencia nativa. Mantener safe areas, scroll y botones alcanzables; validar Android/iOS y fuentes grandes. Onboarding permite escalado del sistema mediante su scroll, sin maxFontSizeMultiplier arbitrario. Usar AppButton para tarjetas/controles con pressed, rol, etiqueta y disabled; compartir componentes antes de crear duplicados.
@@ -278,6 +329,12 @@ decorativo y `animating`. Se anuncia como progreso indeterminado; dentro de boto
 y paginación es decorativo para conservar una sola etiqueta del control. Los
 botones siguen mostrando su texto, con acciones bloqueadas durante el envío.
 No sustituye los skeletons que ya representan la estructura de datos pendientes.
+
+Las pantallas de cuenta con estructura estable —Mis rentas, detalle de renta, Mis
+reseñas, preferencias y oferta de notificaciones y documentos legales— replican su
+contenido con `Skeleton`/`SkeletonBlock` durante la primera carga. Los formularios y
+las esperas de sesión conservan `LoadingState`; el refetch mantiene el contenido ya
+visible.
 
 ## Diálogos y filtros — 2 de noviembre de 2026
 

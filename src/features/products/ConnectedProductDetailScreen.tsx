@@ -1,9 +1,13 @@
 import { useContainerWidth } from '@/hooks/useContainerWidth';
+import { useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { useProductDetail } from './hooks/useProductDetail';
 import { useProductRecommendations } from './hooks/useProductRecommendations';
 import { ScrollView, Text, View, useWindowDimensions } from 'react-native';
 
 import { AppScreen } from '@/components/ui/AppScreen';
+import { AppRefreshControl } from '@/components/ui/AppRefreshControl';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { OfflineState } from '@/components/ui/OfflineState';
@@ -91,7 +95,7 @@ function ProductDetailSkeleton() {
         </View>
 
         {/* MODALIDAD DE ADQUISICIÓN */}
-        <View className="flex-row gap-2 rounded-2xl bg-surface-muted p-1">
+        <View className="flex-row gap-2">
           <View className="flex-1">
             <SkeletonBlock className="h-11 w-full rounded-xl" />
           </View>
@@ -107,15 +111,20 @@ function ProductDetailSkeleton() {
           <SkeletonBlock className="h-4 w-1/4 rounded" />
         </View>
 
+        <View className="flex-row items-center justify-between gap-2">
+          <SkeletonBlock className="h-4 w-20 rounded" />
+          <SkeletonBlock className="h-11 w-32 rounded-full" />
+        </View>
+
         {/* DESCRIPCIÓN Y CARACTERÍSTICAS */}
         <View className="gap-4">
           {/* PESTAÑAS */}
-          <View className="flex-row gap-2 border-b border-border/50 pb-3">
+          <View className="flex-row gap-2">
             <View className="flex-1">
-              <SkeletonBlock className="h-11 w-full rounded-full" />
+              <SkeletonBlock className="h-12 w-full rounded-lg" />
             </View>
             <View className="flex-1">
-              <SkeletonBlock className="h-11 w-full rounded-full" />
+              <SkeletonBlock className="h-12 w-full rounded-lg" />
             </View>
           </View>
 
@@ -196,6 +205,19 @@ export function ConnectedProductDetailScreen({
   initialMode,
 }: ConnectedProductDetailScreenProps) {
   const { isOnline } = useNetworkStatus();
+  const queryClient = useQueryClient();
+  const refreshEnabled = isOnline !== false;
+  const refresh = useCallback(
+    () =>
+      Promise.allSettled([
+        queryClient.invalidateQueries({ queryKey: ['products'] }),
+        queryClient.invalidateQueries({ queryKey: ['home', 'products'] }),
+        queryClient.invalidateQueries({ queryKey: ['promotions', 'active'] }),
+        queryClient.invalidateQueries({ queryKey: ['reviews', 'product'] }),
+      ]),
+    [queryClient],
+  );
+  const { refreshing, onRefresh } = usePullToRefresh(refresh, { enabled: refreshEnabled });
 
   const offers = useProductOffers();
   const { query, product } = useProductDetail(productId, offers.data?.promotions, offers.ready);
@@ -214,6 +236,9 @@ export function ConnectedProductDetailScreen({
   if (product && !unavailable) {
     return (
       <ProductDetailScreen
+        refreshing={refreshing}
+        onRefresh={onRefresh}
+        refreshEnabled={refreshEnabled}
         productId={productId}
         initialMode={initialMode}
         suppliedProduct={product}
@@ -350,6 +375,13 @@ export function ConnectedProductDetailScreen({
     <AppScreen edges={['top', 'bottom', 'left', 'right']}>
       <ScrollView
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <AppRefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            enabled={refreshEnabled}
+          />
+        }
         contentContainerStyle={{ flexGrow: 1, paddingBottom: 24 }}
         contentInsetAdjustmentBehavior="never"
       >

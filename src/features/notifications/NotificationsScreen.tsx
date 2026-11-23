@@ -1,6 +1,6 @@
+import { useSafeNavigation } from '@/hooks/useSafeNavigation';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { SectionList, Text, View } from 'react-native';
-import { useRouter } from 'expo-router';
 import Animated, {
   useAnimatedStyle,
   useReducedMotion,
@@ -87,7 +87,7 @@ function NotificationListSkeleton() {
 }
 
 export function NotificationsScreen() {
-  const router = useRouter();
+  const router = useSafeNavigation();
   const toast = useToast();
   const [category, setCategory] = useState('ALL');
   const actions = useNotificationReadActions();

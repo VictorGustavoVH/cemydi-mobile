@@ -7,9 +7,12 @@ import { BackButton } from '@/components/ui/BackButton';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { LoadingState } from '@/components/ui/LoadingState';
 
-type CredentialScreenProtectionProps = { children: ReactNode };
+type CredentialScreenProtectionProps = { children: ReactNode; inline?: boolean };
 
-export function CredentialScreenProtection({ children }: CredentialScreenProtectionProps) {
+export function CredentialScreenProtection({
+  children,
+  inline = false,
+}: CredentialScreenProtectionProps) {
   const id = useId();
   const focusCount = useRef(0);
   const [attempt, setAttempt] = useState(0);
@@ -46,9 +49,8 @@ export function CredentialScreenProtection({ children }: CredentialScreenProtect
 
   if (Platform.OS !== 'android' || status === 'protected') return children;
   // Do not render credentials before Android confirms FLAG_SECURE.
-  return (
-    <AppScreen>
-      <BackButton fallbackHref="/inicio" />
+  const fallback = (
+    <>
       {status === 'error' ? (
         <ErrorState
           title="No pudimos proteger esta pantalla"
@@ -58,6 +60,13 @@ export function CredentialScreenProtection({ children }: CredentialScreenProtect
       ) : (
         <LoadingState label="Preparando acceso seguro…" />
       )}
+    </>
+  );
+  if (inline) return fallback;
+  return (
+    <AppScreen>
+      <BackButton fallbackHref="/inicio" />
+      {fallback}
     </AppScreen>
   );
 }

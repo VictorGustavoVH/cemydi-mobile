@@ -1,9 +1,8 @@
+import { QuantityStepper } from '@/components/ui/QuantityStepper';
 import { memo } from 'react';
 import { RentalPendingDot } from './RentalPendingDot';
 import { Text, View, useWindowDimensions } from 'react-native';
 import Check from 'lucide-react-native/icons/check';
-import Minus from 'lucide-react-native/icons/minus';
-import Plus from 'lucide-react-native/icons/plus';
 import Trash from 'lucide-react-native/icons/trash';
 import CalendarDays from 'lucide-react-native/icons/calendar-days';
 import ChevronRight from 'lucide-react-native/icons/chevron-right';
@@ -71,47 +70,15 @@ export const CartItemCard = memo(function CartItemCard({
     </Text>
   );
   const quantityControl = (
-    <View className="flex-row items-center rounded-full bg-surface">
-      <AppButton
-        hideLabel
-        variant="ghost"
-        className="h-11 w-11 rounded-full px-0 py-0"
-        disabled={disabled || item.quantity <= 1}
-        label={`Reducir cantidad de ${product.name}, ${modeLabel}`}
-        onPress={() => void changeQuantity(item.quantity - 1)}
-        leftIcon={
-          <Minus
-            aria-hidden
-            color={item.quantity <= 1 ? colors.disabled : colors.textPrimary}
-            size={16}
-          />
-        }
-      />
-      <Text
-        accessibilityLabel={`Cantidad de ${product.name}, ${modeLabel}: ${item.quantity}`}
-        className="min-w-5 text-center font-sans-semibold text-sm text-primary"
-      >
-        {item.quantity}
-      </Text>
-      <AppButton
-        hideLabel
-        variant="ghost"
-        className="h-11 w-11 rounded-full px-0 py-0"
-        disabled={disabled || item.quantity >= maxQuantity}
-        label={`Aumentar cantidad de ${product.name}, ${modeLabel}`}
-        onPress={() => void changeQuantity(item.quantity + 1)}
-        leftIcon={
-          <Plus
-            aria-hidden
-            color={
-              item.quantity >= PREVIEW_CART_QUANTITY_LIMIT ? colors.disabled : colors.textPrimary
-            }
-            size={16}
-          />
-        }
-      />
-    </View>
+    <QuantityStepper
+      value={item.quantity}
+      max={maxQuantity}
+      disabled={disabled}
+      subject={`de ${product.name}, ${modeLabel}`}
+      onChange={(quantity) => void changeQuantity(quantity)}
+    />
   );
+
   function openProduct() {
     if (selectionMode) toggleSelection(item.productId, item.mode, item.serverId);
     else onProduct(item);

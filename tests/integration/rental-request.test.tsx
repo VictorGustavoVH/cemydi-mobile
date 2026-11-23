@@ -126,6 +126,45 @@ async function attachPrescription() {
   await fireEvent.press(screen.getByRole('button', { name: 'Aceptar y elegir receta' }));
 }
 describe('Flujo de solicitud de renta', () => {
+  it('revisa importes netos de renta sin sumar descuentos o cupones de compra', async () => {
+    const mixedCart: ServerCart = {
+      ...initial,
+      items: initial.items.map((item) =>
+        item.mode === 'RENTA'
+          ? {
+              ...item,
+              lineTotal: 660,
+              originalLineTotal: 700,
+              finalLineTotal: 660,
+              discountAmount: 40,
+              rentalSummary: {
+                ...item.rentalSummary!,
+                originalSubtotal: 200,
+                subtotal: 160,
+                depositTotal: 500,
+                total: 660,
+              },
+            }
+          : item,
+      ),
+      summary: {
+        ...initial.summary,
+        saleSubtotal: 1200,
+        rentalSubtotal: 200,
+        subtotal: 1400,
+        rentalDepositTotal: 500,
+        promotionDiscountTotal: 240,
+        couponDiscountTotal: 50,
+        discountTotal: 290,
+        total: 1610,
+      },
+    };
+    await show(true, mixedCart);
+    await review();
+    expect(screen.getByLabelText('Total de renta a solicitar: $660.00 MXN')).toBeTruthy();
+    expect(screen.queryByText('$700.00 MXN')).toBeNull();
+    expect(screen.queryByText('$1,610.00 MXN')).toBeNull();
+  });
   beforeEach(() => {
     onlineManager.setOnline(true);
     installNetworkMock();
@@ -145,7 +184,7 @@ describe('Flujo de solicitud de renta', () => {
     await fireEvent.press(screen.getByLabelText('Horario de recogida (opcional)'));
     await fireEvent(
       screen.getByTestId('Horario Horario de recogida (opcional)'),
-      'onChange',
+      'onValueChange',
       { type: 'set' },
       new Date(2027, 0, 1, 13, 5),
     );

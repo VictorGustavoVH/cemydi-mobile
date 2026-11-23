@@ -12,6 +12,13 @@ Los contratos HTTP están en [API_INTEGRATION.md](./API_INTEGRATION.md). La impl
 
 ## Rutas
 
+El engrane de Mi perfil abre `/perfil/configuracion`, una pantalla general con
+acceso a Notificaciones y Micrófono. Este último abre los ajustes de CEMYDI en el
+sistema para administrar el permiso existente de búsqueda por voz; no solicita
+permisos al entrar ni inicia una grabación. Las preferencias de notificaciones
+conservan su ruta, contratos y guardado automático. Los textos visibles usan
+«avisos» y «notificaciones», sin mensajes sobre el entorno de desarrollo.
+
 | Ruta                                  | Pantalla                           |
 | ------------------------------------- | ---------------------------------- |
 | `/perfil/notificaciones`              | Bandeja y filtros                  |

@@ -1,5 +1,18 @@
 # Perfil del cliente
 
+## Cabecera estable y configuración general
+
+`AccountLayout` mantiene su cabecera y `AppScreen` montados mientras activa la
+protección de Datos personales. `CredentialScreenProtection inline` limita la
+carga/error a la región de contenido: los campos esperan la confirmación de
+Android y conservan la liberación por clave al salir. Evita reemplazar toda la
+pantalla por un encabezado provisional con otros insets. La regresión comprueba
+la identidad del encabezado antes/después y un único botón Volver; la estabilidad
+visual y la protección de capturas efectivas requieren validación en dispositivo.
+
+El engrane abre Configuración (`/perfil/configuracion`), con accesos a las
+preferencias de notificaciones y a los ajustes del sistema para el micrófono.
+
 ## Seguridad de entradas, datos personales y legales — 8 de noviembre de 2026
 
 Los tres campos de cambio de contraseña ya tenían `maxLength={72}`. La prueba del
@@ -20,6 +33,13 @@ dos slugs existentes y no abren el navegador. El visor conserva la lectura públ
 del backend, texto nativo sin HTML ejecutable y estados loading/error/offline.
 Este ajuste de navegación no demuestra que abrir un navegador HTTPS constituyera
 por sí mismo una vulnerabilidad de DNS o suplantación.
+
+El visor muestra `updatedAt` del documento como fecha de última actualización.
+Para contenido predeterminado sin publicación guardada, el backend entrega fecha
+nula y se indica «Fecha de actualización no publicada»; no se usa la fecha de hoy
+ni la de compilación. Un botón explícito permite abrir el mismo documento en la
+web configurada mediante `EXPO_PUBLIC_WEBSITE_URL`, validando origen y slug y
+manejando errores del navegador. El menú de Perfil sigue abriendo el visor interno.
 
 Validación: 109 suites y 695 pruebas aprobadas; lint, TypeScript, formato y
 `git diff --check` aprobados. La integración verifica navegación interna sin

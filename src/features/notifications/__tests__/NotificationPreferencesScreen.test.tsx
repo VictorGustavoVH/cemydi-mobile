@@ -102,7 +102,7 @@ describe('NotificationPreferencesScreen — NOV-03: Preferencias de notificacion
 
     await render(<NotificationPreferencesScreen />, { wrapper });
     const offers = await screen.findByRole('switch', { name: 'Ofertas' });
-    const push = await screen.findByRole('switch', { name: 'Recibir notificaciones push' });
+    const push = await screen.findByRole('switch', { name: 'Recibir notificaciones' });
 
     expect(offers).toHaveProp('accessibilityState', expect.objectContaining({ checked: false }));
     expect(push).toHaveProp('accessibilityState', expect.objectContaining({ checked: false }));
@@ -127,7 +127,7 @@ describe('NotificationPreferencesScreen — NOV-03: Preferencias de notificacion
       }),
     );
 
-    const push = screen.getByRole('switch', { name: 'Recibir notificaciones push' });
+    const push = screen.getByRole('switch', { name: 'Recibir notificaciones' });
     await fireEvent.press(push);
 
     await waitFor(() =>
@@ -231,7 +231,7 @@ describe('NotificationPreferencesScreen — NOV-03: Preferencias de notificacion
 
     await render(<NotificationPreferencesScreen />, { wrapper });
 
-    const pushSwitch = await screen.findByRole('switch', { name: 'Recibir notificaciones push' });
+    const pushSwitch = await screen.findByRole('switch', { name: 'Recibir notificaciones' });
     const offersSwitch = screen.getByRole('switch', { name: 'Ofertas' });
     const systemSwitch = screen.getByRole('switch', { name: 'Sistema y seguridad' });
     const rentalsSwitch = screen.getByRole('switch', { name: 'Rentas' });
@@ -261,5 +261,13 @@ describe('NotificationPreferencesScreen — NOV-03: Preferencias de notificacion
       'accessibilityState',
       expect.objectContaining({ checked: true, disabled: true }),
     );
+  });
+
+  it('TEST-10. Carga inicial: muestra el skeleton con la estructura de los ajustes', async () => {
+    jest.mocked(notificationService.preferences).mockReturnValueOnce(new Promise<never>(() => {}));
+
+    await render(<NotificationPreferencesScreen />, { wrapper });
+
+    expect(screen.getByLabelText('Cargando ajustes de notificaciones')).toBeTruthy();
   });
 });

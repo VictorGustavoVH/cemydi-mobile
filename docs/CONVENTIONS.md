@@ -39,6 +39,15 @@ Coloca código específico dentro de su feature. Promuévelo a `components`, `se
 - Usa Expo Router para toda navegación.
 - Mantén código no-ruta fuera de `src/app`.
 - Los route guards son UX; la autorización permanece en el backend.
+- Para navegar desde una interacción usa `useSafeNavigation` de `@/hooks/useSafeNavigation`.
+  Comparte un bloqueo síncrono de 800 ms entre `push` y `navigate`; prefiere `navigate`
+  para reutilizar pantallas únicas y conserva `push` cuando el historial lo requiera.
+  Las redirecciones automáticas obligatorias usan el router original. No agregues
+  timers o throttles independientes por pantalla para sustituir la protección común.
+- Para `Link asChild` reutiliza `AppButton` o `SafePressable`; ambos conservan
+  `className` y accesibilidad. No envuelvas el Link con otro control táctil.
+  Los controles de cantidades, formularios y selección deben responder a cada toque;
+  `AppButton` conserva esa conducta fuera de enlaces, con `pressIntervalMs` opcional.
 
 ## Componentes
 

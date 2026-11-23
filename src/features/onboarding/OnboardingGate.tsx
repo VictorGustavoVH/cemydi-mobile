@@ -1,5 +1,5 @@
-import { Redirect } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { Redirect, useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
 import { View } from 'react-native';
 
 import { ErrorState } from '@/components/ui/ErrorState';
@@ -13,19 +13,24 @@ export function OnboardingGate() {
   const [status, setStatus] = useState<ProgressStatus>('loading');
   const [attempt, setAttempt] = useState(0);
 
-  useEffect(() => {
-    let active = true;
-    void hasCompletedOnboarding()
-      .then((completed) => {
-        if (active) setStatus(completed ? 'completed' : 'first-visit');
-      })
-      .catch(() => {
-        if (active) setStatus('error');
-      });
-    return () => {
-      active = false;
-    };
-  }, [attempt]);
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      setStatus('loading');
+      void hasCompletedOnboarding()
+        .then((completed) => {
+          if (active) setStatus(completed ? 'completed' : 'first-visit');
+        })
+        .catch(() => {
+          if (active) setStatus('error');
+        });
+      return () => {
+        active = false;
+      };
+      // Retry must restart the focused read even though its input is unchanged.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [attempt]),
+  );
 
   if (status === 'completed') return <Redirect href="/inicio" />;
   if (status === 'first-visit') return <OnboardingScreen />;

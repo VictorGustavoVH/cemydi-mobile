@@ -31,6 +31,7 @@ export const reviewsResponseSchema = z.object({
 export const legalSlugs = ['politicas-de-privacidad', 'terminos-y-condiciones'] as const;
 export const legalResponseSchema = z.object({
   document: z.object({
+    updatedAt: z.iso.datetime().nullable().optional(),
     slug: z.enum(legalSlugs),
     title: z.string(),
     description: z.string(),

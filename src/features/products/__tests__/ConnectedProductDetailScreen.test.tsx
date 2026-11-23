@@ -14,6 +14,9 @@ import { CatalogPreviewProvider } from '../../../../tests/support/catalog-cart-p
 import { ApiError } from '@/services/http/api-error';
 import { ConnectedProductDetailScreen } from '../ConnectedProductDetailScreen';
 import { CartPreviewScreen } from '@/features/cart/CartPreviewScreen';
+jest.mock('react-native/Libraries/Components/RefreshControl/RefreshControl', () =>
+  jest.requireActual('react-native/Libraries/Components/RefreshControl/RefreshControl'),
+);
 
 jest.mock('expo-router', () => ({
   useRouter: () => ({
@@ -33,6 +36,38 @@ describe('Detalle público conectado', () => {
       .spyOn(productService, 'reviews')
       .mockResolvedValue({ reviews: [], summary: { count: 0, averageRating: 0 } });
     jest.spyOn(productService, 'recommendations').mockResolvedValue({ recommendations: [] });
+  });
+  it('refresca el producto visible, ofertas, reseñas y recomendaciones mediante el gesto nativo', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const detail = jest
+      .spyOn(productService, 'detail')
+      .mockResolvedValue({ product: productFixture(1) });
+    const view = await render(
+      <CatalogPreviewProvider>
+        <ConnectedProductDetailScreen productId="1" />
+      </CatalogPreviewProvider>,
+      { client },
+    );
+    await screen.findByText('Producto 1');
+    await act(async () => {
+      client.setQueryData(['home', 'products'], { products: [] });
+      client.setQueryData(['products', 'list', 'inactive-page'], productPage(1));
+    });
+    detail.mockResolvedValue({ product: productFixture(1, { nombre: 'Producto actualizado' }) });
+    const control = () =>
+      view.container.queryAll((node) =>
+        ['AndroidSwipeRefreshLayout', 'RCTRefreshControl'].includes(node.type),
+      )[0];
+    expect(control()).toBeTruthy();
+    await fireEvent(control(), 'refresh');
+    await screen.findByText('Producto actualizado');
+    await waitFor(() => expect(control().props.refreshing).toBe(false));
+    expect(detail).toHaveBeenCalledTimes(2);
+    expect(productService.offers).toHaveBeenCalledTimes(2);
+    expect(productService.reviews).toHaveBeenCalledTimes(2);
+    expect(productService.recommendations).toHaveBeenCalledTimes(2);
+    expect(client.getQueryState(['home', 'products'])?.isInvalidated).toBe(true);
+    expect(client.getQueryState(['products', 'list', 'inactive-page'])?.isInvalidated).toBe(true);
   });
   it('muestra el total global, carga más solo al pulsar y bloquea doble envío y carga offline', async () => {
     const network = installNetworkMock();
@@ -226,7 +261,7 @@ describe('Detalle público conectado', () => {
     expect(screen.getByLabelText('Añadir renta al carrito')).toBeDisabled();
     expect(screen.getByLabelText('Ver carrito')).toBeTruthy();
     expect(screen.queryByText('Cliente A')).toBeNull();
-    await fireEvent.press(screen.getByRole('button', { name: 'Características' }));
+    await fireEvent.press(screen.getByRole('tab', { name: 'Características' }));
     expect(screen.getByText('Modelo de prueba')).toBeTruthy();
   });
   it('recupera reseñas reales, recomendaciones y carrito temporal con toast y deshacer', async () => {

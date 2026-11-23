@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { useSafeNavigation } from '@/hooks/useSafeNavigation';
 import { AccountAccessBoundary } from './AccountAccessBoundary';
 import type { ReactNode } from 'react';
 import { Text, View } from 'react-native';
@@ -19,6 +19,7 @@ type AccountLayoutProps = {
   onRefresh?: () => void;
   refreshEnabled?: boolean;
   protectCredentials?: boolean;
+  appearance?: 'plain' | 'grouped';
 };
 export function AccountLayout({
   title,
@@ -32,12 +33,14 @@ export function AccountLayout({
   onRefresh,
   refreshEnabled,
   protectCredentials = false,
+  appearance = 'plain',
 }: AccountLayoutProps) {
   const { status, user } = useAuth();
-  const router = useRouter();
+  const router = useSafeNavigation();
   const content = (
     <AccountAccessBoundary publicAccess={publicAccess}>
       <AppScreen
+        contentClassName={appearance === 'grouped' ? 'bg-surface-muted' : ''}
         scroll={scroll}
         refreshing={refreshing}
         onRefresh={onRefresh}
@@ -60,13 +63,13 @@ export function AccountLayout({
           </View>
           {user && status === 'authenticated' && action ? action : <View className="w-11" />}
         </View>
-        {children}
+        {protectCredentials ? (
+          <CredentialScreenProtection inline>{children}</CredentialScreenProtection>
+        ) : (
+          children
+        )}
       </AppScreen>
     </AccountAccessBoundary>
   );
-  return protectCredentials ? (
-    <CredentialScreenProtection>{content}</CredentialScreenProtection>
-  ) : (
-    content
-  );
+  return content;
 }

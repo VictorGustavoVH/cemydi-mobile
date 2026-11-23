@@ -83,6 +83,31 @@ El backend es la única fuente de verdad para seguridad, autorización, persiste
 
 ## Capas
 
+### Navegación iniciada por el usuario
+
+La raíz monta `NavigationGuardProvider`. `useSafeNavigation` conserva la API y los
+tipos de Expo Router y protege `push` y `navigate` con un bloqueo síncrono compartido
+en un ref, de 800 ms por defecto. La primera llamada se ejecuta inmediatamente;
+durante ese intervalo se descartan las siguientes, incluso desde otro componente
+o hacia otro destino. El proveedor o el hook permiten configurar el intervalo.
+No se difieren acciones ni se crean timers. Un error síncrono libera el bloqueo.
+
+Los accesos a pantallas únicas de Perfil y a Carrito usan `navigate`; los detalles
+de productos y otros flujos que conservan su origen pueden usar `push` protegido.
+Los antiguos bloqueos locales de rutas y de la barra inferior se sustituyen por
+este mecanismo. `replace`, `back`, `dismiss` y las consultas del router mantienen
+su comportamiento. Las redirecciones automáticas de sesión conservan `useRouter`
+para no perder un cambio obligatorio durante el intervalo. El listener de
+notificaciones conserva su deduplicación por identidad de respuesta del sistema.
+
+`SafePressable` conserva las props de Pressable, refs, accesibilidad y `className`
+sin añadir contenedores. Limita sus pulsaciones a 800 ms y admite `Link asChild`;
+cuando recibe el `href` del Link también utiliza el bloqueo compartido. `AppButton`
+lo reutiliza: los enlaces reciben protección por defecto; las acciones normales
+responden a cada pulsación. `pressIntervalMs` permite activar/configurar el bloqueo
+local, como en ProductCard y BackButton, o desactivarlo con cero. El bloqueo local
+de un callback que usa el router seguro no adquiere de nuevo el bloqueo global.
+
 ### Presentación
 
 - archivos de ruta delgados bajo `src/app`;

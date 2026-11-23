@@ -13,6 +13,7 @@ import { RentalsScreen } from '@/features/profile/RentalsScreen';
 import { RentalDetailScreen } from '@/features/profile/RentalDetailScreen';
 import { MyReviewsScreen } from '@/features/profile/MyReviewsScreen';
 import { HelpScreen } from '@/features/profile/HelpScreen';
+import { SettingsScreen } from '@/features/profile/SettingsScreen';
 import { SUPPORT_LOCATIONS } from '@/features/profile/support-content';
 import { LegalDocumentScreen } from '@/features/profile/LegalDocumentScreen';
 import { accountService } from '@/features/profile/account-service';
@@ -71,6 +72,19 @@ describe('Secciones de Perfil', () => {
       params: { id: RENTAL.id },
     });
   });
+  it('abre notificaciones y el permiso de micrófono desde la configuración general', async () => {
+    const settings = jest.spyOn(Linking, 'openSettings').mockResolvedValue(undefined);
+    await show(SettingsScreen);
+    await fireEvent.press(await screen.findByRole('button', { name: 'Notificaciones' }));
+    expect(mockRouter.navigate).toHaveBeenCalledWith('/perfil/notificaciones/preferencias');
+    await fireEvent.press(screen.getByRole('button', { name: 'Micrófono' }));
+    expect(settings).toHaveBeenCalledTimes(1);
+    settings.mockRejectedValueOnce(new Error('Unavailable'));
+    await fireEvent.press(screen.getByRole('button', { name: 'Micrófono' }));
+    expect(
+      await screen.findByText('No pudimos abrir los ajustes del teléfono. Intenta de nuevo.'),
+    ).toBeTruthy();
+  });
   it('confirma la cancelación pendiente y muestra el resultado remoto', async () => {
     mockParams = { id: RENTAL.id };
     const server = installAccountApiMock();
@@ -126,6 +140,22 @@ describe('Secciones de Perfil', () => {
       pathname: '/producto/[id]',
       params: { id: '101' },
     });
+  });
+  it('muestra el skeleton de cada sección durante la primera carga', async () => {
+    jest.spyOn(accountService, 'rentals').mockReturnValueOnce(new Promise<never>(() => {}));
+    const rentals = await show(RentalsScreen);
+    expect(screen.getByLabelText('Cargando tus rentas')).toBeTruthy();
+    await rentals.unmount();
+
+    jest.spyOn(accountService, 'reviews').mockReturnValueOnce(new Promise<never>(() => {}));
+    const reviews = await show(MyReviewsScreen);
+    expect(screen.getByLabelText('Cargando tus reseñas')).toBeTruthy();
+    await reviews.unmount();
+
+    mockParams = { id: RENTAL.id };
+    jest.spyOn(accountService, 'rental').mockReturnValueOnce(new Promise<never>(() => {}));
+    await show(RentalDetailScreen);
+    expect(screen.getByLabelText('Cargando detalle de renta')).toBeTruthy();
   });
   it('muestra el documento real sin HTML ejecutable y valida la ruta', async () => {
     mockParams = { slug: 'politicas-de-privacidad' };

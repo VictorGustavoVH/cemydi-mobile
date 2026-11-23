@@ -18,14 +18,20 @@ name: NOV-05 - Ejercicio de derechos ARCO y consentimiento
 
 # E2E-ARCO-04: Oposición a tratamiento promocional
 - extendedWaitUntil:
-    visible: Abrir ajustes de notificaciones
+    visible: Abrir configuración
     timeout: 15000
-- tapOn: Abrir ajustes de notificaciones
+- tapOn: Abrir configuración
+- extendedWaitUntil:
+    visible: Configuración
+    timeout: 15000
+- assertVisible: Micrófono
+- tapOn: Notificaciones
 - extendedWaitUntil:
     visible: Ofertas
     timeout: 15000
 - assertVisible: Ofertas
 - takeScreenshot: E2E-ARCO-04-oposicion-ofertas
+- back
 - back
 
 # E2E-ARCO-03: Cancelación / eliminación de cuenta

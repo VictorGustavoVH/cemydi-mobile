@@ -22,12 +22,12 @@ export function HomeHeader({ onNotifications, onProfile }: HomeHeaderProps) {
       <View className="flex-row gap-2">
         <HomeNotificationBell onPress={onNotifications} />
         <AppButton
-          className="h-11 w-11 items-center justify-center rounded-xl bg-brand/10 px-0 py-0"
+          className="h-11 w-11 rounded-full px-0 py-0"
           hideLabel
           label="Perfil"
           onPress={onProfile}
-          variant="unstyled"
-          leftIcon={<UserRound aria-hidden color={colors.brandStrong} size={21} />}
+          variant="ghost"
+          leftIcon={<UserRound aria-hidden color={colors.textPrimary} size={22} />}
         />
       </View>
     </View>

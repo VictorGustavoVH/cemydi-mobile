@@ -1,6 +1,7 @@
+import { useSafeNavigation } from '@/hooks/useSafeNavigation';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { FlatList, Keyboard, Text, View } from 'react-native';
-import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { AppButton } from '@/components/ui/AppButton';
 import { AppPagination } from '@/components/ui/AppPagination';
@@ -19,7 +20,6 @@ import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { useProductOffers } from '@/hooks/useProductOffers';
 import { useProductRatings } from '@/hooks/useProductRatings';
-import { useRouteCallback } from '@/hooks/useRouteCallback';
 import { useToastScroll } from '@/hooks/useToast';
 import { toProductCard } from '@/services/products/product-adapter';
 import { prefetchProductDetail, seedProductDetail } from '@/services/products/product-cache';
@@ -39,7 +39,7 @@ export function CatalogScreen() {
     filters?: string;
     t?: string;
   }>();
-  const router = useRouter();
+  const router = useSafeNavigation();
   const queryClient = useQueryClient();
   const grid = useProductGridMetrics();
   const { columns } = grid;
@@ -117,11 +117,12 @@ export function CatalogScreen() {
   const refresh = useCallback(
     () =>
       Promise.allSettled([
-        query.refetch(),
+        queryClient.invalidateQueries({ queryKey: ['products'] }),
+        queryClient.invalidateQueries({ queryKey: ['home', 'products'] }),
         offers.refetch(),
         queryClient.invalidateQueries({ queryKey: ['reviews', 'product'] }),
       ]),
-    [query, offers, queryClient],
+    [offers, queryClient],
   );
   const refreshEnabled = isOnline !== false;
   const { refreshing, onRefresh } = usePullToRefresh(refresh, { enabled: refreshEnabled });
@@ -167,7 +168,7 @@ export function CatalogScreen() {
   );
   const productIds = useMemo(() => products.map((product) => product.id), [products]);
   const ratings = useProductRatings(productIds);
-  const openProduct = useRouteCallback(
+  const openProduct = useCallback(
     (id: string) => {
       const rawProduct = query.products.find((product) => String(product.id) === id);
       if (rawProduct) seedProductDetail(queryClient, rawProduct, query.dataUpdatedAt);
@@ -177,7 +178,7 @@ export function CatalogScreen() {
         params: { id, mode: mode === 'all' ? undefined : mode },
       });
     },
-    (id) => `/producto/${id}?mode=${mode === 'all' ? '' : mode}`,
+    [query.products, query.dataUpdatedAt, queryClient, router, mode],
   );
   const renderProduct = useCallback(
     ({ item }: { item: HomeProduct }) => (

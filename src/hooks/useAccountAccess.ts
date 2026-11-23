@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { useSafeNavigation } from '@/hooks/useSafeNavigation';
 import { useCallback } from 'react';
 import { useAuth } from '@/providers/auth-provider';
 import type { AuthDestination } from '@/features/auth/auth-destination';
@@ -9,7 +9,7 @@ export type RequestAccessOptions = {
 };
 
 export function useAccountAccess() {
-  const router = useRouter();
+  const router = useSafeNavigation();
   const toast = useToast();
   const { user, status, retrySession } = useAuth();
   const requestAccess = useCallback(

@@ -1,5 +1,5 @@
-import { FlatList, Text, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useSafeNavigation } from '@/hooks/useSafeNavigation';
+import { FlatList, Text, useWindowDimensions, View } from 'react-native';
 import { ReviewEntryButton } from '@/features/reviews';
 import { RatingStars } from '@/components/ui/RatingStars';
 import ChevronRight from 'lucide-react-native/icons/chevron-right';
@@ -7,6 +7,7 @@ import { colors } from '@/theme';
 import { AppButton } from '@/components/ui/AppButton';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { AppRefreshControl } from '@/components/ui/AppRefreshControl';
+import { Skeleton, SkeletonBlock } from '@/components/ui/Skeleton';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { AccountLayout } from '@/components/account/AccountLayout';
 import { AccountResourceState } from '@/components/account/AccountResourceState';
@@ -16,11 +17,48 @@ import { accountService } from './account-service';
 import { useAccountResource } from './useAccountResource';
 
 function ReviewSeparator() {
-  return <View className="my-4 h-px bg-border" />;
+  return <View className="h-4" />;
+}
+
+function MyReviewsSkeleton() {
+  const { fontScale } = useWindowDimensions();
+  return (
+    <Skeleton label="Cargando tus reseñas">
+      <View className="gap-4 p-5">
+        {[0, 1].map((card) => (
+          <View key={card} className="gap-3 rounded-2xl border border-border-subtle bg-surface p-4">
+            <View className="min-h-11 flex-row items-center justify-between gap-3 py-1">
+              <SkeletonBlock className="w-3/5 rounded" style={{ height: 16 * fontScale }} />
+              <SkeletonBlock className="h-[18px] w-[18px] rounded" />
+            </View>
+            <View className="flex-row flex-wrap items-center justify-between gap-3">
+              <View className="flex-row gap-1">
+                {[0, 1, 2, 3, 4].map((star) => (
+                  <SkeletonBlock key={star} className="h-3.5 w-3.5 rounded" />
+                ))}
+              </View>
+              <SkeletonBlock className="w-20 rounded-full" style={{ height: 20 * fontScale }} />
+            </View>
+            <View className="gap-2">
+              <SkeletonBlock className="w-full rounded" style={{ height: 14 * fontScale }} />
+              <SkeletonBlock className="w-4/5 rounded" style={{ height: 14 * fontScale }} />
+            </View>
+            <View className="flex-row flex-wrap items-center justify-between gap-3">
+              <SkeletonBlock className="w-20 rounded" style={{ height: 12 * fontScale }} />
+              <View className="h-11 flex-row items-center gap-2">
+                <SkeletonBlock className="h-[18px] w-[18px] rounded" />
+                <SkeletonBlock className="w-16 rounded" style={{ height: 16 * fontScale }} />
+              </View>
+            </View>
+          </View>
+        ))}
+      </View>
+    </Skeleton>
+  );
 }
 
 export function MyReviewsScreen() {
-  const router = useRouter();
+  const router = useSafeNavigation();
   const { query, isOnline } = useAccountResource(['reviews'], accountService.reviews, {
     autoRefresh: true,
   });
@@ -28,8 +66,13 @@ export function MyReviewsScreen() {
     enabled: isOnline !== false,
   });
   return (
-    <AccountLayout title="Mis reseñas" scroll={false}>
-      <AccountResourceState {...query} isOnline={isOnline} retry={() => void query.refetch()}>
+    <AccountLayout title="Mis reseñas" scroll={false} appearance="grouped">
+      <AccountResourceState
+        {...query}
+        isOnline={isOnline}
+        loadingFallback={<MyReviewsSkeleton />}
+        retry={() => void query.refetch()}
+      >
         <FlatList
           data={query.data?.reviews ?? []}
           ListHeaderComponent={
@@ -62,7 +105,7 @@ export function MyReviewsScreen() {
             />
           }
           renderItem={({ item }) => (
-            <View className="gap-2">
+            <View className="gap-3 rounded-2xl border border-border-subtle bg-surface p-4">
               <AppButton
                 label={`Ver producto: ${item.product.nombre}`}
                 variant="unstyled"

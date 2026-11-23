@@ -1,17 +1,17 @@
 import { useCallback, useRef, useState } from 'react';
-import { Linking, Text, View } from 'react-native';
+import { Linking, Text, useWindowDimensions, View } from 'react-native';
 import Smartphone from 'lucide-react-native/icons/smartphone';
 import { useFocusEffect } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AppButton } from '@/components/ui/AppButton';
 import { AppSwitch } from '@/components/ui/AppSwitch';
+import { Skeleton, SkeletonBlock } from '@/components/ui/Skeleton';
 import { AccountLayout } from '@/components/account/AccountLayout';
 import { AccountSection } from '@/components/account/AccountSection';
 import { AccountResourceState } from '@/components/account/AccountResourceState';
 import { useAuth } from '@/providers/auth-provider';
 import { useToast } from '@/hooks/useToast';
 import { getFriendlyErrorMessage } from '@/services/http/api-error';
-import { colors } from '@/theme';
 import { registerNativePush } from './native-push';
 import { notificationService } from './notification-service';
 import type { NotificationPreferences } from './notification-schemas';
@@ -20,7 +20,7 @@ import { useNotificationActions } from './useNotifications';
 const rows: { key: keyof NotificationPreferences; label: string; description: string }[] = [
   {
     key: 'pushEnabled',
-    label: 'Recibir notificaciones push',
+    label: 'Recibir notificaciones',
     description: 'Activa o desactiva los avisos en todos tus dispositivos.',
   },
   {
@@ -31,15 +31,55 @@ const rows: { key: keyof NotificationPreferences; label: string; description: st
   {
     key: 'offers',
     label: 'Ofertas',
-    description: 'Controla si deseas recibir notificaciones push sobre promociones y ofertas.',
+    description: 'Recibe avisos sobre promociones y ofertas.',
   },
   { key: 'rentals', label: 'Rentas', description: 'Estados de solicitudes y revisión de recetas.' },
 ];
 
+function NotificationPreferencesSkeleton() {
+  const { fontScale } = useWindowDimensions();
+  return (
+    <Skeleton label="Cargando ajustes de notificaciones">
+      <View className="gap-5 px-5 py-5">
+        <View className="gap-3">
+          <SkeletonBlock className="mx-3 w-2/5 rounded" style={{ height: 12 * fontScale }} />
+          <SkeletonBlock className="mx-3 w-3/5 rounded" style={{ height: 14 * fontScale }} />
+          <View className="overflow-hidden rounded-2xl border border-border-subtle bg-surface px-3">
+            {[0, 1, 2, 3].map((row) => (
+              <View
+                key={row}
+                className={`flex-row items-center justify-between gap-4 py-4 ${row < 3 ? 'border-b border-border-subtle' : ''}`}
+              >
+                <View className="flex-1 gap-1">
+                  <SkeletonBlock className="w-2/5 rounded" style={{ height: 16 * fontScale }} />
+                  <SkeletonBlock className="w-4/5 rounded" style={{ height: 14 * fontScale }} />
+                </View>
+                <SkeletonBlock className="h-[31px] w-[51px] rounded-full" />
+              </View>
+            ))}
+          </View>
+        </View>
+        <View className="gap-3">
+          <View className="flex-row items-center gap-2 px-3">
+            <SkeletonBlock className="h-5 w-5 rounded" />
+            <SkeletonBlock className="w-2/5 rounded" style={{ height: 12 * fontScale }} />
+          </View>
+          <View className="gap-3 rounded-2xl border border-border-subtle bg-surface p-4">
+            <SkeletonBlock className="w-full rounded" style={{ height: 14 * fontScale }} />
+            <SkeletonBlock className="w-4/5 rounded" style={{ height: 14 * fontScale }} />
+            <SkeletonBlock className="h-12 w-full rounded-xl" />
+            <SkeletonBlock className="h-12 w-full rounded-xl" />
+          </View>
+        </View>
+      </View>
+    </Skeleton>
+  );
+}
+
 export function NotificationPreferencesScreen() {
   const { user } = useAuth();
   return (
-    <AccountLayout title="Ajustes de notificaciones">
+    <AccountLayout title="Ajustes de notificaciones" appearance="grouped">
       <PreferencesForm key={user?.id ?? 'guest'} />
     </AccountLayout>
   );
@@ -91,16 +131,21 @@ function PreferencesForm() {
       isError={query.isError}
       isOnline={actions.isOnline}
       allowed={allowed}
+      loadingFallback={<NotificationPreferencesSkeleton />}
       retry={() => void query.refetch()}
     >
       {preferences && (
         <View className="gap-5 px-5 py-5">
           <AccountSection
             title="Avisos de tu cuenta"
+            appearance="grouped-menu"
             description="Los cambios se guardan automáticamente."
           >
-            {rows.map((row) => (
-              <View key={row.key} className="flex-row items-center justify-between gap-4 py-3">
+            {rows.map((row, index) => (
+              <View
+                key={row.key}
+                className={`flex-row items-center justify-between gap-4 py-4 ${index < rows.length - 1 ? 'border-b border-border-subtle' : ''}`}
+              >
                 <View className="flex-1 gap-1">
                   <Text className="font-sans-semibold text-base text-primary">{row.label}</Text>
                   <Text className="font-sans text-sm leading-5 text-secondary">
@@ -122,16 +167,7 @@ function PreferencesForm() {
               </View>
             ))}
           </AccountSection>
-          <View className="gap-3 pt-3">
-            <View className="flex-row items-center gap-2">
-              <Smartphone size={20} color={colors.brandStrong} aria-hidden />
-              <Text
-                accessibilityRole="header"
-                className="font-sans-semibold text-base text-primary"
-              >
-                En este dispositivo
-              </Text>
-            </View>
+          <AccountSection title="En este dispositivo" icon={Smartphone} appearance="grouped">
             <Text className="font-sans text-sm leading-5 text-secondary">
               Activa también los permisos del teléfono para recibir avisos fuera de CEMYDI.
             </Text>
@@ -148,7 +184,7 @@ function PreferencesForm() {
                 if (!user) return;
                 void actions
                   .run((isCurrent) => registerNativePush(isCurrent, true, user.id))
-                  .then(() => toast.success('Este dispositivo está activado para recibir push.'))
+                  .then(() => toast.success('Los avisos están activados en este dispositivo.'))
                   .catch((error) => toast.error(getFriendlyErrorMessage(error)));
               }}
             />
@@ -161,7 +197,7 @@ function PreferencesForm() {
                 );
               }}
             />
-          </View>
+          </AccountSection>
         </View>
       )}
     </AccountResourceState>

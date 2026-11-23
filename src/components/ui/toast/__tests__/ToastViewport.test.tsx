@@ -10,6 +10,27 @@ const metrics = {
   insets: { top: 44, bottom: 34, left: 0, right: 0 },
 };
 
+it.each(['success', 'error', 'info', 'loading'] as const)(
+  'anuncia el mensaje de tipo %s con su prioridad accesible',
+  async (type) => {
+    const store = createToastStore();
+    store.api[type]('Mensaje de la operación');
+    const view = await render(
+      <SafeAreaProvider initialMetrics={metrics}>
+        <ToastContext.Provider value={store}>
+          <ToastViewport />
+        </ToastContext.Provider>
+      </SafeAreaProvider>,
+    );
+    expect(screen.getByText('Mensaje de la operación')).toHaveProp(
+      'accessibilityLiveRegion',
+      type === 'error' ? 'assertive' : 'polite',
+    );
+    await view.unmount();
+    store.dispose();
+  },
+);
+
 it('positions only the requested deletion countdown above the measured navigation bar', async () => {
   const store = createToastStore();
   store.setBottomBarHeight(112);

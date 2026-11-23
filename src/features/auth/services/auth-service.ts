@@ -16,6 +16,23 @@ export function createAuthService(session = authSession) {
   let challenge: AuthChallenge | null = null;
   let recoveryCode: string | null = null;
   let revision = 0;
+  // Only facts confirmed in this session or by a successful verification.
+  // A public, generic API response never proves that an address is unverified.
+  const verifiedEmails = new Set<string>();
+  function assertNeedsVerification(correo: string) {
+    const normalized = correo.trim().toLowerCase();
+    const user = session.getSnapshot().user;
+    if (
+      verifiedEmails.has(normalized) ||
+      (user?.emailVerified && user.correo.trim().toLowerCase() === normalized)
+    ) {
+      challenge = null;
+      recoveryCode = null;
+      throw new UserFacingError(
+        'No se pudo continuar con esta solicitud. Intenta iniciar sesión o recuperar tu acceso.',
+      );
+    }
+  }
   function assertCurrent(expected: number) {
     if (expected !== revision) throw new UserFacingError('La solicitud fue cancelada.');
   }
@@ -62,6 +79,9 @@ export function createAuthService(session = authSession) {
     },
     async requestVerification(correo: string) {
       const expected = ++revision;
+      challenge = null;
+      recoveryCode = null;
+      assertNeedsVerification(correo);
       await authPost(
         '/auth/email-verification/send',
         { correo: correo.trim().toLowerCase() },
@@ -72,6 +92,7 @@ export function createAuthService(session = authSession) {
     },
     async resend() {
       const active = current();
+      if (active.purpose === 'registration') assertNeedsVerification(active.correo);
       if (Date.now() < active.resendAt)
         throw new UserFacingError('Espera antes de solicitar otro código.');
       const expected = ++revision;
@@ -96,6 +117,7 @@ export function createAuthService(session = authSession) {
           authMessageSchema,
         );
         if (expected !== revision) throw new UserFacingError('La verificación fue cancelada.');
+        verifiedEmails.add(active.correo);
         challenge = null;
         return null;
       }

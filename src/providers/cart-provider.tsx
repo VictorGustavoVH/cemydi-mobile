@@ -26,6 +26,7 @@ import { isApiError, UserFacingError } from '@/services/http/api-error';
 import { createCartTransfer } from '@/features/cart/services/cart-transfer';
 import { rentalRequestService, type RentalRequestInput } from '@/services/rentals/rental-request';
 import type { Rental } from '@/services/rentals/rental-schemas';
+import type { ProductDetailPreview } from '@/data/product-detail-preview';
 
 export const cartQueryKey = (userId: number | undefined) => ['cart', userId] as const;
 const subscribeOnline = (notify: () => void) => onlineManager.subscribe(notify);
@@ -177,14 +178,19 @@ function useRemoteCart(syncScreen?: CartSyncScreen) {
         void client.invalidateQueries({ queryKey: ['account', expected, 'rentals'] });
         return created;
       },
-      async addItem(productId: string, mode: PreviewCartItem['mode']) {
+      async addItem(
+        productId: string,
+        mode: PreviewCartItem['mode'],
+        _snapshot?: ProductDetailPreview,
+        quantity = 1,
+      ) {
         if (!/^\d+$/.test(productId))
           throw new UserFacingError('Este producto de muestra no se puede guardar en tu cuenta.');
         await run(() =>
           cartService.add({
             productId: Number(productId),
             mode: mode === 'rental' ? 'RENTA' : 'VENTA',
-            quantity: 1,
+            quantity,
           }),
         );
       },

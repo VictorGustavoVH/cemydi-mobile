@@ -1,12 +1,13 @@
 import { type ReactNode } from 'react';
-import { Pressable, Text, type PressableProps } from 'react-native';
+import { Text } from 'react-native';
 
 import { colors } from '@/theme';
 import { AppSpinner } from './AppSpinner';
+import { SafePressable, type SafePressableProps } from './SafePressable';
 
 type AppButtonVariant = 'destructive' | 'ghost' | 'outline' | 'primary' | 'secondary' | 'unstyled';
 
-type AppButtonProps = Omit<PressableProps, 'children'> & {
+type AppButtonProps = Omit<SafePressableProps, 'children'> & {
   children?: ReactNode;
   className?: string;
   hideLabel?: boolean;
@@ -59,6 +60,7 @@ export function AppButton({
   loading = false,
   rightIcon,
   variant = 'primary',
+  pressIntervalMs,
   ...pressableProps
 }: AppButtonProps) {
   const isDisabled = disabled || loading;
@@ -67,8 +69,9 @@ export function AppButton({
   const hasCustomHeight = className.includes('min-h-') || className.includes('h-');
 
   return (
-    <Pressable
+    <SafePressable
       {...pressableProps}
+      pressIntervalMs={pressIntervalMs ?? (pressableProps.href ? undefined : 0)}
       accessibilityLabel={accessibilityLabel ?? label}
       accessibilityRole={accessibilityRole}
       accessibilityState={{ ...accessibilityState, busy: loading, disabled: isDisabled }}
@@ -86,6 +89,6 @@ export function AppButton({
           </Text>
         ))}
       {!loading ? rightIcon : null}
-    </Pressable>
+    </SafePressable>
   );
 }

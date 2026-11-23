@@ -1,6 +1,6 @@
+import { useSafeNavigation } from '@/hooks/useSafeNavigation';
 import { useCallback, useMemo, useState } from 'react';
 import { SectionList, Text, View } from 'react-native';
-import { useRouter } from 'expo-router';
 import { BackButton } from '@/components/ui/BackButton';
 import ArrowRight from 'lucide-react-native/icons/arrow-right';
 import Check from 'lucide-react-native/icons/check';
@@ -10,6 +10,7 @@ import ShoppingCart from 'lucide-react-native/icons/shopping-cart';
 import CalendarDays from 'lucide-react-native/icons/calendar-days';
 import { type PreviewCartItem } from '@/providers/catalog-preview-provider';
 import { useCart } from '@/providers/cart-provider';
+import { useAuth } from '@/providers/auth-provider';
 import { getFriendlyErrorMessage } from '@/services/http/api-error';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { ErrorState } from '@/components/ui/ErrorState';
@@ -24,7 +25,6 @@ import { colors } from '@/theme';
 
 import { useToast, useToastScroll } from '@/hooks/useToast';
 import { useAccountAccess } from '@/hooks/useAccountAccess';
-import { useThrottledCallback } from '@/hooks/useThrottledCallback';
 import { CartItemCard } from './components/CartItemCard';
 import { RentalConfigurationSheet } from './components/RentalConfigurationSheet';
 import { ServerCartSummary } from './components/ServerCartSummary';
@@ -48,7 +48,7 @@ function CartSummary({ sections, onCoupon }: CartSummaryProps) {
   const purchaseSummary = useMemo(() => getPreviewSummary(purchase?.data ?? []), [purchase]);
   const rentalSummary = useMemo(() => getPreviewSummary(rentals?.data ?? []), [rentals]);
   return (
-    <View className="mx-5 mt-auto gap-4 pb-4 pt-3">
+    <View className="mx-5 mt-auto gap-3 pb-2 pt-3">
       <CartCouponButton label="Aplicar cupón" onPress={onCoupon} />
       <View className="gap-2 border-t border-border/40 pt-3">
         <Text accessibilityRole="header" className="font-sans-semibold text-base text-primary">
@@ -91,7 +91,15 @@ function CartSummary({ sections, onCoupon }: CartSummaryProps) {
 }
 
 export function CartPreviewScreen() {
-  const router = useRouter();
+  const { user, status } = useAuth();
+  // Editing/selection/modal state belongs to one account. Never reuse it for
+  // the next account while the tab remains mounted.
+  const identity = status === 'authenticated' ? `account:${user?.id}` : 'guest';
+  return <CartPreviewContent key={identity} />;
+}
+
+function CartPreviewContent() {
+  const router = useSafeNavigation();
   const toast = useToast();
   const onToastScroll = useToastScroll();
   const { requestAccess } = useAccountAccess();
@@ -146,13 +154,13 @@ export function CartPreviewScreen() {
   const summary = useMemo(() => getPreviewSummary(entries), [entries]);
   const goToCatalog = useCallback(() => router.replace('/inicio'), [router]);
   const startSelection = useCallback(() => setSelectionMode(true), []);
-  const openProduct = useThrottledCallback(
+  const openProduct = useCallback(
     (item: PreviewCartItem) =>
       router.push({
         pathname: '/producto/[id]',
         params: { id: item.productId, mode: item.mode },
       }),
-    750,
+    [router],
   );
   const remove = useCallback(
     async (item: PreviewCartItem, index: number) => {
@@ -292,7 +300,7 @@ export function CartPreviewScreen() {
             extraData={selectionMode}
             stickySectionHeadersEnabled={false}
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ paddingTop: 4, paddingBottom: 16, flexGrow: 1 }}
+            contentContainerStyle={{ paddingTop: 4, paddingBottom: 8, flexGrow: 1 }}
             keyExtractor={cartKey}
             renderSectionHeader={renderSectionHeader}
             renderItem={renderItem}

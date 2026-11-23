@@ -1,6 +1,6 @@
+import { useSafeNavigation } from '@/hooks/useSafeNavigation';
 import { useCallback, useMemo, useState } from 'react';
 import { FlatList, Text, View } from 'react-native';
-import { useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import Search from 'lucide-react-native/icons/search';
 
@@ -18,7 +18,6 @@ import { useAuth } from '@/providers/auth-provider';
 import { useProductOffers } from '@/hooks/useProductOffers';
 import { useProductRatings } from '@/hooks/useProductRatings';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
-import { useRouteCallback } from '@/hooks/useRouteCallback';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import { toProductCard } from '@/services/products/product-adapter';
 import { prefetchProductDetail } from '@/services/products/product-cache';
@@ -31,7 +30,7 @@ const productKey = (item: HomeProduct) => item.id;
 const FAVORITES_SEARCH_MAX_LENGTH = 100;
 
 export function FavoritesScreen() {
-  const router = useRouter();
+  const router = useSafeNavigation();
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const { isOnline } = useNetworkStatus();
@@ -71,12 +70,12 @@ export function FavoritesScreen() {
   );
   const ratings = useProductRatings(productIds);
 
-  const handleOpenProduct = useRouteCallback(
+  const handleOpenProduct = useCallback(
     (id: string) => {
       prefetchProductDetail(queryClient, id);
       router.push(`/producto/${encodeURIComponent(id)}`);
     },
-    (id: string) => `/producto/${id}`,
+    [queryClient, router],
   );
 
   const renderItem = useCallback(
