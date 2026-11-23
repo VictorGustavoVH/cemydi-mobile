@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Platform, Text, View } from 'react-native';
-import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import DateTimePicker, {
+  type DateTimePickerChangeEvent,
+} from '@react-native-community/datetimepicker';
 import CalendarDays from 'lucide-react-native/icons/calendar-days';
 import { colors } from '@/theme';
 import { AppButton } from './AppButton';
@@ -31,12 +33,15 @@ export function AppDateInput({
   const completed = Boolean(
     value && !Number.isNaN(value.getTime()) && value >= minimumDate && !error,
   );
-  function change(event: DateTimePickerEvent, date?: Date) {
-    if (Platform.OS !== 'ios' || event.type === 'dismissed') setOpen(false);
-    if (disabled || event.type !== 'set' || !date || Number.isNaN(date.getTime())) return;
+  function handleValueChange(_event: DateTimePickerChangeEvent, date?: Date) {
+    if (Platform.OS !== 'ios') setOpen(false);
+    if (disabled || !date || Number.isNaN(date.getTime())) return;
     // Normalize to a calendar day, avoiding midnight/DST shifts when comparing the native result.
     const day = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12);
     if (day >= minimumDate) onChange(day);
+  }
+  function handleDismiss() {
+    setOpen(false);
   }
   return (
     <View className="min-w-0 max-w-full shrink gap-2">
@@ -87,7 +92,8 @@ export function AppDateInput({
             minimumDate={minimumDate}
             mode="date"
             display={Platform.OS === 'ios' ? 'inline' : 'calendar'}
-            onChange={change}
+            onValueChange={handleValueChange}
+            onDismiss={handleDismiss}
           />
           {Platform.OS === 'ios' ? (
             <AppButton

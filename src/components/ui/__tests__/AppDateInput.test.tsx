@@ -38,17 +38,22 @@ describe('AppDateInput', () => {
     await fireEvent.press(screen.getByLabelText('Inicio'));
     const picker = screen.getByTestId('Calendario Inicio');
     expect(picker).toHaveProp('minimumDate', minimumDate);
-    await fireEvent(picker, 'onChange', { type: 'set' }, new Date(2026, 9, 29, 12));
+    await fireEvent(
+      picker,
+      'valueChange',
+      { nativeEvent: { timestamp: 0, utcOffset: 0 } },
+      new Date(2026, 9, 29, 12),
+    );
     expect(change).not.toHaveBeenCalled();
     if (!screen.queryByTestId('Calendario Inicio'))
       await fireEvent.press(screen.getByLabelText('Inicio'));
-    await fireEvent(screen.getByTestId('Calendario Inicio'), 'onChange', { type: 'dismissed' });
+    await fireEvent(screen.getByTestId('Calendario Inicio'), 'dismiss');
     expect(change).not.toHaveBeenCalled();
     await fireEvent.press(screen.getByLabelText('Inicio'));
     await fireEvent(
       screen.getByTestId('Calendario Inicio'),
-      'onChange',
-      { type: 'set' },
+      'valueChange',
+      { nativeEvent: { timestamp: 0, utcOffset: 0 } },
       new Date(2026, 9, 30, 0),
     );
     expect(change).toHaveBeenCalledWith(minimumDate);

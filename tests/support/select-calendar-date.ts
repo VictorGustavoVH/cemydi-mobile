@@ -6,8 +6,8 @@ export async function selectCalendarDate(label: string, value: string) {
   await fireEvent.press(screen.getByLabelText(label));
   await fireEvent(
     screen.getByTestId(`Calendario ${label}`),
-    'onChange',
-    { type: 'set', nativeEvent: { timestamp: date.getTime() } },
+    'onValueChange',
+    { nativeEvent: { timestamp: date.getTime(), utcOffset: 0 } },
     date,
   );
   const confirm = screen.queryByLabelText(`Confirmar ${label.toLowerCase()}`);

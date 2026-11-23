@@ -238,7 +238,7 @@ export function AnimatedToast({
             entering={FadeIn.duration(reduced ? 100 : 180)}
           >
             <Text
-              accessibilityLiveRegion="polite"
+              accessibilityLiveRegion={entry.type === 'error' ? 'assertive' : 'polite'}
               style={{
                 color: colors.toastText,
                 fontFamily: 'Inter_700Bold',

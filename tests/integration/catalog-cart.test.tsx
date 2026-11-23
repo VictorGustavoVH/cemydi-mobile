@@ -70,6 +70,7 @@ describe('Catálogo, detalle y carrito con estado de sesión compartido', () => 
   });
 
   it('envía búsqueda, categorías y modalidad desde Home al catálogo completo', async () => {
+    const clock = jest.spyOn(Date, 'now');
     await render(
       <CatalogPreviewProvider>
         <HomeScreen />
@@ -82,11 +83,13 @@ describe('Catálogo, detalle y carrito con estado de sesión compartido', () => 
       pathname: '/catalogo',
       params: { search: 'oxigeno', t: expect.any(String) },
     });
+    clock.mockReturnValue(Date.now() + 800);
     await fireEvent.press(screen.getByRole('radio', { name: 'Compra' }));
     expect(mockPush).toHaveBeenLastCalledWith({
       pathname: '/catalogo',
       params: { mode: 'purchase', t: expect.any(String) },
     });
+    clock.mockReturnValue(Date.now() + 800);
     await fireEvent.press(screen.getByRole('button', { name: 'Movilidad' }));
     expect(mockPush).toHaveBeenLastCalledWith({
       pathname: '/catalogo',

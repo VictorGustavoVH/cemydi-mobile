@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Platform, Text, View } from 'react-native';
-import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import DateTimePicker, {
+  type DateTimePickerChangeEvent,
+} from '@react-native-community/datetimepicker';
 import Clock3 from 'lucide-react-native/icons/clock-3';
 import { colors } from '@/theme';
 import { AppButton } from './AppButton';
@@ -27,9 +29,12 @@ export function AppTimeInput({ label, value, onChange, disabled, error }: AppTim
       `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`,
     );
   }
-  function change(event: DateTimePickerEvent, date?: Date) {
-    if (Platform.OS !== 'ios' || event.type === 'dismissed') setOpen(false);
-    if (!disabled && event.type === 'set' && date && !Number.isNaN(date.getTime())) confirm(date);
+  function handleValueChange(_event: DateTimePickerChangeEvent, date?: Date) {
+    if (Platform.OS !== 'ios') setOpen(false);
+    if (!disabled && date && !Number.isNaN(date.getTime())) confirm(date);
+  }
+  function handleDismiss() {
+    setOpen(false);
   }
   return (
     <View className="min-w-0 max-w-full shrink gap-2">
@@ -77,7 +82,8 @@ export function AppTimeInput({ label, value, onChange, disabled, error }: AppTim
             mode="time"
             display={Platform.OS === 'ios' ? 'spinner' : 'clock'}
             is24Hour={false}
-            onChange={change}
+            onValueChange={handleValueChange}
+            onDismiss={handleDismiss}
           />
           {Platform.OS === 'ios' ? (
             <AppButton

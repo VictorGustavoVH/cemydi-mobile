@@ -34,6 +34,8 @@ export function AppSheet({
         if (!closeDisabled) onClose();
       }}
       transparent
+      statusBarTranslucent
+      navigationBarTranslucent
       visible={visible}
     >
       <BlurTargetView ref={blurTarget} style={{ flex: 1 }}>

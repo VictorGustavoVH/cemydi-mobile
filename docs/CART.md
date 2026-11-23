@@ -8,6 +8,14 @@ El carrito autenticado consume los endpoints existentes del backend mediante Bea
 
 ## Operaciones y contratos
 
+El detalle permite elegir unidades de compra o renta antes de añadirlas. Usa el
+mismo QuantityStepper del carrito y envía la cantidad en un único POST, sin bucles
+de peticiones. Las rentas se agregan sin fechas; las unidades de una línea comparten
+el periodo que se configura en el carrito. El servidor confirma stock, fechas y
+cotización. El selector respeta el límite existente de 25 por línea y las unidades
+ya presentes en la línea que recibirá la adición. El icono y badge se comparten
+entre navegación y detalle mediante CartIcon; el contador representa unidades.
+
 - `GET /cart`: obtiene `{ cart }`. El id del carrito es string o null; el id de cada línea es numérico. Los documentos tienen UUID.
 - `POST /cart/items`: `productId`, `quantity`, `mode` (`VENTA`/`RENTA`) y fechas/notas opcionales. Añadir incrementa una línea con el mismo producto, modalidad y fechas. No reintentar automáticamente un POST tras perder respuesta.
 - `PATCH /cart/items/:itemId`: `quantity` obligatoria, fechas `YYYY-MM-DD` y notas opcionales. Las fechas y notas se guardan en el servidor; periodo mínimo, stock y disponibilidad se validan allí.
@@ -22,6 +30,26 @@ Las líneas usan su id de servidor, incluso cuando hay varias rentas del mismo e
 ## Resumen y selección
 
 El resumen autenticado muestra exactamente `saleSubtotal`, `rentalSubtotal`, depósitos, descuentos y `total` recibidos. No calcula periodos, promociones, cupones ni importes finales. Las rentas sin configurar muestran que el total está incompleto. Un cupón guardado que ya no es válido muestra su motivo.
+
+El aviso de fechas pendientes aparece encima del resumen y usa `RentalDatesNotice`: texto azul con un icono
+informativo, sin título adicional, fondo, borde ni botón. La revisión de solicitud
+reutiliza el mismo aviso. La configuración sigue en los controles de cada equipo.
+El aviso no añade padding vertical propio. El resumen conectado reserva 8 puntos
+inferiores y la lista otros 8, evitando acumular espacio antes de Revisar carrito.
+En la revisión, aviso y resumen comparten un grupo con separación de 8 puntos.
+
+La revisión de solicitud de renta agrega únicamente `rentalSummary.subtotal` y
+`rentalSummary.total` de las líneas de renta, ya cotizados por el servidor. No usa
+`summary.rentalSubtotal + rentalDepositTotal`: ese subtotal general es anterior a
+las promociones y podía sobrestimar el importe solicitado. Los cupones y descuentos
+de compra no se descuentan de la renta. Un importe por línea ausente bloquea la
+revisión en lugar de mostrarse como cero. La confirmación definitiva sigue en el
+backend; el móvil no recalcula días, tarifas ni elegibilidad de descuentos.
+
+El estado de edición, selección y paneles de `/carrito` se remonta al cambiar de
+cuenta o pasar a invitado. Una respuesta tardía de la cuenta anterior no modifica
+el resumen nuevo. Las pruebas cubren cuentas distintas con IDs de línea coincidentes,
+un cupón abierto al salir y una escritura pendiente durante el cambio de cuenta.
 
 La selección local se conserva como ayuda de revisión del carrito; la solicitud muestra todas las rentas guardadas. El total corresponde explícitamente a **todo** el carrito guardado, porque los endpoints no aceptan selección parcial para cotizar ni solicitar renta. No se distribuye un cupón ni se inventa un total para un subconjunto.
 

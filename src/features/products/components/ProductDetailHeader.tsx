@@ -12,6 +12,9 @@ import { useFavorites } from '@/features/favorites';
 import { useCatalogPreview } from '@/providers/catalog-preview-provider';
 import { colors } from '@/theme';
 import { productShareUrl } from '../product-share';
+import { CartIcon } from '@/components/ui/CartIcon';
+import { useCartCount } from '@/providers/cart-provider';
+import { useSafeNavigation } from '@/hooks/useSafeNavigation';
 
 type ProductDetailHeaderProps = {
   productId: string;
@@ -23,7 +26,7 @@ type ProductDetailHeaderProps = {
 };
 
 /**
- * Barra superior del detalle (volver, favorito y compartir).
+ * Barra superior del detalle (volver, favorito, compartir y carrito).
  * Se reutiliza durante la carga para que los iconos aparezcan de inmediato,
  * en la misma posición, evitando el salto al montar la ficha completa.
  */
@@ -34,6 +37,8 @@ export function ProductDetailHeader({
   productCaption,
   productSlug,
 }: ProductDetailHeaderProps) {
+  const cartCount = useCartCount();
+  const router = useSafeNavigation();
   const { user } = useAuth();
   const preview = useCatalogPreview();
   const backendFavorites = useFavorites();
@@ -120,6 +125,15 @@ export function ProductDetailHeader({
             sharing ? undefined : <ShareIcon aria-hidden color={colors.textPrimary} size={22} />
           }
         />
+        <AppButton
+          hideLabel
+          label={`Ver carrito${cartCount ? ` (${cartCount})` : ''}`}
+          variant="ghost"
+          className="h-11 w-11 rounded-full px-0 py-0"
+          onPress={() => router.navigate('/carrito')}
+        >
+          <CartIcon count={cartCount} color={colors.textPrimary} appearance="header" />
+        </AppButton>
       </View>
     </View>
   );

@@ -3,6 +3,8 @@ import { ProductDetailHeader } from '../components/ProductDetailHeader';
 import { Share } from 'react-native';
 
 const mockToggle = jest.fn();
+const mockNavigate = jest.fn();
+jest.mock('@/providers/cart-provider', () => ({ useCartCount: () => 3 }));
 let mockReady = false;
 let mockPending = false;
 let mockFavorite = false;
@@ -19,7 +21,9 @@ jest.mock('@/providers/catalog-preview-provider', () => ({
   useCatalogPreview: () => ({ favorites: [] }),
 }));
 jest.mock('@/hooks/useToast', () => ({ useToast: () => ({ info: jest.fn(), error: jest.fn() }) }));
-jest.mock('expo-router', () => ({ useRouter: () => ({ canGoBack: () => true, back: jest.fn() }) }));
+jest.mock('expo-router', () => ({
+  useRouter: () => ({ canGoBack: () => true, back: jest.fn(), navigate: mockNavigate }),
+}));
 
 it('bloquea favoritos hasta resolver los ids y mientras guarda, manteniendo la selección conocida', async () => {
   const view = await render(<ProductDetailHeader productId="1" fallbackHref="/catalogo" />);
@@ -69,4 +73,10 @@ it('impide compartir un slug que intente introducir un dominio ajeno', async () 
   expect(screen.getByLabelText('Compartir producto')).toBeDisabled();
   await fireEvent.press(screen.getByLabelText('Compartir producto'));
   expect(share).not.toHaveBeenCalled();
+});
+
+it('abre el carrito desde la cabecera y anuncia sus unidades', async () => {
+  await render(<ProductDetailHeader productId="1" fallbackHref="/catalogo" />);
+  await fireEvent.press(screen.getByRole('button', { name: 'Ver carrito (3)' }));
+  expect(mockNavigate).toHaveBeenCalledWith('/carrito');
 });

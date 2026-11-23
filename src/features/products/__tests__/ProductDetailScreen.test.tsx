@@ -17,6 +17,35 @@ jest.mock('expo-router', () => ({
 }));
 
 describe('Detalle de producto de muestra', () => {
+  it('elige unidades independientes para compra y renta y expone pestañas seleccionadas', async () => {
+    await render(
+      <CatalogPreviewProvider>
+        <ProductDetailScreen productId="wheelchair" />
+      </CatalogPreviewProvider>,
+    );
+    await fireEvent.press(screen.getByLabelText('Aumentar cantidad para agregar'));
+    await fireEvent.press(screen.getByLabelText('Aumentar cantidad para agregar'));
+    expect(screen.getByLabelText('Cantidad para agregar: 3')).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText('Añadir 3 al carrito'));
+    expect(screen.getByLabelText('Ver carrito (3)')).toBeTruthy();
+    expect(screen.getByText('Producto agregado')).toBeTruthy();
+    expect(screen.queryByText(/Todas se rentan para el mismo periodo/)).toBeNull();
+    await fireEvent.press(screen.getByRole('tab', { name: 'Renta' }));
+    expect(screen.getByLabelText('Cantidad para agregar: 1')).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText('Aumentar cantidad para agregar'));
+    await fireEvent.press(screen.getByLabelText('Añadir 2 al carrito'));
+    expect(screen.getByLabelText('Ver carrito (5)')).toBeTruthy();
+    expect(
+      screen.getByText(
+        'Añadiste 2 unidades. Todas se rentan para el mismo periodo. Configura las fechas en el carrito.',
+      ),
+    ).toBeTruthy();
+    await fireEvent.press(screen.getByRole('tab', { name: 'Características' }));
+    expect(screen.getByRole('tab', { name: 'Características' })).toHaveProp(
+      'accessibilityState',
+      expect.objectContaining({ selected: true }),
+    );
+  });
   it('muestra solo fotos reales y permite seleccionar y ampliar una galería de varias imágenes', async () => {
     const product = preview.getProductPreview('wheelchair')!;
     const view = await render(
@@ -61,7 +90,8 @@ describe('Detalle de producto de muestra', () => {
     expect(screen.getByText('$45')).toBeTruthy();
     expect(screen.getByText('Antes de rentar')).toBeTruthy();
     await fireEvent.press(screen.getByLabelText('Añadir renta al carrito'));
-    expect(screen.getAllByText('Producto agregado')).toHaveLength(1);
+    expect(screen.getByText('Producto agregado')).toBeTruthy();
+    expect(screen.queryByText(/Todas se rentan para el mismo periodo/)).toBeNull();
     await view.rerender(
       <CatalogPreviewProvider>
         <CartPreviewScreen />

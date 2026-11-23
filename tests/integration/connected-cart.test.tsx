@@ -10,7 +10,12 @@ import {
 import { CART_SYNC_INTERVAL_MS, useCart, type CartSyncScreen } from '@/providers/cart-provider';
 import { AppButton } from '@/components/ui/AppButton';
 import { render } from '../support/render-with-toast';
-import { AUTH_ACCOUNT, installAuthApiMock } from '../support/auth-api-mock';
+import {
+  AUTH_ACCOUNT,
+  AUTH_SESSION,
+  installAuthApiMock,
+  jsonResponse,
+} from '../support/auth-api-mock';
 import {
   CART_RESPONSE,
   CART_LINE,
@@ -36,13 +41,17 @@ jest.mock('expo-router', () => ({
   }),
 }));
 jest.mock('expo-haptics', () => ({ selectionAsync: jest.fn().mockResolvedValue(undefined) }));
-let controls: { logout: () => Promise<void>; client: QueryClient };
+let controls: {
+  logout: () => Promise<void>;
+  client: QueryClient;
+  login: ReturnType<typeof useAuth>['service']['login'];
+};
 function ConnectedCart({ detail = false }: { detail?: boolean }) {
   const { service, logout } = useAuth();
   const client = useQueryClient();
   useEffect(() => {
-    controls = { logout, client };
-  }, [logout, client]);
+    controls = { logout, client, login: service.login };
+  }, [logout, client, service.login]);
   useEffect(() => {
     void service.login(AUTH_ACCOUNT.correo, AUTH_ACCOUNT.password, false);
   }, [service]);
@@ -123,6 +132,29 @@ describe('Carrito conectado', () => {
       }),
     );
   });
+  it('envía las unidades de renta elegidas en una sola operación sin anticipar fechas', async () => {
+    await render(
+      <CatalogPreviewProvider>
+        <ConnectedCart detail />
+      </CatalogPreviewProvider>,
+    );
+    await screen.findByLabelText('Ver carrito (3)');
+    await fireEvent.press(screen.getByRole('button', { name: 'Aumentar cantidad para agregar' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Aumentar cantidad para agregar' }));
+    await fireEvent.press(screen.getByLabelText('Añadir 3 al carrito'));
+    expect(await screen.findByLabelText('Ver carrito (6)')).toBeTruthy();
+    const additions = jest
+      .mocked(fetch)
+      .mock.calls.filter(
+        ([url, options]) => String(url).endsWith('/cart/items') && options?.method === 'POST',
+      );
+    expect(additions).toHaveLength(1);
+    expect(JSON.parse(String(additions[0][1]?.body))).toEqual({
+      productId: 101,
+      mode: 'RENTA',
+      quantity: 3,
+    });
+  });
   it('aplica y retira un cupón real y muestra su rechazo', async () => {
     await show();
     await screen.findByText('Total: $1,000.00 MXN');
@@ -171,6 +203,15 @@ describe('Carrito conectado', () => {
       }),
     );
     expect(screen.getByText('01/04/2027 al 04/04/2027')).toBeTruthy();
+  });
+  it('informa del total incompleto sin añadir un botón al aviso', async () => {
+    await show();
+    expect(
+      await screen.findByText(
+        'El total está incompleto: configura las fechas de las rentas pendientes.',
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Configurar fechas' })).toBeNull();
   });
   it('informa error inicial, permite reintentar y no muestra carrito vacío falso', async () => {
     const read = jest
@@ -374,6 +415,86 @@ describe('Carrito conectado', () => {
     expect(await screen.findByText('Tu carrito está vacío')).toBeTruthy();
     expect(screen.queryByText('Total: $1,000.00 MXN')).toBeNull();
     expect(controls.client.getQueryData(['cart', 1])).toBeUndefined();
+  });
+
+  it('aísla el resumen y cierra paneles al cambiar de cuenta aunque termine una escritura anterior', async () => {
+    let finish!: (cart: typeof CART_RESPONSE) => void;
+    jest.spyOn(cartService, 'update').mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    let currentCart = CART_RESPONSE;
+    jest.spyOn(cartService, 'get').mockImplementation(async () => currentCart);
+    const previous = jest.mocked(fetch).getMockImplementation()!;
+    jest.mocked(fetch).mockImplementation((input, options) => {
+      if (
+        new URL(String(input)).pathname === '/auth/mobile/login' &&
+        JSON.parse(String(options?.body)).correo === 'segunda@cemydi.test'
+      )
+        return Promise.resolve(
+          jsonResponse({
+            ...AUTH_SESSION,
+            user: { ...AUTH_SESSION.user, id: 2, correo: 'segunda@cemydi.test' },
+          }),
+        );
+      return previous(input, options);
+    });
+    await show();
+    await screen.findByText('Total: $1,000.00 MXN');
+    await fireEvent.press(screen.getByLabelText('Aplicar cupón'));
+    await screen.findByLabelText('Código de cupón');
+    // Closing the account must clear this account's modal/draft state too.
+    await act(async () => {
+      await controls.logout();
+    });
+    expect(screen.queryByLabelText('Código de cupón')).toBeNull();
+    await act(async () => {
+      await controls.login(AUTH_ACCOUNT.correo, AUTH_ACCOUNT.password, false);
+    });
+    await screen.findByText('Total: $1,000.00 MXN');
+    await fireEvent.press(screen.getByLabelText('Aumentar cantidad de Silla de ruedas, compra'));
+    currentCart = {
+      ...CART_RESPONSE,
+      id: 'cart-second',
+      items: [
+        {
+          ...CART_LINE,
+          quantity: 1,
+          originalLineTotal: 250,
+          lineTotal: 250,
+          finalLineTotal: 250,
+          discountAmount: 0,
+          product: { ...CART_LINE.product, precio: 250, nombre: 'Equipo de la segunda cuenta' },
+        },
+      ],
+      summary: {
+        ...CART_RESPONSE.summary,
+        distinctItems: 1,
+        totalQuantity: 1,
+        subtotal: 250,
+        saleSubtotal: 250,
+        promotionDiscountTotal: 0,
+        discountTotal: 0,
+        total: 250,
+        rentalItems: 0,
+        hasUnconfiguredRentalItems: false,
+      },
+    };
+    await act(async () => {
+      await controls.login('segunda@cemydi.test', AUTH_ACCOUNT.password, false);
+    });
+    expect(screen.queryByText('Total: $1,000.00 MXN')).toBeNull();
+    await act(async () => {
+      finish(CART_RESPONSE);
+    });
+    await screen.findByText('Total: $250.00 MXN');
+    expect(screen.queryByText('Total: $1,000.00 MXN')).toBeNull();
+    expect(screen.queryByLabelText('Código de cupón')).toBeNull();
+    expect(controls.client.getQueryData(['cart', 1])).toBeUndefined();
+    expect(controls.client.getQueryData<typeof CART_RESPONSE>(['cart', 2])?.summary.total).toBe(
+      250,
+    );
   });
 
   it('respeta el stock recibido y permite reducir una cantidad que ya lo supera', async () => {

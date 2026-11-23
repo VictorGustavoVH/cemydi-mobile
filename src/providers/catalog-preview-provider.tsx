@@ -22,6 +22,7 @@ type CatalogPreviewState = {
     productId: string,
     mode: PreviewCartItem['mode'],
     productSnapshot?: ProductDetailPreview,
+    quantity?: number,
   ) => void;
   removeItem: (productId: string, mode: PreviewCartItem['mode'], serverId?: number) => void;
   updateQuantity: (
@@ -50,8 +51,10 @@ export function CatalogPreviewProvider({ children }: { children: ReactNode }) {
         setFavorites((current) =>
           current.includes(id) ? current.filter((value) => value !== id) : [...current, id],
         ),
-      addItem: (productId, mode, productSnapshot) =>
+      addItem: (productId, mode, productSnapshot, quantity = 1) =>
         setItems((current) => {
+          if (!Number.isInteger(quantity) || quantity < 1 || quantity > PREVIEW_CART_QUANTITY_LIMIT)
+            return current;
           const existing = current.find(
             (item) => item.productId === productId && item.mode === mode,
           );
@@ -61,7 +64,7 @@ export function CatalogPreviewProvider({ children }: { children: ReactNode }) {
                   ? {
                       ...item,
                       selected: true,
-                      quantity: Math.min(PREVIEW_CART_QUANTITY_LIMIT, item.quantity + 1),
+                      quantity: Math.min(PREVIEW_CART_QUANTITY_LIMIT, item.quantity + quantity),
                       ...(productSnapshot ? { productSnapshot } : {}),
                     }
                   : item,
@@ -71,7 +74,7 @@ export function CatalogPreviewProvider({ children }: { children: ReactNode }) {
                 {
                   productId,
                   mode,
-                  quantity: 1,
+                  quantity,
                   selected: true,
                   ...(productSnapshot ? { productSnapshot } : {}),
                 },
