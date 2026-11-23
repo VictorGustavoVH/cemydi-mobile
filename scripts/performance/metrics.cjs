@@ -177,6 +177,7 @@ function windowProfile(text, structure, identityKey) {
     (field) => fields.filter((value) => value === field).length === 1,
   );
   const frames = [];
+  const excludedFrames = [];
   let invalidRows = validHeader ? 0 : 1;
   for (const line of lines.slice(header.line, close.line - 1)) {
     if (!line.trim()) continue;
@@ -190,10 +191,12 @@ function windowProfile(text, structure, identityKey) {
       continue;
     }
     if (flags === 0) frames.push({ start, end, durationMs: (end - start) / 1e6 });
+    else excludedFrames.push({ flags, start, end });
   }
   return measured({
     counters: { total: total.value, janky: janky.value },
     frames,
+    excludedFrames,
     invalidRows,
     source: {
       format: 'android10-single-window-v1',
@@ -223,6 +226,7 @@ function graphics(text, identityKey = defaultWindowKey) {
     counters: value ? measured(value.counters) : failure,
     source: value?.source ?? null,
     frames,
+    excludedFrames: value?.excludedFrames ?? [],
     invalidRows: value?.invalidRows ?? 0,
     timings: frames.length ? 'measured' : 'No medible',
     diagnostics: {
@@ -297,7 +301,11 @@ function deviceState(text, serial) {
   return true;
 }
 function frameSummary(before, after, samples) {
-  const snapshots = [...samples, after];
+  if (!before || !after) return unavailable('Falta captura gráfica inicial o final.');
+  if (!Array.isArray(samples) || samples.length === 0)
+    return unavailable('Sin muestras gráficas periódicas.');
+  if (samples.some((sample) => !sample)) return unavailable('Muestra gráfica periódica ausente.');
+  const snapshots = samples.at(-1) === after ? samples : [...samples, after];
   if (
     before.pid === null ||
     after.pid !== before.pid ||
@@ -342,9 +350,20 @@ function frameSummary(before, after, samples) {
       if (!initial.has(`${frame.start}:${frame.end}`))
         unique.set(`${frame.start}:${frame.end}`, frame);
   const frames = [...unique.values()];
+  const initialExcluded = new Set(
+    (before.excludedFrames ?? []).map((frame) => `${frame.start}:${frame.end}`),
+  );
+  const excluded = new Map();
+  for (const sample of snapshots)
+    for (const frame of sample.excludedFrames ?? []) {
+      const key = `${frame.start}:${frame.end}`;
+      if (!initialExcluded.has(key) && !initial.has(key) && !unique.has(key))
+        excluded.set(key, frame);
+    }
   // The ring buffer may omit frames. A partial trace must never pass the objective.
   const complete =
     before.invalidRows === 0 &&
+    excluded.size === 0 &&
     frames.length === total &&
     snapshots.every((sample) => sample.invalidRows === 0);
   return measured({
@@ -352,6 +371,15 @@ function frameSummary(before, after, samples) {
     janky,
     jankPercent: (100 * janky) / total,
     capturedFrames: frames.length,
+    coverage: {
+      eligibleFrames: frames.length,
+      excludedFrames: excluded.size,
+      unaccountedFrames: total - frames.length - excluded.size,
+      invalidRows:
+        before.invalidRows + snapshots.reduce((sum, sample) => sum + sample.invalidRows, 0),
+      reason:
+        'Diagnóstico de cobertura; Flags no cero quedan excluidos sin cambiar fórmulas. Un faltante no prueba por sí solo sobrescritura.',
+    },
     source: before.source,
     slowPercent: complete
       ? measured((100 * frames.filter((f) => f.durationMs > 16.667).length) / total)
@@ -453,7 +481,7 @@ function compare(baseline, candidate) {
   const valid = (run) =>
     run.schemaVersion === 1 &&
     keys.every((key) => run.metadata[key] !== undefined && run.metadata[key] !== null) &&
-    [1, 2, 3].includes(run.metadata.protocolVersion) &&
+    [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].includes(run.metadata.protocolVersion) &&
     run.metadata.build.representative === true &&
     run.status === 'captured' &&
     run.repetitions.length >= 3 &&
