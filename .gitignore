@@ -72,3 +72,6 @@ GoogleService-Info.plist
 *.p8
 
 .playwright-cli
+
+# Informes de evaluación y evidencias de pruebas: conservar localmente.
+/docs/evaluacion/

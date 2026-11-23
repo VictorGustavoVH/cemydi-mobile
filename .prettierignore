@@ -9,3 +9,9 @@ test-results/
 .tools/
 .credentials/
 credentials.json
+# Preserve the exact flow snapshot executed by Maestro, including generated bootstrap.
+docs/evaluacion/noviembre-2026/evidencias/requisitos-tecnicos-20261110/permissions-native/flows/
+# Immutable physical-test reports, flow snapshots and machine-generated logs.
+docs/evaluacion/noviembre-2026/evidencias/runtime-final-20261110/
+# Preserve Release inspection output and the exact prepared flow snapshots.
+docs/evaluacion/noviembre-2026/evidencias/debug-release-20261110/
