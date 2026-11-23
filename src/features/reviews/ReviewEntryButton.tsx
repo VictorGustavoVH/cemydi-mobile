@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { useSafeNavigation } from '@/hooks/useSafeNavigation';
 import StarPlus from 'lucide-react-native/icons/star-plus';
 import { AppButton } from '@/components/ui/AppButton';
 import { useAuth } from '@/providers/auth-provider';
@@ -17,7 +17,7 @@ export function ReviewEntryButton({
   compact = false,
   accessibilityLabel,
 }: ReviewEntryButtonProps) {
-  const router = useRouter();
+  const router = useSafeNavigation();
   const auth = useAuth();
   if (!isReviewProductId(productId)) return null;
   return (

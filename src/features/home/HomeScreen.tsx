@@ -1,8 +1,9 @@
+import { useSafeNavigation } from '@/hooks/useSafeNavigation';
 import { FrequentlyAskedQuestions } from '@/components/support/FrequentlyAskedQuestions';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { FlatList, Keyboard, Text, View } from 'react-native';
 import Animated, { cubicBezier, useReducedMotion } from 'react-native-reanimated';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { AppButton } from '@/components/ui/AppButton';
 import { AppRefreshControl } from '@/components/ui/AppRefreshControl';
@@ -27,7 +28,6 @@ import {
 import { useHome } from './hooks/useHome';
 import { homeCategoryClassifications } from './home-category-filters';
 import { useAccountAccess } from '@/hooks/useAccountAccess';
-import { useRouteCallback } from '@/hooks/useRouteCallback';
 import { getFriendlyErrorMessage } from '@/services/http/api-error';
 import { useToastScroll } from '@/hooks/useToast';
 import { useProductOffers } from '@/hooks/useProductOffers';
@@ -47,7 +47,7 @@ const sectionReveal = {
 const categoryReveal = { ...sectionReveal, animationDelay: 40 };
 const filtersReveal = { ...sectionReveal, animationDelay: 80 };
 export function HomeScreen() {
-  const router = useRouter();
+  const router = useSafeNavigation();
   const { requestAccess } = useAccountAccess();
   const onToastScroll = useToastScroll();
   const scrollRef = useRef<FlatList<HomeProduct>>(null);
@@ -83,6 +83,7 @@ export function HomeScreen() {
     () =>
       Promise.allSettled([
         queryClient.invalidateQueries({ queryKey: ['home', 'products'] }),
+        queryClient.invalidateQueries({ queryKey: ['products'] }),
         queryClient.invalidateQueries({ queryKey: ['promotions', 'active'] }),
         queryClient.invalidateQueries({ queryKey: ['reviews', 'product'] }),
       ]),
@@ -96,7 +97,7 @@ export function HomeScreen() {
     previousColumns.current = columns;
   }, [columns]);
 
-  const openProduct = useRouteCallback(
+  const openProduct = useCallback(
     (productId: string, productMode: CatalogMode | undefined) => {
       prefetchProductDetail(queryClient, productId);
       router.push({
@@ -104,23 +105,20 @@ export function HomeScreen() {
         params: { id: productId, mode: productMode },
       });
     },
-    (id, mode) => `/producto/${id}?mode=${mode ?? ''}`,
+    [queryClient, router],
   );
 
-  const exploreSearch = useRouteCallback(
+  const exploreSearch = useCallback(
     (term: string) => {
       Keyboard.dismiss();
       router.navigate({ pathname: '/catalogo', params: { search: term, t: String(Date.now()) } });
     },
-    (term) => `/catalogo?search=${term}`,
+    [router],
   );
   const explore = useCallback(() => exploreSearch(search.trim()), [exploreSearch, search]);
-  const showProfile = useRouteCallback(
-    () => {
-      if (requestAccess('/perfil')) router.navigate('/perfil');
-    },
-    () => '/perfil',
-  );
+  const showProfile = useCallback(() => {
+    if (requestAccess('/perfil')) router.navigate('/perfil');
+  }, [requestAccess, router]);
   // Acciones pedidas por la barra global (Inicio/Explorar) via params.
   const params = useLocalSearchParams<{ action?: 'top' | 'explore'; t?: string }>();
   const lastActionRef = useRef<string | null>(null);

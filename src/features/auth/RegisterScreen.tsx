@@ -1,6 +1,6 @@
+import { useSafeNavigation } from '@/hooks/useSafeNavigation';
 import { useEffect } from 'react';
 import { Text, View } from 'react-native';
-import { useRouter } from 'expo-router';
 import { Controller, useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import Mail from 'lucide-react-native/icons/mail';
@@ -28,7 +28,7 @@ import {
 } from './schemas/auth-schemas';
 
 export function RegisterScreen() {
-  const router = useRouter();
+  const router = useSafeNavigation();
   const toast = useToast();
   const { service, setChallenge, registrationDraft, setRegistrationDraft } = useAuth();
   const { execute, pending } = useAuthAction();

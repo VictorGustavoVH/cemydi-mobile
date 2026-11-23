@@ -17,6 +17,28 @@ en lugar de asumir que el usuario ya completó la introducción. En una instalac
 existente sin marca se mostrará una vez tras actualizar. Enlaces directos a otras
 rutas conservan su destino; la comprobación solo se hace al entrar a `/`.
 
+La comprobación se repite cuando `/` recupera el foco, aunque el navegador
+conserve esa ruta montada. Se ignoran lecturas que terminen después de perder el
+foco. La marca permanece independiente de login/logout; borrar los datos o
+desinstalar puede eliminarla y volver a habilitar la introducción.
+
+## Recarga manual de información pública
+
+Inicio y Catálogo invalidan las consultas públicas de productos, detalles,
+recomendaciones, promociones y reseñas, junto con los productos de Inicio.
+Las consultas montadas vuelven a consultar; las inactivas quedan obsoletas para
+recargarse cuando vuelvan a usarse. El detalle conectado incorpora el mismo
+`AppRefreshControl` en su scroll principal y en los estados iniciales/error.
+`usePullToRefresh` mantiene el indicador durante la recarga y evita gestos
+duplicados. La pérdida de conexión deshabilita la recarga; el gesto no genera
+datos nuevos cuando la API no es accesible ni modifica la información editorial
+local. Las listas conservan filtros/página y el detalle conserva su estado local.
+
+Pruebas automatizadas comprueban que el gesto reemplaza los datos visibles del
+producto y vuelve a consultar ofertas, reseñas y recomendaciones. La interacción
+física con SwipeRefreshLayout y la persistencia después de reiniciar/actualizar
+requieren validación en la build instalada; Jest no sustituye esa comprobación.
+
 ## Navegación
 
 `src/app/(tabs)` aloja Inicio, Catálogo, Carrito y Perfil. Las URLs públicas

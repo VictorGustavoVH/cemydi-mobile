@@ -1,6 +1,7 @@
+import { useSafeNavigation } from '@/hooks/useSafeNavigation';
 import { useState } from 'react';
 import { Text, View } from 'react-native';
-import { useNavigation, useRouter } from 'expo-router';
+import { useNavigation } from 'expo-router';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import Mail from 'lucide-react-native/icons/mail';
@@ -21,7 +22,7 @@ import { LoadingState } from '@/components/ui/LoadingState';
 import { emailSchema, loginSchema, type LoginValues } from './schemas/auth-schemas';
 
 export function LoginScreen() {
-  const router = useRouter();
+  const router = useSafeNavigation();
   const navigation = useNavigation();
   const { service, rememberedEmail, setRememberedEmail, status, retrySession, setChallenge } =
     useAuth();
